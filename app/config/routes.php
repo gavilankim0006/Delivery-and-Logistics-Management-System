@@ -28,3 +28,8 @@ $router->get('/admin/logs', 'Admin::logs');
 
 // Dispatch board routes
 $router->get('/dispatch', 'Dispatch::index');
+
+// Route Calculation & Places API
+$router->post('/api/route/calculate', 'Route_api::calculate');
+$router->get('/api/places/autocomplete', 'Route_api::autocomplete');
+

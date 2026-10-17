@@ -19,7 +19,7 @@ $autoload['libraries'] = array('database');
 |  Auto-load Helper Files
 | -------------------------------------------------------------------
 */
-$autoload['helpers'] = array('url', 'auth');
+$autoload['helpers'] = array('url', 'auth', 'fee');
 
 /*
 | -------------------------------------------------------------------
