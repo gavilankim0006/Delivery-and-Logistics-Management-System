@@ -1,0 +1,241 @@
+/* ==========================================================================
+   Delivery & Logistics Management System - Design System
+   Color Palette: Deep Blue (#1F4FD8), Accent Amber (#F5A623), Clean Neutrals
+   ========================================================================== */
+
+:root {
+    --primary-blue: #1F4FD8;
+    --primary-blue-hover: #163cb5;
+    --primary-blue-light: #e8effe;
+    --accent-amber: #F5A623;
+    --accent-amber-hover: #d98d12;
+    --accent-amber-light: #fef6e9;
+
+    --success-green: #10B981;
+    --danger-red: #EF4444;
+    --indigo-assigned: #6366F1;
+    --purple-picked: #8B5CF6;
+
+    --bg-body: #F8FAFC;
+    --bg-card: #FFFFFF;
+    --text-main: #0F172A;
+    --text-muted: #64748B;
+    --border-color: #E2E8F0;
+
+    --radius-card: 8px;
+    --space-unit: 16px;
+    --font-stack: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+    font-family: var(--font-stack);
+    background-color: var(--bg-body);
+    color: var(--text-main);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Navbar */
+.navbar-brand-custom {
+    font-weight: 700;
+    color: var(--primary-blue) !important;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.25rem;
+}
+
+.navbar-custom {
+    background-color: #FFFFFF;
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.nav-link.active {
+    color: var(--primary-blue) !important;
+    font-weight: 600;
+}
+
+/* Cards */
+.card {
+    border-radius: var(--radius-card);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.04);
+}
+
+.card-header {
+    background-color: #FFFFFF;
+    border-bottom: 1px solid var(--border-color);
+    padding: var(--space-unit);
+    font-weight: 600;
+}
+
+.card-body {
+    padding: var(--space-unit);
+}
+
+/* Status Badges */
+.badge-status {
+    padding: 6px 12px;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.badge-draft { background-color: #64748B; color: #FFFFFF; }
+.badge-pending_payment { background-color: var(--accent-amber); color: #FFFFFF; }
+.badge-paid { background-color: var(--primary-blue); color: #FFFFFF; }
+.badge-booking { background-color: #0284C7; color: #FFFFFF; }
+.badge-rider_assigned { background-color: var(--indigo-assigned); color: #FFFFFF; }
+.badge-picked_up { background-color: var(--purple-picked); color: #FFFFFF; }
+.badge-delivered { background-color: var(--success-green); color: #FFFFFF; }
+.badge-cancelled { background-color: #334155; color: #FFFFFF; }
+.badge-failed { background-color: var(--danger-red); color: #FFFFFF; }
+
+/* Buttons */
+.btn-primary {
+    background-color: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: #FFFFFF;
+    font-weight: 500;
+    border-radius: var(--radius-card);
+}
+
+.btn-primary:hover, .btn-primary:focus {
+    background-color: var(--primary-blue-hover);
+    border-color: var(--primary-blue-hover);
+}
+
+.btn-accent {
+    background-color: var(--accent-amber);
+    border-color: var(--accent-amber);
+    color: #FFFFFF;
+    font-weight: 500;
+    border-radius: var(--radius-card);
+}
+
+.btn-accent:hover {
+    background-color: var(--accent-amber-hover);
+    border-color: var(--accent-amber-hover);
+    color: #FFFFFF;
+}
+
+/* Form inputs */
+.form-label {
+    font-weight: 500;
+    font-size: 0.875rem;
+    color: var(--text-main);
+    margin-bottom: 6px;
+}
+
+.form-control, .form-select {
+    border-radius: var(--radius-card);
+    border: 1px solid var(--border-color);
+    padding: 10px 14px;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(31, 79, 216, 0.15);
+}
+
+/* Responsive tables */
+@media (max-width: 576px) {
+    .table-responsive-stack thead {
+        display: none;
+    }
+    .table-responsive-stack tr {
+        display: block;
+        margin-bottom: 1rem;
+        background: #FFFFFF;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-card);
+        padding: 0.75rem;
+    }
+    .table-responsive-stack td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border: none;
+        padding: 0.35rem 0;
+        font-size: 0.875rem;
+    }
+    .table-responsive-stack td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: var(--text-muted);
+        margin-right: 1rem;
+    }
+}
+
+/* Timeline component */
+.timeline {
+    display: flex;
+    justify-content: space-between;
+    position: relative;
+    margin: 20px 0;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    top: 15px;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background-color: var(--border-color);
+    z-index: 1;
+}
+
+.timeline-step {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    background: transparent;
+    flex: 1;
+}
+
+.timeline-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: #FFFFFF;
+    border: 3px solid var(--border-color);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: bold;
+    color: var(--text-muted);
+}
+
+.timeline-step.completed .timeline-icon {
+    background-color: var(--success-green);
+    border-color: var(--success-green);
+    color: #FFFFFF;
+}
+
+.timeline-step.active .timeline-icon {
+    background-color: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: #FFFFFF;
+}
+
+.timeline-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.timeline-step.active .timeline-label,
+.timeline-step.completed .timeline-label {
+    color: var(--text-main);
+    font-weight: 600;
+}

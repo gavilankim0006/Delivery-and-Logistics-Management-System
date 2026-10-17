@@ -46,3 +46,7 @@ This document records architectural, technical, and operational decisions made f
 ## D-008: Non-blocking Notification Dispatch
 - **Decision:** Failure in `SemaphoreService` or `FcmService` throws no uncaught exceptions and does not roll back database transactions. Errors are logged into `notifications` and `api_logs`.
 - **Rationale:** Network blips with telecom aggregators or push services must never disrupt critical order and payment processing.
+
+## D-009: Session-based RBAC, Throttling & Subdirectory URL Normalization
+- **Decision:** Session authentication uses `password_hash`/`password_verify` and `session_regenerate_id(true)` upon login. Route protection is enforced by deny-by-default `require_role($roles)` which serves a dedicated HTTP 403 response for unauthorized roles. Login throttling enforces a maximum of 5 failed attempts per 5 minutes per IP/email via persistent runtime file tracking. LavaLust kernel routing was normalized to correctly handle XAMPP subdirectory rewrite structures (`/SIAproject/public` vs `/SIAproject`).
+- **Rationale:** Prevents cookie-clearing bypass of login rate-limiting, enforces strict role separation across UI and backend endpoints, and ensures consistent routing across local XAMPP and production server environments.
