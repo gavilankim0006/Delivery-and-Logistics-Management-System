@@ -1,0 +1,88 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam actorStyle awesome
+
+actor "Customer" as customer
+actor "Dispatcher" as dispatcher
+actor "Admin" as admin
+actor "Lalamove (System)" as lalamove <<external>>
+actor "PayMongo (System)" as paymongo <<external>>
+
+rectangle "Delivery & Logistics Management System" {
+  package "Identity & Account" {
+    usecase "Register Account" as UC_Register
+    usecase "Log In / Session" as UC_Login
+    usecase "Manage Profile & FCM Token" as UC_Profile
+  }
+
+  package "Customer Order Operations" {
+    usecase "Create Order (Pick Addresses & See Route/Fee)" as UC_CreateOrder
+    usecase "Pay Online (PayMongo Checkout)" as UC_PayOrder
+    usecase "Track Order Live Timeline" as UC_TrackOrder
+    usecase "View Order History & Details" as UC_History
+    usecase "Cancel Order (Pre-pickup)" as UC_CancelOrder
+    usecase "Receive SMS & Push Alerts" as UC_ReceiveNotif
+  }
+
+  package "Dispatch Operations" {
+    usecase "View Live Dispatch Board" as UC_DispatchBoard
+    usecase "Filter Orders (Status, Date, Customer)" as UC_FilterOrders
+    usecase "Rebook Failed Booking" as UC_Rebook
+    usecase "Cancel Delivery Order" as UC_StaffCancel
+    usecase "View Rider Details & Tracking Link" as UC_ViewRider
+    usecase "Receive Urgent Dispatch Alerts" as UC_DispatchAlerts
+  }
+
+  package "Administration & Management" {
+    usecase "Manage Users & Roles" as UC_ManageUsers
+    usecase "Manage Riders & Vehicles" as UC_ManageRiders
+    usecase "Configure Fee Rates & Settings" as UC_Settings
+    usecase "View Analytics Dashboard" as UC_AdminDashboard
+    usecase "Generate Reports (CSV/PDF)" as UC_Reports
+    usecase "Inspect API Audit Logs" as UC_ApiLogs
+  }
+
+  package "External Integration Webhooks" {
+    usecase "Process Payment Webhook" as UC_PaymongoWebhook
+    usecase "Process Driver & Status Webhook" as UC_LalamoveWebhook
+  }
+}
+
+' Customer relations
+customer --> UC_Register
+customer --> UC_Login
+customer --> UC_Profile
+customer --> UC_CreateOrder
+customer --> UC_PayOrder
+customer --> UC_TrackOrder
+customer --> UC_History
+customer --> UC_CancelOrder
+customer --> UC_ReceiveNotif
+
+' Dispatcher relations
+dispatcher --> UC_Login
+dispatcher --> UC_DispatchBoard
+dispatcher --> UC_FilterOrders
+dispatcher --> UC_Rebook
+dispatcher --> UC_StaffCancel
+dispatcher --> UC_ViewRider
+dispatcher --> UC_DispatchAlerts
+
+' Admin relations (Inherits and extends Dispatcher)
+admin --|> dispatcher
+admin --> UC_ManageUsers
+admin --> UC_ManageRiders
+admin --> UC_Settings
+admin --> UC_AdminDashboard
+admin --> UC_Reports
+admin --> UC_ApiLogs
+
+' External Webhook relations
+paymongo --> UC_PaymongoWebhook
+lalamove --> UC_LalamoveWebhook
+
+UC_PaymongoWebhook ..> UC_PayOrder : <<updates>>
+UC_LalamoveWebhook ..> UC_TrackOrder : <<updates>>
+@enduml

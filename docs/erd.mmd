@@ -1,0 +1,170 @@
+erDiagram
+    roles ||--o{ users : "has"
+    users ||--o| customers : "belongs to"
+    users ||--o| riders : "optional account"
+    users ||--o{ notifications : "receives"
+    customers ||--o{ addresses : "saves"
+    customers ||--o{ orders : "places"
+    riders ||--o{ orders : "assigned to"
+    addresses ||--o{ orders : "as pickup_address"
+    addresses ||--o{ orders : "as dropoff_address"
+    orders ||--o{ parcels : "contains"
+    orders ||--o{ payments : "billed by"
+    orders ||--o{ deliveries : "tracked in"
+    orders ||--o{ notifications : "alerts for"
+
+    roles {
+        int id PK
+        string name UK
+        string description
+        datetime created_at
+    }
+
+    users {
+        bigint id PK
+        int role_id FK
+        string name
+        string email UK
+        string phone
+        string password
+        text fcm_token
+        enum status
+        datetime created_at
+        datetime updated_at
+    }
+
+    customers {
+        bigint id PK
+        bigint user_id FK,UK
+        string company_name
+        string default_contact_phone
+        datetime created_at
+        datetime updated_at
+    }
+
+    riders {
+        bigint id PK
+        bigint user_id FK
+        string name
+        string phone
+        string vehicle_type
+        string plate_number
+        enum status
+        datetime created_at
+        datetime updated_at
+    }
+
+    addresses {
+        bigint id PK
+        bigint customer_id FK
+        string label
+        text address_line
+        decimal latitude
+        decimal longitude
+        string contact_name
+        string contact_phone
+        text notes
+        datetime created_at
+    }
+
+    orders {
+        bigint id PK
+        string order_no UK
+        bigint customer_id FK
+        bigint rider_id FK
+        bigint pickup_address_id FK
+        bigint dropoff_address_id FK
+        enum status "draft, pending_payment, paid, booking, rider_assigned, picked_up, delivered, cancelled, failed"
+        decimal distance_km
+        int estimated_duration_min
+        decimal delivery_fee
+        string lalamove_quotation_id
+        string lalamove_order_id
+        text share_link
+        text cancel_reason
+        datetime created_at
+        datetime updated_at
+    }
+
+    parcels {
+        bigint id PK
+        bigint order_id FK
+        string description
+        decimal weight_kg
+        enum size "S, M, L"
+        boolean is_fragile
+        datetime created_at
+    }
+
+    payments {
+        bigint id PK
+        bigint order_id FK
+        string paymongo_session_id
+        string paymongo_payment_id
+        decimal amount
+        decimal fee
+        string payment_method
+        enum status "pending, paid, failed, refunded, cancelled"
+        datetime paid_at
+        datetime created_at
+        datetime updated_at
+    }
+
+    deliveries {
+        bigint id PK
+        bigint order_id FK
+        string from_status
+        string to_status
+        text notes
+        string actor_type
+        bigint actor_id
+        datetime created_at
+    }
+
+    notifications {
+        bigint id PK
+        bigint user_id FK
+        bigint order_id FK
+        enum channel "sms, push"
+        string recipient
+        text message
+        enum status "pending, sent, failed"
+        text provider_response
+        datetime sent_at
+        datetime created_at
+    }
+
+    api_logs {
+        bigint id PK
+        string service
+        string method
+        string endpoint
+        text request_headers
+        longtext request_body
+        int response_status
+        text response_headers
+        longtext response_body
+        int execution_time_ms
+        text error_message
+        tinyint attempt
+        datetime created_at
+    }
+
+    webhook_events {
+        bigint id PK
+        string provider
+        string event_id
+        string event_type
+        longtext payload
+        enum status "received, processed, ignored, failed"
+        datetime processed_at
+        datetime created_at
+    }
+
+    settings {
+        int id PK
+        string setting_key UK
+        text setting_value
+        string description
+        datetime updated_at
+    }
