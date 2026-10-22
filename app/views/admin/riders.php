@@ -3,167 +3,179 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 $this->call->view('templates/header', ['page_title' => $page_title ?? 'Rider Fleet Management']);
 ?>
 
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container page-shell py-4">
+    <header class="page-header mb-4">
         <div>
-            <h1 class="h3 fw-bold mb-1">Rider Fleet Management</h1>
-            <p class="text-muted small mb-0">Couriers and vehicles representing Lalamove drivers & in-house fleet</p>
+            <h1 class="page-title">Rider fleet</h1>
+            <p class="page-description">Manage courier contacts, vehicle details, and availability.</p>
         </div>
-        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createRiderModal">
-            <i class="bi bi-plus-circle me-1"></i> Add Rider
-        </button>
-    </div>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createRiderModal">Add rider</button>
+    </header>
 
-    <!-- Filter Bar -->
-    <div class="card mb-4 shadow-sm border-0">
-        <div class="card-body py-3">
-            <form action="<?= base_url('admin/riders') ?>" method="GET" class="d-flex gap-2 align-items-center">
-                <span class="text-muted small fw-semibold">Status:</span>
-                <select name="status" class="form-select form-select-sm" style="max-width: 200px;" onchange="this.form.submit()">
-                    <option value="">All Statuses</option>
+    <section class="surface surface-section mb-4" aria-label="Filter riders">
+        <form action="<?= base_url('admin/riders') ?>" method="GET" class="row g-3 align-items-end">
+            <div class="col-12 col-md-5">
+                <label for="rider-status" class="form-label">Rider status</label>
+                <select id="rider-status" name="status" class="form-select">
+                    <option value="">All statuses</option>
                     <option value="available" <?= ($status_filter === 'available') ? 'selected' : '' ?>>Available</option>
-                    <option value="busy" <?= ($status_filter === 'busy') ? 'selected' : '' ?>>Busy (On Delivery)</option>
+                    <option value="busy" <?= ($status_filter === 'busy') ? 'selected' : '' ?>>Busy (on delivery)</option>
                     <option value="offline" <?= ($status_filter === 'offline') ? 'selected' : '' ?>>Offline</option>
                 </select>
+            </div>
+            <div class="col-12 col-md-7 d-flex flex-wrap align-items-center gap-2">
+                <button type="submit" class="btn btn-secondary">Apply filter</button>
                 <?php if ($status_filter !== null): ?>
-                    <a href="<?= base_url('admin/riders') ?>" class="btn btn-outline-secondary btn-sm">Clear Filter</a>
+                    <a href="<?= base_url('admin/riders') ?>" class="btn btn-secondary">Clear</a>
                 <?php endif; ?>
-                <span class="text-muted small ms-auto">Total: <?= count($riders) ?> Riders</span>
-            </form>
-        </div>
-    </div>
+                <span class="small text-muted ms-md-auto"><?= number_format(count($riders)) ?> riders in this list</span>
+            </div>
+        </form>
+    </section>
 
-    <!-- Riders Table -->
-    <div class="card shadow-sm border-0">
+    <section class="surface" aria-label="Rider list">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem;">
-                <thead class="table-light">
+            <table class="table table-clean table-responsive-stack align-middle mb-0">
+                <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Rider Name</th>
-                        <th>Contact Phone</th>
-                        <th>Vehicle Type</th>
-                        <th>Plate Number</th>
-                        <th>Status</th>
-                        <th class="text-end">Actions</th>
+                        <th scope="col">ID</th>
+                        <th scope="col">Rider</th>
+                        <th scope="col">Phone</th>
+                        <th scope="col">Vehicle</th>
+                        <th scope="col">Plate number</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($riders)): ?>
-                        <tr><td colspan="7" class="text-center py-4 text-muted">No riders found.</td></tr>
+                        <tr><td colspan="7" class="text-center py-4 text-muted">No riders match this filter.</td></tr>
                     <?php else: ?>
                         <?php foreach ($riders as $r): ?>
                             <tr>
-                                <td class="text-muted">#<?= $r['id'] ?></td>
-                                <td class="fw-semibold"><?= e($r['name']) ?></td>
-                                <td><?= e($r['phone']) ?></td>
-                                <td>
-                                    <i class="bi bi-bicycle me-1 text-primary"></i> <?= e($r['vehicle_type']) ?>
-                                </td>
-                                <td><span class="badge bg-light text-dark border font-monospace"><?= e($r['plate_number']) ?></span></td>
-                                <td>
+                                <td data-label="ID" class="text-muted">#<?= (int)$r['id'] ?></td>
+                                <td data-label="Rider" class="fw-medium"><?= e($r['name']) ?></td>
+                                <td data-label="Phone"><?= e($r['phone']) ?></td>
+                                <td data-label="Vehicle"><i class="bi bi-bicycle me-1" aria-hidden="true"></i><?= e($r['vehicle_type']) ?></td>
+                                <td data-label="Plate number"><span class="font-monospace"><?= e($r['plate_number']) ?></span></td>
+                                <td data-label="Status">
                                     <?php if ($r['status'] === 'available'): ?>
-                                        <span class="badge bg-success">Available</span>
+                                        <span class="availability-chip availability-chip--available">Available</span>
                                     <?php elseif ($r['status'] === 'busy'): ?>
-                                        <span class="badge bg-warning text-dark">Busy</span>
+                                        <span class="availability-chip availability-chip--busy">Busy</span>
                                     <?php else: ?>
-                                        <span class="badge bg-secondary">Offline</span>
+                                        <span class="availability-chip availability-chip--offline">Offline</span>
                                     <?php endif; ?>
                                 </td>
-                                <td class="text-end">
-                                    <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size: 0.75rem;"
-                                            data-bs-toggle="modal" data-bs-target="#editRiderModal<?= $r['id'] ?>">
-                                        Edit
-                                    </button>
-                                    <form action="<?= base_url('admin/delete_rider/' . $r['id']) ?>" method="POST" class="d-inline" onsubmit="return confirm('Delete rider <?= e($r['name']) ?>?');">
-                                        <?= csrf_field() ?>
-                                        <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2" style="font-size: 0.75rem;">Delete</button>
-                                    </form>
+                                <td data-label="Actions" class="text-end">
+                                    <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#editRiderModal<?= (int)$r['id'] ?>">Edit</button>
+                                    <button type="button" class="btn btn-link text-danger" data-bs-toggle="modal" data-bs-target="#deleteRiderModal<?= (int)$r['id'] ?>">Delete</button>
                                 </td>
                             </tr>
-
-                            <!-- Edit Modal for this Rider -->
-                            <div class="modal fade" id="editRiderModal<?= $r['id'] ?>" tabindex="-1" aria-hidden="true">
-                                <div class="modal-dialog">
-                                    <div class="modal-content">
-                                        <form action="<?= base_url('admin/update_rider/' . $r['id']) ?>" method="POST">
-                                            <?= csrf_field() ?>
-                                            <div class="modal-header">
-                                                <h5 class="modal-title fw-bold">Edit Rider #<?= $r['id'] ?></h5>
-                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                            </div>
-                                            <div class="modal-body text-start">
-                                                <div class="mb-3">
-                                                    <label class="form-label">Full Name</label>
-                                                    <input type="text" name="name" class="form-control" value="<?= e($r['name']) ?>" required>
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label class="form-label">Phone</label>
-                                                    <input type="text" name="phone" class="form-control" value="<?= e($r['phone']) ?>" required>
-                                                </div>
-                                                <div class="row">
-                                                    <div class="col-md-6 mb-3">
-                                                        <label class="form-label">Vehicle Type</label>
-                                                        <select name="vehicle_type" class="form-select">
-                                                            <option value="Motorcycle" <?= $r['vehicle_type'] === 'Motorcycle' ? 'selected' : '' ?>>Motorcycle</option>
-                                                            <option value="Sedan" <?= $r['vehicle_type'] === 'Sedan' ? 'selected' : '' ?>>Sedan</option>
-                                                            <option value="MPV" <?= $r['vehicle_type'] === 'MPV' ? 'selected' : '' ?>>MPV</option>
-                                                            <option value="Van" <?= $r['vehicle_type'] === 'Van' ? 'selected' : '' ?>>Van</option>
-                                                        </select>
-                                                    </div>
-                                                    <div class="col-md-6 mb-3">
-                                                        <label class="form-label">Plate Number</label>
-                                                        <input type="text" name="plate_number" class="form-control" value="<?= e($r['plate_number']) ?>" required>
-                                                    </div>
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label class="form-label">Status</label>
-                                                    <select name="status" class="form-select">
-                                                        <option value="available" <?= $r['status'] === 'available' ? 'selected' : '' ?>>Available</option>
-                                                        <option value="busy" <?= $r['status'] === 'busy' ? 'selected' : '' ?>>Busy</option>
-                                                        <option value="offline" <?= $r['status'] === 'offline' ? 'selected' : '' ?>>Offline</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div class="modal-footer">
-                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                <button type="submit" class="btn btn-primary">Save Changes</button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </tbody>
             </table>
         </div>
-    </div>
+    </section>
 </div>
 
-<!-- Add Rider Modal -->
+<?php foreach ($riders as $r): ?>
+    <div class="modal fade" id="editRiderModal<?= (int)$r['id'] ?>" tabindex="-1" aria-labelledby="editRiderModalLabel<?= (int)$r['id'] ?>" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form action="<?= base_url('admin/update_rider/' . $r['id']) ?>" method="POST">
+                    <?= csrf_field() ?>
+                    <div class="modal-header">
+                        <h2 class="modal-title h5" id="editRiderModalLabel<?= (int)$r['id'] ?>">Edit rider #<?= (int)$r['id'] ?></h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="rider-name-<?= (int)$r['id'] ?>" class="form-label">Full name</label>
+                            <input id="rider-name-<?= (int)$r['id'] ?>" type="text" name="name" class="form-control" value="<?= e($r['name']) ?>" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="rider-phone-<?= (int)$r['id'] ?>" class="form-label">Phone</label>
+                            <input id="rider-phone-<?= (int)$r['id'] ?>" type="tel" name="phone" class="form-control" value="<?= e($r['phone']) ?>" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="rider-vehicle-<?= (int)$r['id'] ?>" class="form-label">Vehicle type</label>
+                                <select id="rider-vehicle-<?= (int)$r['id'] ?>" name="vehicle_type" class="form-select">
+                                    <option value="Motorcycle" <?= $r['vehicle_type'] === 'Motorcycle' ? 'selected' : '' ?>>Motorcycle</option>
+                                    <option value="Sedan" <?= $r['vehicle_type'] === 'Sedan' ? 'selected' : '' ?>>Sedan</option>
+                                    <option value="MPV" <?= $r['vehicle_type'] === 'MPV' ? 'selected' : '' ?>>MPV</option>
+                                    <option value="Van" <?= $r['vehicle_type'] === 'Van' ? 'selected' : '' ?>>Van</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="rider-plate-<?= (int)$r['id'] ?>" class="form-label">Plate number</label>
+                                <input id="rider-plate-<?= (int)$r['id'] ?>" type="text" name="plate_number" class="form-control" value="<?= e($r['plate_number']) ?>" required>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="rider-status-<?= (int)$r['id'] ?>" class="form-label">Status</label>
+                            <select id="rider-status-<?= (int)$r['id'] ?>" name="status" class="form-select">
+                                <option value="available" <?= $r['status'] === 'available' ? 'selected' : '' ?>>Available</option>
+                                <option value="busy" <?= $r['status'] === 'busy' ? 'selected' : '' ?>>Busy</option>
+                                <option value="offline" <?= $r['status'] === 'offline' ? 'selected' : '' ?>>Offline</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="deleteRiderModal<?= (int)$r['id'] ?>" tabindex="-1" aria-labelledby="deleteRiderModalLabel<?= (int)$r['id'] ?>" aria-describedby="deleteRiderModalDescription<?= (int)$r['id'] ?>" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form action="<?= base_url('admin/delete_rider/' . $r['id']) ?>" method="POST">
+                    <?= csrf_field() ?>
+                    <div class="modal-header">
+                        <h2 class="modal-title h5" id="deleteRiderModalLabel<?= (int)$r['id'] ?>">Delete this rider?</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-0" id="deleteRiderModalDescription<?= (int)$r['id'] ?>">This will remove the rider record for <strong><?= e($r['name']) ?></strong> (<?= e($r['plate_number']) ?>). This action cannot be undone.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-danger">Delete rider</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+<?php endforeach; ?>
+
 <div class="modal fade" id="createRiderModal" tabindex="-1" aria-labelledby="createRiderModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <form action="<?= base_url('admin/create_rider') ?>" method="POST">
                 <?= csrf_field() ?>
                 <div class="modal-header">
-                    <h5 class="modal-title fw-bold" id="createRiderModalLabel">Register New Rider</h5>
+                    <h2 class="modal-title h5" id="createRiderModalLabel">Register new rider</h2>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Full Name <span class="text-danger">*</span></label>
-                        <input type="text" name="name" class="form-control" required placeholder="e.g. Mario Batungbacal">
+                        <label for="new-rider-name" class="form-label">Full name <span class="text-danger">(required)</span></label>
+                        <input id="new-rider-name" type="text" name="name" class="form-control" required autocomplete="name" placeholder="e.g. Mario Batungbacal">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Phone Number <span class="text-danger">*</span></label>
-                        <input type="text" name="phone" class="form-control" required placeholder="+639181112233">
+                        <label for="new-rider-phone" class="form-label">Phone number <span class="text-danger">(required)</span></label>
+                        <input id="new-rider-phone" type="tel" name="phone" class="form-control" required autocomplete="tel" placeholder="+639181112233">
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Vehicle Type</label>
-                            <select name="vehicle_type" class="form-select">
+                            <label for="new-rider-vehicle" class="form-label">Vehicle type</label>
+                            <select id="new-rider-vehicle" name="vehicle_type" class="form-select">
                                 <option value="Motorcycle" selected>Motorcycle</option>
                                 <option value="Sedan">Sedan</option>
                                 <option value="MPV">MPV</option>
@@ -171,13 +183,13 @@ $this->call->view('templates/header', ['page_title' => $page_title ?? 'Rider Fle
                             </select>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Plate Number <span class="text-danger">*</span></label>
-                            <input type="text" name="plate_number" class="form-control" required placeholder="ABC-1234">
+                            <label for="new-rider-plate" class="form-label">Plate number <span class="text-danger">(required)</span></label>
+                            <input id="new-rider-plate" type="text" name="plate_number" class="form-control" required placeholder="ABC-1234">
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Initial Status</label>
-                        <select name="status" class="form-select">
+                    <div>
+                        <label for="new-rider-status" class="form-label">Initial status</label>
+                        <select id="new-rider-status" name="status" class="form-select">
                             <option value="available" selected>Available</option>
                             <option value="busy">Busy</option>
                             <option value="offline">Offline</option>
@@ -186,7 +198,7 @@ $this->call->view('templates/header', ['page_title' => $page_title ?? 'Rider Fle
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Rider</button>
+                    <button type="submit" class="btn btn-primary">Save rider</button>
                 </div>
             </form>
         </div>

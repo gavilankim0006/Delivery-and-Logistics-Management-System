@@ -1,0 +1,181 @@
+<title>Delivery Acceptance Status</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Observed verification results, database gates, policy decisions, and remaining delivery-system acceptance work as of 22 October 2026.">
+<style>
+  /* Layout: a field-operations status sheet, with verified evidence first and gated work kept visibly separate. */
+  /* Single light palette by design: the status record should read like a legible operations sheet in any host theme. */
+  :root {
+    --ground: #f2f5f4;
+    --surface: #ffffff;
+    --ink: #172a30;
+    --quiet: #3f565d;
+    --rule: #cbd7d8;
+    --accent: #006b64;
+    --signal: #704000;
+    --display: "IBM Plex Serif", Georgia, serif;
+    --body: "IBM Plex Sans", "Segoe UI", sans-serif;
+    --utility: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  body {
+    margin: 0;
+    padding-block: 2rem 4rem;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    background: var(--ground);
+    color: var(--ink);
+    font: 1rem/1.6 var(--body);
+  }
+  * { box-sizing: border-box; }
+  a { color: var(--accent); text-underline-offset: .18em; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .page { width: min(100%, 1120px); margin-inline: auto; display: grid; gap: 1.25rem; }
+  .masthead { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--rule); }
+  .eyebrow, .micro, .section-index, .mono { font-family: var(--utility); font-variant-numeric: tabular-nums; }
+  .eyebrow { color: var(--accent); font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; }
+  h1, h2, h3, p { margin: 0; }
+  h1 { margin-top: .35rem; font: 600 clamp(2rem, 4.5vw, 3.4rem)/1.08 var(--display); letter-spacing: -.045em; text-wrap: balance; }
+  h2 { font: 600 1.35rem/1.2 var(--display); letter-spacing: -.02em; text-wrap: balance; }
+  h3 { font: 600 1rem/1.35 var(--display); }
+  .dek { max-width: 66ch; color: var(--quiet); margin-top: .75rem; }
+  .date-stamp { flex: 0 0 auto; padding-top: .2rem; color: var(--quiet); font: .75rem/1.5 var(--utility); text-align: right; }
+  .stateband { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 1.25rem; padding: 1.2rem 1.35rem; border: 1px solid var(--signal); background: color-mix(in srgb, var(--signal) 9%, var(--surface)); }
+  .stateband strong { display: block; font: 600 1.2rem/1.3 var(--display); }
+  .stateband p { max-width: 72ch; color: var(--quiet); margin-top: .3rem; }
+  .state-tag { border: 1px solid var(--signal); color: var(--signal); padding: .35rem .6rem; font: .72rem/1.2 var(--utility); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+  .section { display: grid; gap: .85rem; }
+  .section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem 1rem; }
+  .section-index { color: var(--quiet); font-size: .72rem; letter-spacing: .09em; text-transform: uppercase; }
+  .section-note { color: var(--quiet); font-size: .88rem; }
+  .summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .8rem; }
+  .summary { min-width: 0; padding: .95rem 1rem; border-top: 2px solid var(--rule); background: var(--surface); }
+  .summary.pass { border-color: var(--accent); }
+  .summary.wait { border-color: var(--signal); }
+  .summary .value { font: 600 1.1rem/1.3 var(--display); }
+  .summary .label { display: block; color: var(--quiet); margin-top: .35rem; font-size: .86rem; }
+  .panel { min-width: 0; padding: 1rem 1.1rem; background: var(--surface); border: 1px solid var(--rule); }
+  .panel p + p { margin-top: .6rem; }
+  .table-wrap { max-width: 100%; overflow-x: auto; padding: .2rem; border: 1px solid var(--rule); background: var(--surface); }
+  table { width: 100%; min-width: 700px; border-collapse: collapse; font-size: .9rem; }
+  th, td { padding: .75rem .85rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--rule); }
+  th { color: var(--quiet); font: .7rem/1.4 var(--utility); letter-spacing: .07em; text-transform: uppercase; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td:first-child { font-weight: 600; }
+  .status { display: inline-flex; align-items: center; gap: .42rem; font: .72rem/1.3 var(--utility); white-space: nowrap; }
+  .status::before { content: ""; width: .55rem; height: .55rem; border: 1px solid currentColor; border-radius: 50%; background: currentColor; }
+  .status.pass { color: var(--accent); }
+  .status.blocked { color: var(--signal); }
+  .status.open { color: var(--quiet); }
+  .evidence-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
+  .evidence { min-width: 0; padding: .9rem 1rem; border: 1px solid var(--rule); background: var(--surface); }
+  .evidence h3 { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .35rem .7rem; }
+  .evidence p { color: var(--quiet); margin-top: .45rem; font-size: .88rem; }
+  code { overflow-wrap: anywhere; font: .86em var(--utility); color: var(--ink); }
+  .policy-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; }
+  .policy { min-width: 0; padding: .8rem .9rem; border-left: 2px solid var(--accent); background: var(--surface); }
+  .policy p { margin-top: .3rem; color: var(--quiet); font-size: .88rem; }
+  .policy .follow { color: var(--signal); }
+  .roadmap { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
+  .roadmap article { min-width: 0; padding: .95rem 1rem; background: var(--surface); border: 1px solid var(--rule); }
+  .roadmap h3 { margin-bottom: .45rem; }
+  .roadmap ul { margin: 0; padding-left: 1.1rem; color: var(--quiet); font-size: .88rem; }
+  .roadmap li + li { margin-top: .3rem; }
+  .gate { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: .75rem; border: 1px solid var(--signal); padding: .95rem 1rem; }
+  .gate-mark { color: var(--signal); font: 700 1.2rem/1 var(--utility); }
+  .gate p { color: var(--quiet); }
+  .gate strong { color: var(--ink); }
+  footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .6rem 1rem; padding-top: .9rem; border-top: 1px solid var(--rule); color: var(--quiet); font-size: .8rem; }
+  @media (max-width: 700px) {
+    .masthead { display: grid; }
+    .date-stamp { text-align: left; }
+    .stateband { grid-template-columns: 1fr; }
+    .state-tag { justify-self: start; }
+    .summary-grid { grid-template-columns: 1fr; }
+    .evidence-list, .policy-grid, .roadmap { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; } }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;500;600;700&display=swap">
+<main class="page">
+  <header class="masthead">
+    <div>
+      <div class="eyebrow">Delivery logistics · acceptance record</div>
+      <h1>What is verified,<br>what is still gated.</h1>
+      <p class="dek">A status handoff for the current Checking 2, Checking 3, Phase D, and operational-readiness work. Results below distinguish observed database-free passes from acceptance that has not been run.</p>
+    </div>
+    <div class="date-stamp">REVIEW CUT<br>22 OCT 2026</div>
+  </header>
+
+  <section class="stateband" aria-label="Overall completion status">
+    <div>
+      <strong>Checking 2 and Checking 3 are not complete.</strong>
+      <p>No approved disposable MySQL target is recorded. Database-backed acceptance, dispatch HTTP recheck, and both live demos remain pending. No database writes or migrations were performed in this follow-up.</p>
+    </div>
+    <div class="state-tag">Database gate active</div>
+  </section>
+
+  <section class="summary-grid" aria-label="Status summary">
+    <div class="summary pass"><span class="value">7 checks passed</span><span class="label">Database-free or test-double regression suite rerun on 22 Oct.</span></div>
+    <div class="summary wait"><span class="value">0 database writes</span><span class="label">No migration, bootstrap import, or DB-mutating acceptance request was run.</span></div>
+    <div class="summary wait"><span class="value">2 demos pending</span><span class="label">Checking 2 and Checking 3 rehearsal remains gated on disposable MySQL approval.</span></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head"><h2>Observed verification</h2><span class="section-index">RUN · 22 OCT 2026</span></div>
+    <div class="evidence-list">
+      <article class="evidence"><h3>Customer / Delivery models <span class="status pass">PASS</span></h3><p><code>test_t2_health_models_unit.php</code> passed with database doubles. Health failure responses and model API contracts were exercised; SQL was not run against MySQL.</p></article>
+      <article class="evidence"><h3>Rider update contract <span class="status pass">PASS</span></h3><p><code>test_t3_rider_model_unit.php</code> passed unchanged-value, missing-record, invalid-input, and simulated-write-failure checks using a double.</p></article>
+      <article class="evidence"><h3>Courier provider / webhooks <span class="status pass">PASS</span></h3><p><code>test_t6_courier_contract.php</code> and <code>test_t7_courier_webhooks.php</code> passed. T7 covers event lifecycle, duplicate idempotency, rollback, malformed input, and the default-disabled inbound gate.</p></article>
+      <article class="evidence"><h3>Recovery and signature features <span class="status pass">PASS</span></h3><p><code>test_t8_courier_recovery.php</code> and <code>test_t9_signature_features.php</code> passed with test doubles for cancellation ordering, booking recovery, zones, reservations, and control-pass limits.</p></article>
+      <article class="evidence"><h3>Reports contract <span class="status pass">PASS</span></h3><p><code>test_t8_report_contract.php</code> passed database-free filter/query-shape and CSV-safety checks. Report totals, MySQL behavior, browser rendering, and file download remain unverified.</p></article>
+      <article class="evidence"><h3>Lint and diff hygiene <span class="status pass">PASS</span></h3><p>PHP lint passed for the webhook controller and updated T7 test. <code>git diff --check</code> reported no whitespace errors; Git noted line-ending conversion warnings in the existing worktree.</p></article>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head"><h2>Acceptance still blocked or open</h2><span class="section-index">NOT RUN ≠ PASS</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Area</th><th>Observed status</th><th>Next evidence needed</th></tr></thead>
+        <tbody>
+          <tr><td>Checking 2 MySQL models + foreign key</td><td><span class="status blocked">BLOCKED</span><br>No approved disposable target identified.</td><td>Approve an isolated DB by exact name; run MySQL-backed Customer/Delivery tests and the guarded FK rejection test.</td></tr>
+          <tr><td>Dispatch HTTP and counters</td><td><span class="status open">UNVERIFIED</span><br>Earlier HTTP 500 diagnosis is historical.</td><td>Re-run dispatch HTTP and compare visible counters with independent SQL counts on the approved target. Current configured schema was previously found missing <code>deleted_at</code>.</td></tr>
+          <tr><td>Checking 2 demo</td><td><span class="status blocked">NOT REHEARSED</span></td><td>Use the gated runbook in <strong>docs/DEMO_CHECKING_2.md</strong> only after target approval; compare address and order rows to rendered pages.</td></tr>
+          <tr><td>Checking 3 CRUD + order safety</td><td><span class="status blocked">NOT RUN</span></td><td>Cover draft soft deletion, user/rider CRUD, CSRF, validation, duplicates, permissions, no-mutation failures, and deleted-row visibility over HTTP and SQL.</td></tr>
+          <tr><td>Order allocation and transaction safety</td><td><span class="status open">NOT RUN</span></td><td>Test concurrent order numbers, lock timeout/release, injected rollback, state/history atomicity, ownership and deleted-order visibility.</td></tr>
+          <tr><td>Admin reports</td><td><span class="status open">CONTRACT ONLY</span></td><td>Verify aggregate totals independently on MySQL; check HTTP filters, rendering, authorization, and CSV response.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head"><h2>Policy register</h2><span class="section-index">DECISIONS · D-013—D-016</span></div>
+    <div class="policy-grid">
+      <article class="policy"><h3>Draft editing</h3><p>Owner, admin, or dispatcher may edit only a draft; staff changes must preserve owner, order number, state, and history.</p><p class="follow">Follow-up: implementation and T4 tests currently deny staff edits; reconcile before acceptance.</p></article>
+      <article class="policy"><h3>Customer account deletion</h3><p>Soft-delete and deactivate the user account. Keep customer profile, addresses, orders, payments, deliveries, and audit references.</p></article>
+      <article class="policy"><h3>Role changes</h3><p>Allow staff changes between admin and dispatcher. Do not convert to/from customer through generic editing; customer conversion needs a dedicated workflow.</p><p class="follow">Follow-up: current model accepts all three roles; align validation and tests.</p></article>
+      <article class="policy"><h3>Email after deletion</h3><p>Keep the email reserved after soft deletion. This matches the global unique index and model-level email check.</p></article>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head"><h2>Phase D and handoff</h2><span class="section-index">IMPLEMENTATION OPEN</span></div>
+    <div class="roadmap">
+      <article><h3>Maps, routes, and pricing</h3><ul><li>Replace legacy Google path with Leaflet/OSM, Nominatim, and ORS or OSRM.</li><li>Use validated coordinates, server-calculated route distance, and service-zone pricing in create/edit flows.</li><li>Current order flow accepts manual distance and stores null coordinates.</li></ul></article>
+      <article><h3>Payments and notifications</h3><ul><li>Add provider interfaces and test-mode payment checkout with verified, idempotent webhook handling.</li><li>Add SMS/push provider interfaces with non-blocking delivery and failure handling.</li><li>Current payment and SMS/push delivery integrations are not implemented.</li></ul></article>
+      <article><h3>Security and reliability</h3><ul><li>Complete security and responsive acceptance; document scheduled retry/recovery.</li><li>Prepare backup/restore and deployment procedures.</li><li>Review remaining session, logout, CSP, HTTPS, and production configuration concerns.</li></ul></article>
+      <article><h3>Documentation and reports</h3><ul><li>Verify report totals, filters, rendering, and CSV download against MySQL and HTTP.</li><li>Reconcile README/architecture, role guides, and historical test notes.</li><li>PDF export remains deferred.</li></ul></article>
+    </div>
+  </section>
+
+  <aside class="gate">
+    <div class="gate-mark" aria-hidden="true">!</div>
+    <p><strong>Real Lalamove inbound webhooks remain disabled by default.</strong> Runtime enablement now requires the Lalamove driver, production mode, a secret, and an explicit partner-auth confirmation flag. Leave that flag unset or <code>0</code> until the partner verifies the authentication and payload contract. The test proves the local configuration gate only, not partner compatibility.</p>
+  </aside>
+
+  <footer>
+    <span>Source of record: docs/TEST_RESULTS.md · docs/PROGRESS.md · docs/DECISIONS.md</span>
+    <span class="micro">No MySQL acceptance or demos were performed in this follow-up.</span>
+  </footer>
+</main>

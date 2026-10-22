@@ -1,6 +1,11 @@
 <?php
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
+require_once APP_DIR . 'libraries/CourierProviderFactory.php';
+require_once APP_DIR . 'libraries/MockCourierDriver.php';
+require_once APP_DIR . 'libraries/DeliveryCommandSimulator.php';
+require_once APP_DIR . 'helpers/fee_helper.php';
+
 class Admin extends Controller
 {
     public function __construct()
@@ -12,6 +17,9 @@ class Admin extends Controller
 
         $this->call->model('User_model');
         $this->call->model('Rider_model');
+        $this->call->model('Order_model');
+        $this->call->model('Service_area_model');
+        $this->call->model('Report_model');
     }
 
     /**
@@ -21,15 +29,29 @@ class Admin extends Controller
     {
         $db = $this->db;
 
-        // Fetch basic counts
-        $totalOrders = (int)$db->table('orders')->select_count('*', 'c')->get()['c'];
-        $totalUsers = (int)$db->table('users')->select_count('*', 'c')->get()['c'];
-        $totalRiders = (int)$db->table('riders')->select_count('*', 'c')->get()['c'];
+        $ordersToday = (int)$db->raw("
+            SELECT COUNT(*) AS c
+            FROM orders
+            WHERE created_at >= CURRENT_DATE()
+              AND created_at < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)
+        ")->fetch(PDO::FETCH_ASSOC)['c'];
 
-        $todayRevenue = $db->raw("
-            SELECT SUM(amount) AS rev FROM payments WHERE status = 'paid' AND DATE(created_at) = CURRENT_DATE()
+        $monthRevenue = $db->raw("
+            SELECT COALESCE(SUM(amount), 0) AS revenue
+            FROM payments
+            WHERE status = 'paid'
+              AND paid_at >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')
+              AND paid_at < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)
         ")->fetch(PDO::FETCH_ASSOC);
-        $revenueVal = (float)($todayRevenue['rev'] ?? 0);
+        $monthRevenueValue = (float)($monthRevenue['revenue'] ?? 0);
+
+        $failedPayments = (int)$db->raw("
+            SELECT COUNT(*) AS c
+            FROM payments
+            WHERE status = 'failed'
+              AND created_at >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')
+              AND created_at < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)
+        ")->fetch(PDO::FETCH_ASSOC)['c'];
 
         // Recent orders
         $recentOrders = $db->raw("
@@ -50,10 +72,9 @@ class Admin extends Controller
 
         $this->call->view('admin/dashboard', [
             'page_title' => 'Admin Dashboard',
-            'total_orders' => $totalOrders,
-            'total_users' => $totalUsers,
-            'total_riders' => $totalRiders,
-            'today_revenue' => $revenueVal,
+            'orders_today' => $ordersToday,
+            'month_revenue' => $monthRevenueValue,
+            'failed_payments' => $failedPayments,
             'recent_orders' => $recentOrders,
             'recent_logs' => $recentLogs
         ]);
@@ -102,7 +123,7 @@ class Admin extends Controller
             $name = trim($_POST['name'] ?? '');
             $email = trim($_POST['email'] ?? '');
             $phone = trim($_POST['phone'] ?? '');
-            $roleId = (int)($_POST['role_id'] ?? 3);
+            $roleId = (int)($_POST['role_id'] ?? 0);
             $password = $_POST['password'] ?? '';
 
             if (empty($name) || empty($email) || empty($password)) {
@@ -113,6 +134,17 @@ class Admin extends Controller
 
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 flash('error', 'Invalid email address format.');
+                header('Location: ' . base_url('admin/users'));
+                exit;
+            }
+            if (mb_strlen($name) < 2 || mb_strlen($name) > 100 || strlen($password) < 8 || !in_array($roleId, [1, 2], true)) {
+                flash('error', 'Check the name, role, and password requirements.');
+                header('Location: ' . base_url('admin/users'));
+                exit;
+            }
+
+            if ($this->User_model->email_in_use($email)) {
+                flash('error', 'Email address is already in use.');
                 header('Location: ' . base_url('admin/users'));
                 exit;
             }
@@ -133,6 +165,110 @@ class Admin extends Controller
             }
         }
 
+        header('Location: ' . base_url('admin/users'));
+        exit;
+    }
+
+    /**
+     * Show one active user account.
+     */
+    public function show_user(int $id): void
+    {
+        $user = $this->User_model->find_by_id($id);
+        if (!$user) {
+            http_response_code(404);
+            $this->call->view('errors/error_404');
+            return;
+        }
+        $this->call->view('admin/user_show', ['page_title' => 'User details', 'user' => $user]);
+    }
+
+    /**
+     * Update user account details.
+     */
+    public function update_user(int $id): void
+    {
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            http_response_code(405);
+            return;
+        }
+        if (!verify_csrf()) {
+            flash('error', 'Invalid CSRF token.');
+            header('Location: ' . base_url('admin/users'));
+            exit;
+        }
+
+        $user = $this->User_model->find_by_id($id);
+        if (!$user) {
+            flash('error', 'User not found.');
+            header('Location: ' . base_url('admin/users'));
+            exit;
+        }
+
+        $name = trim($_POST['name'] ?? '');
+        $email = strtolower(trim($_POST['email'] ?? ''));
+        $phone = trim($_POST['phone'] ?? '');
+        $roleId = (int)($_POST['role_id'] ?? 0);
+        $status = $_POST['status'] ?? '';
+        $password = $_POST['password'] ?? '';
+
+        if (mb_strlen($name) < 2 || mb_strlen($name) > 100 || !filter_var($email, FILTER_VALIDATE_EMAIL)
+            || strlen($phone) > 30 || !in_array($roleId, [1, 2, 3], true)
+            || !in_array($status, ['active', 'inactive'], true)
+            || ($password !== '' && strlen($password) < 8)) {
+            flash('error', 'Please correct the user details and try again.');
+            header('Location: ' . base_url('admin/users/' . $id));
+            exit;
+        }
+        if ($this->User_model->email_in_use($email, $id)) {
+            flash('error', 'That email address is already in use.');
+            header('Location: ' . base_url('admin/users/' . $id));
+            exit;
+        }
+        if ($id === auth_id() && ($status !== 'active' || $roleId !== 1)) {
+            flash('error', 'You cannot deactivate or remove administrator access from your own account.');
+            header('Location: ' . base_url('admin/users/' . $id));
+            exit;
+        }
+
+        $changes = ['name' => $name, 'email' => $email, 'phone' => $phone, 'role_id' => $roleId, 'status' => $status];
+        if ($password !== '') {
+            $changes['password'] = $password;
+        }
+        if ($this->User_model->update_user($id, $changes)) {
+            flash('success', 'User details updated.');
+        } else {
+            flash('error', 'No account details changed.');
+        }
+        header('Location: ' . base_url('admin/users/' . $id));
+        exit;
+    }
+
+    /**
+     * Soft-delete a user account without removing its historical references.
+     */
+    public function delete_user(int $id): void
+    {
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            http_response_code(405);
+            return;
+        }
+        if (!verify_csrf()) {
+            flash('error', 'Invalid CSRF token.');
+            header('Location: ' . base_url('admin/users'));
+            exit;
+        }
+        if ($id === auth_id()) {
+            flash('error', 'You cannot delete your own administrative account.');
+            header('Location: ' . base_url('admin/users'));
+            exit;
+        }
+
+        if ($this->User_model->soft_delete_user($id)) {
+            flash('success', 'User account removed.');
+        } else {
+            flash('error', 'User not found or already removed.');
+        }
         header('Location: ' . base_url('admin/users'));
         exit;
     }
@@ -240,15 +376,17 @@ class Admin extends Controller
             $plateNumber = strtoupper(trim($_POST['plate_number'] ?? ''));
             $status = $_POST['status'] ?? 'available';
 
-            $this->Rider_model->update_rider((int)$id, [
+            if ($this->Rider_model->update_rider((int)$id, [
                 'name' => $name,
                 'phone' => $phone,
                 'vehicle_type' => $vehicleType,
                 'plate_number' => $plateNumber,
                 'status' => $status
-            ]);
-
-            flash('success', "Rider details updated.");
+            ])) {
+                flash('success', 'Rider details updated.');
+            } else {
+                flash('error', 'Rider details were invalid or the rider was not found.');
+            }
         }
         header('Location: ' . base_url('admin/riders'));
         exit;
@@ -266,8 +404,11 @@ class Admin extends Controller
                 exit;
             }
 
-            $this->Rider_model->delete_rider((int)$id);
-            flash('success', 'Rider record removed.');
+            if ($this->Rider_model->delete_rider((int)$id)) {
+                flash('success', 'Rider record removed.');
+            } else {
+                flash('error', 'Rider not found or already removed.');
+            }
         }
         header('Location: ' . base_url('admin/riders'));
         exit;
@@ -313,13 +454,295 @@ class Admin extends Controller
     }
 
     /**
-     * Reports Screen placeholder (T8)
+     * Development-only courier simulation console.
+     */
+    public function courier_simulator()
+    {
+        try {
+            if (config_item('environment') !== 'development' || CourierProviderFactory::driverName() !== 'mock') {
+                http_response_code(404);
+                return;
+            }
+        } catch (Throwable $e) {
+            http_response_code(404);
+            return;
+        }
+
+        $orders = $this->db->raw("SELECT o.id, o.order_no, o.status, o.lalamove_order_id, o.courier_driver_name, u.name AS customer_name
+            FROM orders o INNER JOIN customers c ON c.id = o.customer_id INNER JOIN users u ON u.id = c.user_id
+            WHERE o.status IN ('paid', 'booking', 'rider_assigned', 'picked_up', 'failed') ORDER BY o.id DESC LIMIT 50")
+            ->fetchAll(PDO::FETCH_ASSOC);
+        $this->call->view('admin/courier_simulator', [
+            'page_title' => 'Courier Simulator',
+            'orders' => $orders,
+            'driver_name' => CourierProviderFactory::driverName()
+        ]);
+    }
+
+    public function book_courier_order(int $id)
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf()) {
+            flash('error', 'Invalid request or security token.');
+            header('Location: ' . base_url('admin/courier-simulator'));
+            exit;
+        }
+        try {
+            if (config_item('environment') !== 'development' || CourierProviderFactory::driverName() !== 'mock') {
+                http_response_code(404);
+                return;
+            }
+            require_once APP_DIR . 'libraries/CourierBookingService.php';
+            (new CourierBookingService($this->db, $this->Order_model, new MockCourierDriver()))->book($id, 'admin', auth_id());
+            flash('success', 'Mock courier booking completed and rider assignment was processed through the webhook handler.');
+        } catch (Throwable $e) {
+            flash('error', 'Courier booking failed: ' . $e->getMessage());
+        }
+        header('Location: ' . base_url('admin/courier-simulator'));
+        exit;
+    }
+
+    public function simulate_courier_event(int $id)
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf()) {
+            flash('error', 'Invalid request or security token.');
+            header('Location: ' . base_url('admin/courier-simulator'));
+            exit;
+        }
+        try {
+            if (config_item('environment') !== 'development' || CourierProviderFactory::driverName() !== 'mock') {
+                http_response_code(404);
+                return;
+            }
+        } catch (Throwable $e) {
+            http_response_code(404);
+            return;
+        }
+
+        $eventType = (string)($_POST['event_type'] ?? '');
+        $allowed = ['rider_assigned', 'picked_up', 'delivered', 'failed', 'cancelled'];
+        $order = $this->db->raw('SELECT * FROM orders WHERE id = ? LIMIT 1', [$id])->fetch(PDO::FETCH_ASSOC);
+        $transitions = [
+            'booking' => ['rider_assigned', 'failed', 'cancelled'],
+            'rider_assigned' => ['picked_up', 'failed', 'cancelled'],
+            'picked_up' => ['delivered', 'failed'],
+            'paid' => ['failed', 'cancelled']
+        ];
+        if (!$order || !in_array($eventType, $allowed, true) || !in_array($eventType, $transitions[$order['status']] ?? [], true)) {
+            flash('error', 'Choose an existing order and a courier event allowed from its current status.');
+            header('Location: ' . base_url('admin/courier-simulator'));
+            exit;
+        }
+
+        try {
+            $driver = new MockCourierDriver();
+            $payload = $driver->webhookEvent($eventType, $order, ['reason' => trim((string)($_POST['reason'] ?? ''))]);
+            require_once APP_DIR . 'controllers/Webhooks.php';
+            $result = Webhooks::processPayload($this->db, $this->Order_model, $payload, 'admin', auth_id(), true);
+            flash(!empty($result['ignored']) ? 'warning' : 'success', !empty($result['ignored']) ? 'The event was ignored.' : 'Courier event processed: ' . $eventType . '.');
+        } catch (Throwable $e) {
+            flash('error', 'Courier event could not be processed: ' . $e->getMessage());
+        }
+        header('Location: ' . base_url('admin/courier-simulator'));
+        exit;
+    }
+
+    public function service_areas()
+    {
+        $this->call->view('admin/service_areas', [
+            'page_title' => 'Delivery service areas',
+            'areas' => $this->Service_area_model->get_all(),
+            'maps_js_key' => getenv('GOOGLE_MAPS_MAPS_JS_API_KEY') ?: '',
+            'service_area_csp_nonce' => defined('CSP_NONCE') ? CSP_NONCE : ''
+        ]);
+    }
+
+    public function save_service_area()
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf()) {
+            http_response_code(400);
+            flash('error', 'Invalid request or security token.');
+            redirect('admin/service-areas');
+            return;
+        }
+        try {
+            $name = trim((string)($_POST['name'] ?? ''));
+            if ($name === '' || mb_strlen($name) > 100) {
+                throw new InvalidArgumentException('Area name is required and must be 100 characters or fewer.');
+            }
+            $polygon = DeliveryCommandSimulator::normalizePolygon($_POST['polygon'] ?? '');
+            $id = !empty($_POST['id']) ? (int)$_POST['id'] : null;
+            if ($id && !$this->Service_area_model->find($id)) {
+                throw new InvalidArgumentException('Service area was not found.');
+            }
+            $rates = [];
+            foreach (['base_delivery_fee', 'free_distance_km', 'per_km_rate', 'free_weight_kg', 'per_kg_rate'] as $key) {
+                $raw = $_POST[$key] ?? '';
+                if (!is_numeric($raw) || (float)$raw < 0 || (float)$raw > 100000) {
+                    throw new InvalidArgumentException('Enter valid non-negative fee values.');
+                }
+                $rates[$key] = (float)$raw;
+            }
+            $this->Service_area_model->save($id, $name, $polygon, $rates, !empty($_POST['is_active']));
+            flash('success', 'Service area saved.');
+        } catch (Throwable $e) {
+            flash('error', $e->getMessage());
+        }
+        redirect('admin/service-areas');
+    }
+
+    public function delete_service_area(int $id)
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf()) {
+            http_response_code(400);
+            flash('error', 'Invalid request or security token.');
+        } elseif ($this->Service_area_model->delete($id)) {
+            flash('success', 'Service area deleted.');
+        } else {
+            flash('error', 'Service area was not found.');
+        }
+        redirect('admin/service-areas');
+    }
+
+    public function command_simulator()
+    {
+        $areas = $this->Service_area_model->get_all(true);
+        $selectedId = (int)($_GET['area_id'] ?? ($areas[0]['id'] ?? 0));
+        $zoneData = null;
+        if ($selectedId > 0) {
+            try {
+                $zoneData = $this->Service_area_model->get_orders_in_zone($selectedId);
+            } catch (Throwable $e) {
+                flash('error', 'Unable to read service area: ' . $e->getMessage());
+            }
+        }
+        $rates = get_delivery_rates();
+        $availableRiders = (int)$this->db->raw("SELECT COUNT(*) AS c FROM riders WHERE status = 'available'")->fetch(PDO::FETCH_ASSOC)['c'];
+        $areaRates = $zoneData ? array_intersect_key($zoneData['zone'], array_flip(['base_delivery_fee', 'free_distance_km', 'per_km_rate', 'free_weight_kg', 'per_kg_rate'])) : $rates;
+        $this->call->view('admin/command_simulator', [
+            'page_title' => 'Delivery command simulator', 'areas' => $areas, 'selected_area_id' => $selectedId,
+            'zone_data' => $zoneData, 'baseline_rates' => $rates, 'area_rates' => $areaRates, 'available_riders' => $availableRiders,
+            'result' => null, 'simulation_error' => null, 'form_data' => []
+        ]);
+    }
+
+    public function run_command_simulation()
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf()) {
+            http_response_code(400);
+            flash('error', 'Invalid request or security token.');
+            redirect('admin/command-simulator');
+            return;
+        }
+        $areas = $this->Service_area_model->get_all(true);
+        $selectedId = (int)($_POST['area_id'] ?? 0);
+        $zoneData = null;
+        $result = null;
+        $simulationError = null;
+        try {
+            if ($selectedId < 1 || !in_array($selectedId, array_map('intval', array_column($areas, 'id')), true)) {
+                throw new InvalidArgumentException('Choose an active service area.');
+            }
+            $zoneData = $this->Service_area_model->get_orders_in_zone($selectedId);
+            $simulationInput = array_merge($zoneData['zone'], $_POST);
+            $result = DeliveryCommandSimulator::simulate($simulationInput, get_delivery_rates(), (int)$this->db->raw("SELECT COUNT(*) AS c FROM riders WHERE status = 'available'")->fetch(PDO::FETCH_ASSOC)['c']);
+            $result['zone_orders'] = count($zoneData['orders']);
+            $result['missing_coordinates'] = $zoneData['missing_coordinates'];
+        } catch (Throwable $e) {
+            $simulationError = $e->getMessage();
+        }
+        $this->call->view('admin/command_simulator', [
+            'page_title' => 'Delivery command simulator', 'areas' => $areas, 'selected_area_id' => $selectedId,
+            'zone_data' => $zoneData, 'baseline_rates' => get_delivery_rates(), 'area_rates' => $zoneData ? array_intersect_key($zoneData['zone'], array_flip(['base_delivery_fee', 'free_distance_km', 'per_km_rate', 'free_weight_kg', 'per_kg_rate'])) : get_delivery_rates(),
+            'available_riders' => (int)$this->db->raw("SELECT COUNT(*) AS c FROM riders WHERE status = 'available'")->fetch(PDO::FETCH_ASSOC)['c'],
+            'result' => $result, 'simulation_error' => $simulationError, 'form_data' => $_POST
+        ]);
+    }
+
+    /**
+     * Read-only delivery and payment reports for administrators.
      */
     public function reports()
     {
+        $type = isset($_GET['type']) && is_string($_GET['type']) ? $_GET['type'] : 'deliveries';
+        $normalized = Report_model::normalize_filters($type, $_GET);
+        $filters = $normalized['filters'];
+        $report = ['summary' => [], 'rows' => []];
+        $riders = [];
+        $reportError = null;
+        if (!$normalized['errors']) {
+            try {
+                $report = $filters['type'] === 'payments'
+                    ? $this->Report_model->get_payment_report($filters)
+                    : $this->Report_model->get_delivery_report($filters);
+                if ($filters['type'] === 'deliveries') {
+                    $riders = $this->Rider_model->get_all();
+                }
+            } catch (Throwable $e) {
+                error_log('Admin report query failed: ' . $e->getMessage());
+                $reportError = 'Reports could not be loaded. Check that the database migrations are up to date, then try again.';
+            }
+        }
+
+        if (($_GET['export'] ?? '') === 'csv' && $reportError === null && !$normalized['errors']) {
+            $this->export_report_csv($filters, $report);
+            return;
+        }
+
         $this->call->view('admin/reports', [
-            'page_title' => 'Analytics & Reports'
+            'page_title' => 'Analytics & Reports',
+            'filters' => $filters,
+            'errors' => $normalized['errors'],
+            'report' => $report,
+            'report_error' => $reportError,
+            'riders' => $riders
         ]);
+    }
+
+    private function export_report_csv(array $filters, array $report): void
+    {
+        $filename = 'delivery-' . $filters['type'] . '-report-' . $filters['from'] . '-to-' . $filters['to'] . '.csv';
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        $output = fopen('php://output', 'wb');
+        if ($output === false) {
+            http_response_code(500);
+            return;
+        }
+        fwrite($output, "\xEF\xBB\xBF");
+        if ($filters['type'] === 'payments') {
+            fputcsv($output, ['Order number', 'Status', 'Amount', 'Fee', 'Method', 'Paid at', 'Created at']);
+            foreach ($report['rows'] as $row) {
+                fputcsv($output, [
+                    $this->csv_safe_cell($row['order_no'] ?? ''),
+                    $this->csv_safe_cell($row['status'] ?? ''),
+                    (string)($row['amount'] ?? '0.00'),
+                    (string)($row['fee'] ?? '0.00'),
+                    $this->csv_safe_cell($row['payment_method'] ?? ''),
+                    $this->csv_safe_cell($row['paid_at'] ?? ''),
+                    $this->csv_safe_cell($row['created_at'] ?? '')
+                ]);
+            }
+        } else {
+            fputcsv($output, ['Order number', 'Customer', 'Rider', 'Status', 'Distance (km)', 'Delivery fee', 'Paid amount', 'Created at']);
+            foreach ($report['rows'] as $row) {
+                fputcsv($output, [
+                    $this->csv_safe_cell($row['order_no'] ?? ''),
+                    $this->csv_safe_cell($row['customer_name'] ?? ''),
+                    $this->csv_safe_cell($row['rider_name'] ?? ''),
+                    $this->csv_safe_cell($row['status'] ?? ''),
+                    (string)($row['distance_km'] ?? '0.00'),
+                    (string)($row['delivery_fee'] ?? '0.00'),
+                    (string)($row['paid_amount'] ?? '0.00'),
+                    $this->csv_safe_cell($row['created_at'] ?? '')
+                ]);
+            }
+        }
+        fclose($output);
+    }
+
+    private function csv_safe_cell($value): string
+    {
+        return Report_model::safe_csv_cell($value);
     }
 
     /**

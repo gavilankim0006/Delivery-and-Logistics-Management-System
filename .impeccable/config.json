@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "public/css/app.css"
+        ],
+        "createdAt": "2026-10-18T09:14:47.310Z",
+        "reason": "Sanctioned alert treatment: docs/design-system.md specifies a 3px colored leading edge for notices; these selectors style .alert/.notice/.ds-notice, not cards."
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "docs/wireframes.html"
+        ],
+        "createdAt": "2026-10-19T13:33:19.218Z",
+        "reason": "Agent: route map is illustrative geometry; the map label is inset and no text is cramped against its boundary"
+      }
+    ]
+  }
+}

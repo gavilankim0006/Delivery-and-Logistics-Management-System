@@ -9,7 +9,8 @@ This document outlines the high-level architecture, module decomposition, and ex
 ```mermaid
 graph TD
     subgraph Client_Layer ["Client Layer (Browser)"]
-        UI["Web Browser: Bootstrap 5, Custom CSS, Vanilla JS"]
+        UI["Web Browser: PHP views, Bootstrap 5, custom CSS"]
+        VueDispatch["Vue 3 Dispatch Board (Vite build)"]
         GMapsJS["Google Maps JavaScript API (Route Preview, Autocomplete)"]
         FCMWeb["Firebase Cloud Messaging Web SDK (Push Service Worker)"]
     end
@@ -22,7 +23,7 @@ graph TD
             C_Auth["Auth.php (Login, Register, Session)"]
             C_Orders["Orders.php (Create, Pay, Track, Cancel)"]
             C_Dispatch["Dispatch.php (Live Dispatch Board)"]
-            C_Admin["Admin.php (Users, Riders, Rates, Reports, Logs)"]
+            C_Admin["Admin.php (Users, Riders, Rates, Reports, Logs, Courier Simulator)"]
             C_Webhooks["Webhooks.php (/webhooks/paymongo, /webhooks/lalamove)"]
         end
 
@@ -39,7 +40,7 @@ graph TD
         subgraph Services ["External API Services (app/libraries/)"]
             S_ApiClient["ApiClient.php (cURL, 10s Timeout, 2 Retries on 5xx/Timeout)"]
             S_GMaps["GoogleMapsService.php"]
-            S_Lalamove["LalamoveService.php"]
+            S_Courier["CourierProviderFactory.php + MockCourierDriver.php / LalamoveCourierDriver.php"]
             S_PayMongo["PayMongoService.php"]
             S_Semaphore["SemaphoreService.php"]
             S_FCM["FcmService.php"]
@@ -69,6 +70,8 @@ graph TD
 
     %% Client communication
     UI -->|HTTPS Requests| Router
+    VueDispatch -->|GET /dispatch/data (same-origin JSON)| C_Dispatch
+    VueDispatch -.->|Mounted in dispatch PHP view| UI
     GMapsJS -.->|Interactive Map & Route| UI
     FCMWeb -.->|Token Registration| UI
 
@@ -83,7 +86,7 @@ graph TD
 
     %% Service inheritance & Logging
     S_GMaps -->|Extends| S_ApiClient
-    S_Lalamove -->|Extends| S_ApiClient
+    S_Courier -->|Real driver uses| S_ApiClient
     S_PayMongo -->|Extends| S_ApiClient
     S_Semaphore -->|Extends| S_ApiClient
     S_FCM -->|Extends| S_ApiClient
@@ -94,16 +97,17 @@ graph TD
 
     %% External API calls
     S_GMaps -->|cURL REST| API_GMaps
-    S_Lalamove -->|cURL Signed HMAC| API_Lalamove
+    S_Courier -->|Optional signed sandbox API calls| API_Lalamove
     S_PayMongo -->|cURL Basic Auth| API_PayMongo
     S_Semaphore -->|cURL HTTPS| API_Semaphore
     S_FCM -->|cURL OAuth2/JWT| API_Firebase
 
     %% Webhook ingest
-    API_Lalamove -->|POST Webhook with Signature| C_Webhooks
+    API_Lalamove -->|POST Webhook (configured HMAC; verify partner spec)| C_Webhooks
     API_PayMongo -->|POST Webhook with Signature| C_Webhooks
     C_Webhooks -->|Check Idempotency| T_Webhooks
     C_Webhooks -->|Update Order Status| M_Order
+    S_Courier -->|Mock assignment uses shared processor| C_Webhooks
 
     %% Models to Database
     Models --> DB
@@ -124,7 +128,7 @@ graph TD
 3. **Resilience & Fault Tolerance:**
    - 10-second cURL timeouts with 2 automated retries on 5xx or network timeouts.
    - Comprehensive audit logging of all outbound and inbound HTTP interactions in `api_logs`.
-   - Webhook idempotency via `webhook_events` to guard against duplicate deliveries.
+   - Webhook idempotency via `webhook_events` to guard against duplicate deliveries; order and event mutations are transactionally guarded.
    - Non-blocking notification dispatch: failures in SMS or push notifications are logged and do not roll back transaction state.
 4. **Security Hardening:**
    - Deny-by-default role authorization.
@@ -132,3 +136,6 @@ graph TD
    - CSRF protection enabled on state-changing forms.
    - Session regeneration upon successful authentication.
    - Sensitive credential isolation in `.env`.
+
+5. **Courier provider selection:** `COURIER_DRIVER=mock` is the local default. Lalamove keys are optional; the simulator is admin-only, POST/CSRF protected, and available only in development. Mock events and inbound webhook requests share one payload processor. The HTTP acceptance suite covers shared processor state changes and idempotency; the current local database must receive migration 003 before courier persistence can run.
+6. **Integration caveat:** The public Lalamove guide does not document the inbound webhook signature convention implemented here. Confirm it against the partner webhook specification before enabling real inbound webhook processing.

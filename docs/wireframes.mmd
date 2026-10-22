@@ -1,0 +1,49 @@
+%% Screen structure and user navigation only; system-process.mmd documents backend and integration flows.
+flowchart TB
+
+    subgraph Public["PUBLIC / AUTHENTICATION"]
+        direction LR
+        Login["LOGIN<br/>Brand + route-line accent<br/>Email field<br/>Password field<br/>[ Sign in ]<br/>Create account link"]
+        Register["REGISTER<br/>Name · email · phone · password<br/>[ Create account ]<br/>Sign in link"]
+        Login <-->|"switch auth"| Register
+    end
+
+    subgraph Customer["CUSTOMER PORTAL"]
+        direction TB
+        NewOrder["NEW DELIVERY<br/>Header: brand · new order · my orders · account<br/>Main: pickup address + contact<br/>Drop-off address + contact<br/>Parcel description · weight · size<br/>Manual distance · server-computed fee<br/>[ Save draft ]<br/>Payment checkout is not implemented"]
+        OrderList["MY ORDERS<br/>Title + [ New order ]<br/>Filters: status · date · search<br/>Order rows: number/date · route · tracker · fee"]
+        OrderDetail["ORDER DETAIL<br/>Order number + status chip<br/>Five-stage delivery tracker + timestamps<br/>Route + parcel/payment status<br/>Rider details + delivery-control link, when available<br/>Draft-only edit · permitted cancellation"]
+        EditOrder["EDIT ORDER · DRAFT ONLY<br/>Pickup + drop-off details<br/>Parcel description · weight · size<br/>Inline validation<br/>[ Save changes ] · Cancel"]
+        DeliveryControl["DELIVERY CONTROL LINK<br/>Limited status + timeline<br/>Drop-off instructions · hold request<br/>Hold does not pause courier"]
+        NewOrder -->|"save draft"| OrderDetail
+        OrderDetail -->|"back to orders"| OrderList
+        OrderList -->|"open order"| OrderDetail
+        OrderDetail -->|"draft: edit"| EditOrder
+        EditOrder -->|"save / cancel"| OrderDetail
+        OrderDetail -->|"issue / open link"| DeliveryControl
+        DeliveryControl -->|"return to order"| OrderDetail
+    end
+
+    subgraph Operations["DISPATCH OPERATIONS"]
+        direction TB
+        DispatchBoard["DISPATCHER BOARD<br/>Search + status segments + date filter<br/>Orders: customer · route · status · rider<br/>Actions: view · recover/rebook when eligible · cancel<br/>Review customer hold requests"]
+        DispatchBoard --> OrderDetail
+    end
+
+    subgraph Administration["ADMINISTRATION"]
+        direction TB
+        AdminDashboard["ADMIN DASHBOARD<br/>Summary metrics · orders chart<br/>Latest API errors"]
+        RidersList["RIDERS<br/>Rider list · contact · vehicle · availability<br/>[ Add rider ]"]
+        RiderForm["RIDER FORM<br/>Name · phone · vehicle · plate · availability<br/>[ Save rider ] · Cancel"]
+        ServiceAreas["SERVICE AREAS<br/>Manage polygon + zone rates"]
+        Simulators["DEVELOPMENT SIMULATORS<br/>Courier simulator · command simulator"]
+        AdminDashboard -->|"navbar"| RidersList
+        RidersList -->|"Add rider"| RiderForm
+        RiderForm -->|"save / cancel"| RidersList
+        AdminDashboard -->|"navbar"| ServiceAreas
+        AdminDashboard -->|"development tools"| Simulators
+    end
+
+    Login -->|"customer sign-in"| NewOrder
+    Login -->|"dispatcher sign-in"| DispatchBoard
+    Login -->|"admin sign-in"| AdminDashboard

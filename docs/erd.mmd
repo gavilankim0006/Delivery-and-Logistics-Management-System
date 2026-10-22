@@ -1,33 +1,37 @@
 erDiagram
     roles ||--o{ users : "has"
-    users ||--o| customers : "belongs to"
-    users ||--o| riders : "optional account"
+    users ||--o| customers : "customer profile"
+    users o|--o{ riders : "optional account"
     users ||--o{ notifications : "receives"
-    customers ||--o{ addresses : "saves"
+    customers o|--o{ addresses : "saves or snapshots"
     customers ||--o{ orders : "places"
-    riders ||--o{ orders : "assigned to"
-    addresses ||--o{ orders : "as pickup_address"
-    addresses ||--o{ orders : "as dropoff_address"
+    riders o|--o{ orders : "internal rider assignment"
+    addresses ||--o{ orders : "pickup address"
+    addresses ||--o{ orders : "dropoff address"
     orders ||--o{ parcels : "contains"
-    orders ||--o{ payments : "billed by"
-    orders ||--o{ deliveries : "tracked in"
-    orders ||--o{ notifications : "alerts for"
+    orders ||--o{ payments : "payment records"
+    orders ||--o{ deliveries : "status history"
+    orders o|--o{ notifications : "optional order alert"
+    orders ||--o{ delivery_control_passes : "issues links"
+    orders ||--o{ delivery_change_requests : "receives requests"
+    users o|--o{ delivery_change_requests : "optional reviewer"
+    orders ||--o| dispatch_recovery_locks : "booking lock"
 
     roles {
         int id PK
-        string name UK
-        string description
+        varchar name UK
+        varchar description "nullable"
         datetime created_at
     }
 
     users {
         bigint id PK
         int role_id FK
-        string name
-        string email UK
-        string phone
-        string password
-        text fcm_token
+        varchar name
+        varchar email UK
+        varchar phone "nullable"
+        varchar password
+        text fcm_token "nullable"
         enum status
         datetime created_at
         datetime updated_at
@@ -36,19 +40,19 @@ erDiagram
     customers {
         bigint id PK
         bigint user_id FK,UK
-        string company_name
-        string default_contact_phone
+        varchar company_name "nullable"
+        varchar default_contact_phone "nullable"
         datetime created_at
         datetime updated_at
     }
 
     riders {
         bigint id PK
-        bigint user_id FK
-        string name
-        string phone
-        string vehicle_type
-        string plate_number
+        bigint user_id FK "nullable"
+        varchar name
+        varchar phone
+        varchar vehicle_type
+        varchar plate_number
         enum status
         datetime created_at
         datetime updated_at
@@ -56,32 +60,36 @@ erDiagram
 
     addresses {
         bigint id PK
-        bigint customer_id FK
-        string label
+        bigint customer_id FK "nullable"
+        varchar label "nullable"
         text address_line
-        decimal latitude
-        decimal longitude
-        string contact_name
-        string contact_phone
-        text notes
+        decimal latitude "nullable"
+        decimal longitude "nullable"
+        varchar contact_name
+        varchar contact_phone
+        text notes "nullable"
         datetime created_at
     }
 
     orders {
         bigint id PK
-        string order_no UK
+        varchar order_no UK
         bigint customer_id FK
-        bigint rider_id FK
+        bigint rider_id FK "nullable"
         bigint pickup_address_id FK
         bigint dropoff_address_id FK
         enum status "draft, pending_payment, paid, booking, rider_assigned, picked_up, delivered, cancelled, failed"
         decimal distance_km
         int estimated_duration_min
         decimal delivery_fee
-        string lalamove_quotation_id
-        string lalamove_order_id
-        text share_link
-        text cancel_reason
+        varchar lalamove_quotation_id "nullable"
+        varchar lalamove_order_id "nullable"
+        varchar courier_driver_id "nullable"
+        varchar courier_driver_name "nullable"
+        varchar courier_driver_phone "nullable"
+        varchar courier_driver_vehicle "nullable"
+        text share_link "nullable"
+        text cancel_reason "nullable"
         datetime created_at
         datetime updated_at
     }
@@ -89,9 +97,9 @@ erDiagram
     parcels {
         bigint id PK
         bigint order_id FK
-        string description
+        varchar description
         decimal weight_kg
-        enum size "S, M, L"
+        enum size
         boolean is_fragile
         datetime created_at
     }
@@ -99,13 +107,13 @@ erDiagram
     payments {
         bigint id PK
         bigint order_id FK
-        string paymongo_session_id
-        string paymongo_payment_id
+        varchar paymongo_session_id "nullable"
+        varchar paymongo_payment_id "nullable"
         decimal amount
         decimal fee
-        string payment_method
+        varchar payment_method "nullable"
         enum status "pending, paid, failed, refunded, cancelled"
-        datetime paid_at
+        datetime paid_at "nullable"
         datetime created_at
         datetime updated_at
     }
@@ -113,58 +121,99 @@ erDiagram
     deliveries {
         bigint id PK
         bigint order_id FK
-        string from_status
-        string to_status
-        text notes
-        string actor_type
-        bigint actor_id
+        varchar from_status "nullable"
+        varchar to_status
+        text notes "nullable"
+        varchar actor_type
+        bigint actor_id "nullable"
         datetime created_at
     }
 
     notifications {
         bigint id PK
         bigint user_id FK
-        bigint order_id FK
+        bigint order_id FK "nullable"
         enum channel "sms, push"
-        string recipient
+        varchar recipient
         text message
         enum status "pending, sent, failed"
-        text provider_response
-        datetime sent_at
+        text provider_response "nullable"
+        datetime sent_at "nullable"
         datetime created_at
+    }
+
+    service_areas {
+        bigint id PK
+        varchar name
+        longtext polygon_json
+        decimal base_delivery_fee
+        decimal free_distance_km
+        decimal per_km_rate
+        decimal free_weight_kg
+        decimal per_kg_rate
+        boolean is_active
+        datetime created_at
+        datetime updated_at
+    }
+
+    delivery_control_passes {
+        bigint id PK
+        bigint order_id FK
+        char token_hash UK
+        datetime expires_at
+        datetime revoked_at "nullable"
+        datetime created_at
+    }
+
+    delivery_change_requests {
+        bigint id PK
+        bigint order_id FK
+        enum request_type "instruction, hold"
+        text request_text "nullable"
+        enum status "pending, applied, accepted, rejected"
+        varchar source
+        bigint reviewed_by FK "nullable"
+        datetime reviewed_at "nullable"
+        datetime created_at
+    }
+
+    dispatch_recovery_locks {
+        bigint order_id PK,FK
+        datetime started_at
     }
 
     api_logs {
         bigint id PK
-        string service
-        string method
-        string endpoint
-        text request_headers
-        longtext request_body
-        int response_status
-        text response_headers
-        longtext response_body
-        int execution_time_ms
-        text error_message
+        varchar service
+        varchar method
+        varchar endpoint
+        text request_headers "nullable"
+        longtext request_body "nullable"
+        int response_status "nullable"
+        text response_headers "nullable"
+        longtext response_body "nullable"
+        int execution_time_ms "nullable"
+        text error_message "nullable"
         tinyint attempt
         datetime created_at
     }
 
+    %% Schema unique index: (provider, event_id) prevents duplicate webhook processing.
     webhook_events {
         bigint id PK
-        string provider
-        string event_id
-        string event_type
+        varchar provider
+        varchar event_id
+        varchar event_type "nullable"
         longtext payload
         enum status "received, processed, ignored, failed"
-        datetime processed_at
+        datetime processed_at "nullable"
         datetime created_at
     }
 
     settings {
         int id PK
-        string setting_key UK
+        varchar setting_key UK
         text setting_value
-        string description
+        varchar description "nullable"
         datetime updated_at
     }

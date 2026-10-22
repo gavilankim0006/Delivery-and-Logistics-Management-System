@@ -1,0 +1,178 @@
+%% End-to-end process as currently implemented in the application.
+%% Solid arrows are active paths; dashed arrows mark separate/unimplemented boundaries.
+flowchart TB
+
+    subgraph Access["Account access and role routing"]
+        direction TB
+        Visitor["Visitor"] --> AccessChoice{"Register or sign in?"}
+        AccessChoice -->|"Register"| Register["Validate details; create customer account"]
+        AccessChoice -->|"Sign in"| SignIn["Verify credentials; start session"]
+        Register --> SignIn
+        SignIn --> Role{"Authorized role"}
+        Role -->|"Customer"| Customer["Customer portal"]
+        Role -->|"Dispatcher / admin"| Staff["Dispatch board / admin tools"]
+    end
+
+    subgraph Customer_Intake["Customer order intake"]
+        direction TB
+        Customer --> Form["Enter pickup, drop-off, parcel details, and distance"]
+        Form --> ManualDistance["Current order form uses manually entered distance"]
+        ManualDistance --> Validate{"Server validation passes?"}
+        Validate -->|"No"| FormError["Show field errors; preserve form values"]
+        FormError --> Form
+        Validate -->|"Yes"| Fee["Compute fee server-side from global settings / defaults"]
+        Fee --> SaveTxn["Transaction: save address snapshots, order, parcel, and initial history"]
+        SaveTxn --> SaveOK{"Save succeeds?"}
+        SaveOK -->|"No"| SaveError["Rollback; show save error"]
+        SaveOK -->|"Yes"| Draft["Order created as draft"]
+        SaveError --> Form
+        Draft --> CustomerTracking["Customer can view order status and delivery-history timeline"]
+        Draft --> DraftActions{"Customer action"}
+        DraftActions -->|"Edit while draft"| Edit["Update draft order and parcel details"]
+        Edit --> Draft
+        DraftActions -->|"Cancel"| CancelRequest
+    end
+
+    subgraph Route_API["Separate route-calculation API (not wired into order creation)"]
+        direction TB
+        RouteRequest["Route API receives address text or coordinates"] --> RouteProvider{"Google route available?"}
+        RouteProvider -->|"Yes"| RouteFee["Return route, distance, duration, and calculated fee"]
+        RouteProvider -->|"Invalid / no route"| RouteError["Return validation or no-route error"]
+        RouteProvider -->|"Unavailable; fallback eligible"| Fallback["Use deterministic fallback route"]
+        Fallback --> FallbackOK{"Fallback route valid?"}
+        FallbackOK -->|"Yes"| RouteFee
+        FallbackOK -->|"No"| RouteError
+    end
+
+    subgraph Payment_Boundary["Payment boundary — not implemented end-to-end"]
+        direction TB
+        PaymentMissing["Payment checkout / PayMongo webhook path is absent; created drafts are not advanced by this application"]
+        AutoRetryMissing["No automatic retry scheduler; booking recovery is staff-initiated"]
+        PaymentMissing -.-> PaidPrerequisite["Courier booking service requires an order already in paid state"]
+        PaidPrerequisite -.->|"Only if paid status is set outside this flow"| Review
+    end
+
+    subgraph Dispatch_Booking["Staff courier booking and recovery"]
+        direction TB
+        Staff --> Review["Review status, provider IDs, delay, and recovery lock"]
+        Review --> Action{"Staff action / state safe?"}
+        Action -->|"Paid, no provider IDs or lock"| Claim
+        Action -->|"Failed, no provider IDs or lock"| Claim
+        Action -->|"Provider state uncertain, ID exists, or locked"| Escalate["Block automatic retry; staff checks provider state"]
+        Claim["Claim unique dispatch recovery lock"] --> Claimed{"Lock claimed?"}
+        Claimed -->|"No"| Escalate
+        Claimed -->|"Yes"| WasFailed{"Starting status was failed?"}
+        WasFailed -->|"Yes"| RetryBooking["Staff retry: failed → booking"]
+        WasFailed -->|"No: paid"| Quote["Request courier quotation"]
+        RetryBooking --> Quote
+        Quote --> QuoteOK{"Quotation succeeds with ID?"}
+        QuoteOK -->|"No"| QuoteFailure["Release lock; paid/booking → failed; record history"]
+        QuoteOK -->|"Yes"| PersistQuote["Persist quotation ID"]
+        PersistQuote --> PaidStart{"Starting status was paid?"}
+        PaidStart -->|"Yes"| ToBooking["paid → booking"]
+        PaidStart -->|"No: already booking"| Place
+        ToBooking --> Place["Place courier order"]
+        Place --> PlaceOK{"Provider order ID returned?"}
+        PlaceOK -->|"No / timeout / unknown provider result"| Uncertain["Set failed; keep recovery lock / quotation to prevent duplicate booking; escalate"]
+        PlaceOK -->|"Yes"| PersistBooking["Persist provider order ID, share link, and driver snapshot"]
+        PersistBooking --> ReleaseLock["Release recovery lock"]
+        ReleaseLock --> DriverLookup["Optional driver detail lookup; failures logged only"]
+        DriverLookup --> DriverType{"Configured provider"}
+        DriverType -->|"Mock (local default)"| MockEvent["Generate rider-assigned event"]
+        DriverType -->|"Lalamove"| AwaitProvider["Await provider webhook for assignment and later delivery events"]
+        MockEvent --> MockProcess["Mock event uses shared processor directly"]
+        MockProcess --> Dedupe
+        Staff -->|"Cancel order"| CancelRequest
+        Review -->|"Stale / pending hold request"| StaffReview["Review pending hold request"]
+        StaffReview --> HoldDecision{"Accept or reject?"}
+        HoldDecision --> HoldResolved["Record review decision; courier is not paused"]
+    end
+
+    subgraph Webhook_Lifecycle["Courier event processing"]
+        direction TB
+        ProviderEvent["Inbound Lalamove webhook"] --> Receive["Receive webhook payload"]
+        Receive --> Verify["Check configured raw-body HMAC and payload; inbound Lalamove signature convention needs partner verification"]
+        Verify --> VerifyOK{"Valid?"}
+        VerifyOK -->|"No"| RejectWebhook["Reject request; no order transition"]
+        VerifyOK -->|"Yes"| SharedWebhook["Shared courier webhook processor"]
+        SharedWebhook --> Dedupe{"Event ID already processed / ignored / failed?"}
+        Dedupe -->|"Yes"| Duplicate["Return duplicate; no repeated side effects"]
+        Dedupe -->|"No"| MatchOrder{"Known provider order and supported event?"}
+        MatchOrder -->|"No"| IgnoreEvent["Record event as ignored"]
+        MatchOrder -->|"Yes"| MapEvent["Map assignment / pickup / completion / cancel / failure event to status"]
+        MapEvent --> Transition{"Transition allowed by Order_model state machine?"}
+        Transition -->|"No"| RollbackEvent["Rollback event and transition; report processing failure"]
+        Transition -->|"Yes"| UpdateStatus["Update order status and append deliveries history"]
+        MapEvent -.->|"assignment"| S_Assigned
+        MapEvent -.->|"pickup"| S_Picked
+        MapEvent -.->|"completion"| S_Delivered
+        MapEvent -.->|"courier cancellation"| S_Cancelled
+        MapEvent -.->|"provider failure"| S_Failed
+        UpdateStatus --> EventDone["Mark event processed"]
+        EventDone --> CustomerTracking
+    end
+
+    subgraph State_Machine["Order state machine — allowed status transitions"]
+        direction LR
+        S_Draft["draft"] --> S_Pending["pending_payment"]
+        S_Draft --> S_Cancelled["cancelled"]
+        S_Pending --> S_Paid["paid"]
+        S_Pending --> S_Failed["failed"]
+        S_Pending --> S_Cancelled
+        S_Paid --> S_Booking["booking"]
+        S_Paid --> S_Failed
+        S_Paid --> S_Cancelled
+        S_Booking --> S_Assigned["rider_assigned"]
+        S_Booking --> S_Failed
+        S_Booking --> S_Cancelled
+        S_Assigned --> S_Picked["picked_up"]
+        S_Assigned --> S_Failed
+        S_Assigned --> S_Cancelled
+        S_Picked --> S_Delivered["delivered"]
+        S_Picked --> S_Failed
+        S_Failed -->|"staff retry only"| S_Booking
+    end
+
+    subgraph Cancellation["Cancellation path"]
+        direction TB
+        CancelRequest["Customer or staff requests cancellation"] --> AllowedCancel{"Status permits cancellation?"}
+        AllowedCancel -->|"No: picked up or terminal"| CancelBlocked["Reject cancellation"]
+        AllowedCancel -->|"Yes; provider order ID exists"| ProviderCancel["Request courier cancellation first"]
+        AllowedCancel -->|"Yes; no provider order ID"| LocalCancel["Cancel locally"]
+        ProviderCancel --> ProviderCancelOK{"Provider cancellation confirmed?"}
+        ProviderCancelOK -->|"No"| CancelActive["Keep local order active; return error"]
+        ProviderCancelOK -->|"Yes"| LocalCancel
+        LocalCancel --> LocalCancelOK{"Local status/history update succeeds?"}
+        LocalCancelOK -->|"Yes"| Cancelled["Set cancelled; store reason and delivery-history event"]
+        LocalCancelOK -->|"No after provider accepted"| Support["Escalate for support; provider/local state may differ"]
+    end
+
+    subgraph Delivery_Control["Customer delivery-control link"]
+        direction TB
+        IssuePass["Customer issues pass for eligible owned order"] --> StorePass["Revoke older active pass; store token hash and 7-day expiry"]
+        StorePass --> PublicLink["Public link shows limited status, timeline, and request history"]
+        PublicLink --> RequestType{"Request while status is paid, booking, or rider_assigned?"}
+        RequestType -->|"Instruction"| ApplyInstruction["Update drop-off notes via address snapshot; record applied request"]
+        RequestType -->|"Hold"| PendingHold["Record pending hold request for dispatch review"]
+        PendingHold --> StaffReview
+        RequestType -->|"Other stage / invalid pass / rate limited"| RequestBlocked["Reject or show link unavailable"]
+        StorePass -.-> Revoke["Customer may revoke pass"]
+    end
+
+    subgraph Admin_Adjacent["Adjacent admin tools — not in order routing / pricing path"]
+        direction TB
+        ManageAreas["Admin manages service-area polygons and zone rates"] --> Simulator["Command simulator analyzes orders by drop-off point and rider capacity"]
+        Simulator -.-> NotLive["Does not route, assign, or price new orders"]
+    end
+
+    Fee -.->|"Separate API; not persisted to this order form"| RouteRequest
+    UpdateStatus -.-> Notifications["SMS / push status notifications are not dispatched by current application flow"]
+
+    classDef active fill:#eef7f8,stroke:#087f98,color:#172b3a,stroke-width:1.5px;
+    classDef boundary fill:#fff7e8,stroke:#b7791f,color:#49300d,stroke-dasharray:5 4;
+    classDef issue fill:#fff0ef,stroke:#a12c2a,color:#67201f;
+    classDef terminal fill:#f1f3f5,stroke:#607487,color:#172b3a;
+    class Draft,SaveTxn,Fee,Claim,Quote,Place,SharedWebhook,UpdateStatus,Cancelled,StorePass,ApplyInstruction active;
+    class PaymentMissing,AutoRetryMissing,RouteRequest,NotLive,Notifications,ManualDistance boundary;
+    class SaveError,QuoteFailure,Uncertain,RejectWebhook,RollbackEvent,CancelBlocked,CancelActive,Support,RequestBlocked issue;
+    class S_Delivered,S_Cancelled terminal;

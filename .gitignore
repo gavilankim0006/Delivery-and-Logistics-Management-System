@@ -6,6 +6,8 @@
 !.env.example
 
 # Dependencies
+node_modules/
+public/build/index.php
 vendor/
 app/vendor/
 composer.lock

@@ -14,7 +14,7 @@ AddDefaultCharset UTF-8
 
     # --------------------------------------------------
     # Deny access to sensitive files
-    <FilesMatch "\.(env|json|xml|log|md|lock|git|ini|bak|sql)$">
+    <FilesMatch "\.(env|json|xml|log|md|lock|git|ini|bak|sql)$|^(package\.json|package-lock\.json|vite\.config\.js)$">
         Require all denied
     </FilesMatch>
 
@@ -23,7 +23,7 @@ AddDefaultCharset UTF-8
     Options -Indexes
 
     # --------------------------------------------------
-    # Route all requests through public/index.php
-    RewriteCond %{REQUEST_URI} !^/public/
+    # Serve public assets directly; route app requests through the public front controller.
+    RewriteRule ^public/ - [L]
     RewriteRule ^(.*)$ public/$1 [L,QSA]
 </IfModule>

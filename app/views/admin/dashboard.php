@@ -3,163 +3,105 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 $this->call->view('templates/header', ['page_title' => $page_title ?? 'Admin Dashboard']);
 ?>
 
-<div class="container py-4">
-    <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container page-shell py-4">
+    <header class="page-header mb-4">
         <div>
-            <h1 class="h3 fw-bold mb-1">Administrative Dashboard</h1>
-            <p class="text-muted small mb-0">System performance, dispatch overview, and financial health</p>
+            <h1 class="page-title">Admin dashboard</h1>
+            <p class="page-description">Today’s order volume, month-to-date payments, and service activity.</p>
         </div>
-        <div class="d-flex gap-2">
-            <a href="<?= base_url('dispatch') ?>" class="btn btn-outline-primary btn-sm">
-                <i class="bi bi-kanban me-1"></i> Live Dispatch
-            </a>
-            <a href="<?= base_url('admin/settings') ?>" class="btn btn-primary btn-sm">
-                <i class="bi bi-gear me-1"></i> Fee Rates
-            </a>
-        </div>
-    </div>
+        <a href="<?= base_url('dispatch') ?>" class="btn btn-secondary">View dispatch</a>
+    </header>
 
-    <!-- Stat Cards -->
-    <div class="row g-3 mb-4">
-        <div class="col-sm-6 col-lg-3">
-            <div class="card h-100 p-3">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-muted small text-uppercase fw-semibold">Total Orders</span>
-                        <h3 class="fw-bold my-1"><?= number_format($total_orders) ?></h3>
-                        <span class="text-success small"><i class="bi bi-arrow-up-right"></i> All-time</span>
-                    </div>
-                    <div class="bg-primary bg-opacity-10 text-primary p-3 rounded-circle">
-                        <i class="bi bi-box-seam fs-4"></i>
-                    </div>
+    <section class="dashboard-metrics mb-4" aria-label="Key operating metrics">
+        <div class="row g-3">
+            <div class="col-12 col-md-4">
+                <div class="ds-metric h-100">
+                    <span class="ds-metric__label">Orders today</span>
+                    <p class="ds-metric__value mb-0"><?= number_format((int)$orders_today) ?></p>
+                    <span class="ds-metric__hint">Created since midnight</span>
+                </div>
+            </div>
+            <div class="col-12 col-md-4">
+                <div class="ds-metric h-100">
+                    <span class="ds-metric__label">Paid revenue this month</span>
+                    <p class="ds-metric__value money mb-0">₱<?= number_format((float)$month_revenue, 2) ?></p>
+                    <span class="ds-metric__hint">Payments received month to date</span>
+                </div>
+            </div>
+            <div class="col-12 col-md-4">
+                <div class="ds-metric h-100">
+                    <span class="ds-metric__label">Failed payments</span>
+                    <p class="ds-metric__value mb-0"><?= number_format((int)$failed_payments) ?></p>
+                    <span class="ds-metric__hint">This month</span>
                 </div>
             </div>
         </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card h-100 p-3">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-muted small text-uppercase fw-semibold">Today's Revenue</span>
-                        <h3 class="fw-bold my-1 text-primary">₱<?= number_format($today_revenue, 2) ?></h3>
-                        <span class="text-muted small">Paid online via PayMongo</span>
-                    </div>
-                    <div class="bg-success bg-opacity-10 text-success p-3 rounded-circle">
-                        <i class="bi bi-cash-stack fs-4"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card h-100 p-3">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-muted small text-uppercase fw-semibold">Registered Users</span>
-                        <h3 class="fw-bold my-1"><?= number_format($total_users) ?></h3>
-                        <span class="text-muted small">Admins, dispatchers, customers</span>
-                    </div>
-                    <div class="bg-info bg-opacity-10 text-info p-3 rounded-circle">
-                        <i class="bi bi-people fs-4"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card h-100 p-3">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-muted small text-uppercase fw-semibold">Active Fleet</span>
-                        <h3 class="fw-bold my-1"><?= number_format($total_riders) ?></h3>
-                        <span class="text-muted small">Registered delivery riders</span>
-                    </div>
-                    <div class="bg-warning bg-opacity-10 text-warning p-3 rounded-circle">
-                        <i class="bi bi-bicycle fs-4"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    </section>
 
-    <!-- Tables Row -->
     <div class="row g-4">
-        <!-- Recent Orders -->
-        <div class="col-lg-7">
-            <div class="card h-100 shadow-sm border-0">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
-                    <h6 class="mb-0 fw-bold"><i class="bi bi-clock-history me-2 text-primary"></i>Recent Deliveries</h6>
-                    <a href="<?= base_url('dispatch') ?>" class="small text-decoration-none">View All &rarr;</a>
-                </div>
+        <section class="col-12 col-lg-7" aria-labelledby="recent-orders-heading">
+            <div class="surface h-100">
+                <header class="dashboard-section-header">
+                    <h2 class="h5 mb-0" id="recent-orders-heading">Recent orders</h2>
+                    <a href="<?= base_url('dispatch') ?>">View dispatch</a>
+                </header>
+                <?php if (empty($recent_orders)): ?>
+                    <?php $this->call->view('partials/empty_state', ['title' => 'No recent orders', 'message' => 'New delivery activity will appear here.']); ?>
+                <?php else: ?>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem;">
-                        <thead class="table-light">
+                    <table class="table table-clean table-responsive-stack align-middle mb-0">
+                        <thead>
                             <tr>
-                                <th>Order #</th>
-                                <th>Customer</th>
-                                <th>Fee</th>
-                                <th>Status</th>
-                                <th>Action</th>
+                                <th scope="col">Order</th>
+                                <th scope="col">Customer</th>
+                                <th scope="col">Fee</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php if (empty($recent_orders)): ?>
-                                <tr><td colspan="5" class="text-center py-4 text-muted">No orders found.</td></tr>
-                            <?php else: ?>
-                                <?php foreach ($recent_orders as $ord): ?>
-                                    <tr>
-                                        <td class="fw-semibold text-primary"><?= e($ord['order_no']) ?></td>
-                                        <td><?= e($ord['customer_name']) ?></td>
-                                        <td>₱<?= number_format($ord['delivery_fee'], 2) ?></td>
-                                        <td>
-                                            <span class="badge-status badge-<?= e($ord['status']) ?>">
-                                                <?= str_replace('_', ' ', e($ord['status'])) ?>
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <a href="<?= base_url('orders/' . $ord['id']) ?>" class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size: 0.75rem;">View</a>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
+                            <?php foreach ($recent_orders as $ord): ?>
+                                <tr>
+                                    <td data-label="Order" class="fw-medium"><?= e($ord['order_no']) ?></td>
+                                    <td data-label="Customer"><?= e($ord['customer_name']) ?></td>
+                                    <td data-label="Fee" class="text-nowrap money">₱<?= number_format((float)$ord['delivery_fee'], 2) ?></td>
+                                    <td data-label="Status"><?php $this->call->view('partials/status_chip', ['status' => $ord['status']]); ?></td>
+                                    <td data-label="Action"><a href="<?= base_url('orders/' . $ord['id']) ?>">View order</a></td>
+                                </tr>
+                            <?php endforeach; ?>
                         </tbody>
                     </table>
                 </div>
+                <?php endif; ?>
             </div>
-        </div>
+        </section>
 
-        <!-- Latest API Activity -->
-        <div class="col-lg-5">
-            <div class="card h-100 shadow-sm border-0">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
-                    <h6 class="mb-0 fw-bold"><i class="bi bi-activity me-2 text-primary"></i>Latest API Logs</h6>
-                    <a href="<?= base_url('admin/logs') ?>" class="small text-decoration-none">All Logs &rarr;</a>
-                </div>
-                <div class="list-group list-group-flush" style="font-size: 0.825rem;">
-                    <?php if (empty($recent_logs)): ?>
-                        <div class="p-3 text-center text-muted">No API calls recorded yet.</div>
-                    <?php else: ?>
+        <section class="col-12 col-lg-5" aria-labelledby="recent-api-heading">
+            <div class="surface h-100">
+                <header class="dashboard-section-header">
+                    <h2 class="h5 mb-0" id="recent-api-heading">Latest API activity</h2>
+                    <a href="<?= base_url('admin/logs') ?>">View all logs</a>
+                </header>
+                <?php if (empty($recent_logs)): ?>
+                    <?php $this->call->view('partials/empty_state', ['title' => 'No API activity yet', 'message' => 'Recent service activity will appear here.']); ?>
+                <?php else: ?>
+                    <ul class="list-group list-group-flush">
                         <?php foreach ($recent_logs as $log): ?>
-                            <div class="list-group-item d-flex justify-content-between align-items-center py-2 px-3">
-                                <div>
-                                    <div class="fw-semibold">
-                                        <span class="badge bg-secondary me-1"><?= e($log['service']) ?></span>
-                                        <span class="text-dark"><?= e($log['method']) ?></span>
-                                    </div>
-                                    <div class="text-muted text-truncate" style="max-width: 260px;" title="<?= e($log['endpoint']) ?>">
-                                        <?= e($log['endpoint']) ?>
-                                    </div>
+                            <li class="list-group-item d-flex justify-content-between align-items-start gap-3">
+                                <div class="min-w-0">
+                                    <div class="fw-medium"><span class="text-muted"><?= e($log['service']) ?></span> · <?= e($log['method']) ?></div>
+                                    <div class="text-muted text-break" title="<?= e($log['endpoint']) ?>"><?= e($log['endpoint']) ?></div>
                                 </div>
-                                <div class="text-end">
-                                    <span class="badge <?= ($log['response_status'] >= 200 && $log['response_status'] < 300) ? 'bg-success' : 'bg-danger' ?>">
-                                        <?= $log['response_status'] ?: 'ERR' ?>
-                                    </span>
-                                    <div class="text-muted" style="font-size: 0.7rem;"><?= $log['execution_time_ms'] ?> ms</div>
+                                <div class="text-end text-nowrap">
+                                    <span class="availability-chip <?= ($log['response_status'] >= 200 && $log['response_status'] < 300) ? 'account-status-chip--active' : 'availability-chip--error' ?>"><?= e($log['response_status'] ?: 'Error') ?></span>
+                                    <div class="small text-muted"><?= number_format((float)$log['execution_time_ms']) ?> ms</div>
                                 </div>
-                            </div>
+                            </li>
                         <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
+                    </ul>
+                <?php endif; ?>
             </div>
-        </div>
+        </section>
     </div>
 </div>
 

@@ -3,6 +3,10 @@
 
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS `dispatch_recovery_locks`;
+DROP TABLE IF EXISTS `delivery_change_requests`;
+DROP TABLE IF EXISTS `delivery_control_passes`;
+DROP TABLE IF EXISTS `service_areas`;
 DROP TABLE IF EXISTS `notifications`;
 DROP TABLE IF EXISTS `deliveries`;
 DROP TABLE IF EXISTS `payments`;
@@ -37,6 +41,7 @@ CREATE TABLE `users` (
     `password` VARCHAR(255) NOT NULL,
     `fcm_token` TEXT NULL,
     `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+    `deleted_at` DATETIME NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT `fk_users_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE RESTRICT
@@ -62,6 +67,7 @@ CREATE TABLE `riders` (
     `vehicle_type` VARCHAR(50) NOT NULL DEFAULT 'Motorcycle',
     `plate_number` VARCHAR(30) NOT NULL,
     `status` ENUM('available', 'busy', 'offline') NOT NULL DEFAULT 'available',
+    `deleted_at` DATETIME NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT `fk_riders_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
@@ -96,8 +102,13 @@ CREATE TABLE `orders` (
     `delivery_fee` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     `lalamove_quotation_id` VARCHAR(100) NULL,
     `lalamove_order_id` VARCHAR(100) NULL,
+    `courier_driver_id` VARCHAR(100) NULL,
+    `courier_driver_name` VARCHAR(100) NULL,
+    `courier_driver_phone` VARCHAR(30) NULL,
+    `courier_driver_vehicle` VARCHAR(50) NULL,
     `share_link` TEXT NULL,
     `cancel_reason` TEXT NULL,
+    `deleted_at` DATETIME NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX `idx_orders_status` (`status`),
@@ -170,7 +181,58 @@ CREATE TABLE `notifications` (
     CONSTRAINT `fk_notifications_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 11. API Logs Table
+-- 11. Polygon delivery service areas and zone-specific fee rates
+CREATE TABLE `service_areas` (
+    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `name` VARCHAR(100) NOT NULL,
+    `polygon_json` LONGTEXT NOT NULL,
+    `base_delivery_fee` DECIMAL(10,2) NOT NULL DEFAULT 60.00,
+    `free_distance_km` DECIMAL(8,2) NOT NULL DEFAULT 2.00,
+    `per_km_rate` DECIMAL(10,2) NOT NULL DEFAULT 12.50,
+    `free_weight_kg` DECIMAL(8,2) NOT NULL DEFAULT 1.00,
+    `per_kg_rate` DECIMAL(10,2) NOT NULL DEFAULT 5.00,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_service_areas_active` (`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 12. Expiring customer delivery-control bearer tokens (hash only)
+CREATE TABLE `delivery_control_passes` (
+    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `order_id` BIGINT UNSIGNED NOT NULL,
+    `token_hash` CHAR(64) NOT NULL UNIQUE,
+    `expires_at` DATETIME NOT NULL,
+    `revoked_at` DATETIME NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_control_pass_order` (`order_id`),
+    CONSTRAINT `fk_control_pass_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 13. Customer instructions and hold requests submitted through the control pass
+CREATE TABLE `delivery_change_requests` (
+    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `order_id` BIGINT UNSIGNED NOT NULL,
+    `request_type` ENUM('instruction','hold') NOT NULL,
+    `request_text` TEXT NULL,
+    `status` ENUM('pending','applied','accepted','rejected') NOT NULL DEFAULT 'pending',
+    `source` VARCHAR(30) NOT NULL DEFAULT 'control_pass',
+    `reviewed_by` BIGINT UNSIGNED NULL,
+    `reviewed_at` DATETIME NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_change_requests_order_status` (`order_id`, `status`),
+    CONSTRAINT `fk_change_request_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_change_request_reviewer` FOREIGN KEY (`reviewed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 14. Dispatcher recovery idempotency lock (short-lived during provider booking)
+CREATE TABLE `dispatch_recovery_locks` (
+    `order_id` BIGINT UNSIGNED PRIMARY KEY,
+    `started_at` DATETIME NOT NULL,
+    CONSTRAINT `fk_recovery_lock_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 15. API Logs Table
 CREATE TABLE `api_logs` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `service` VARCHAR(50) NOT NULL,

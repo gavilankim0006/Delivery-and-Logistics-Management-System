@@ -77,10 +77,13 @@ if ($riderCount !== 3) {
 }
 
 // 6. Count orders
-$orderCount = (int) $db->table('orders')->select_count('*', 'count')->get()['count'];
-echo "[CHECK] Order count: $orderCount (Expected: 10)\n";
+$orderCount = (int) $db->raw(
+    "SELECT COUNT(*) FROM orders WHERE order_no LIKE ?",
+    ['DLV-20261017-%']
+)->fetchColumn();
+echo "[CHECK] Seeded order count: $orderCount (Expected: 10)\n";
 if ($orderCount !== 10) {
-    echo "[FAIL] Expected 10 orders, found $orderCount\n";
+    echo "[FAIL] Expected 10 seeded orders, found $orderCount\n";
     exit(1);
 }
 

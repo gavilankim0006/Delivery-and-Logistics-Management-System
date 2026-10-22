@@ -272,6 +272,9 @@ class Database {
             $this->db = new PDO($dsn, $username, $password, $options);
             $this->driver = $this->db->getAttribute(PDO::ATTR_DRIVER_NAME);
         } catch (Exception $e) {
+            if (defined('HEALTH_CHECK_DB_CONNECTION') && HEALTH_CHECK_DB_CONNECTION === true) {
+                throw $e;
+            }
             $error = load_class('Errors', 'kernel');
             $error->show_database_error(
                 $e->getMessage(),
@@ -354,6 +357,18 @@ class Database {
         }
 
         return true;
+    }
+
+    /**
+     * Check whether the current database connection can execute a lightweight query.
+     */
+    public function health_check(): bool
+    {
+        try {
+            return $this->db->query('SELECT 1') !== false;
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 
     /**

@@ -2,156 +2,124 @@
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 $user = auth_user();
 $role = auth_role();
-$currentUri = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+$currentUri = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '/';
+$navIsActive = static function (string $destination) use ($currentUri): bool {
+    $path = rtrim($currentUri, '/') ?: '/';
+    $target = '/' . trim($destination, '/');
+    return $path === $target || str_ends_with($path, $target) || str_contains($path, $target . '/');
+};
+$showCourierSimulator = $role === 'admin'
+    && config_item('environment') === 'development'
+    && in_array(strtolower(getenv('COURIER_DRIVER') ?: 'mock'), ['mock', ''], true);
+$adminMoreActive = $navIsActive('admin/settings')
+    || $navIsActive('admin/service-areas')
+    || $navIsActive('admin/command-simulator')
+    || $navIsActive('admin/reports')
+    || $navIsActive('admin/logs')
+    || ($showCourierSimulator && $navIsActive('admin/courier-simulator'));
 ?>
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= isset($page_title) ? e($page_title) . ' - ' : '' ?>Delivery & Logistics System</title>
-    <!-- Bootstrap 5 CSS -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title><?= isset($page_title) ? e($page_title) . ' · ' : '' ?>Dispatch</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <!-- App Design System -->
     <link href="<?= base_url('public/css/app.css') ?>" rel="stylesheet">
     <?php if (isset($extra_css)): ?>
         <?= $extra_css ?>
     <?php endif; ?>
 </head>
 <body>
-    <!-- Top Navigation Bar -->
-    <nav class="navbar navbar-expand-lg navbar-custom sticky-top">
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <nav class="navbar navbar-expand-lg navbar-custom sticky-top" aria-label="Main navigation">
         <div class="container">
-            <a class="navbar-brand navbar-brand-custom" href="<?= base_url() ?>">
-                <i class="bi bi-box-seam-fill text-primary"></i>
-                <span>SwiftLogix</span>
-                <?php if ($role === 'admin'): ?>
-                    <span class="badge bg-danger ms-1" style="font-size: 0.65rem;">ADMIN</span>
-                <?php elseif ($role === 'dispatcher'): ?>
-                    <span class="badge bg-warning text-dark ms-1" style="font-size: 0.65rem;">DISPATCH</span>
+            <a class="navbar-brand navbar-brand-custom" href="<?= base_url($role === 'admin' ? 'admin' : ($role === 'dispatcher' ? 'dispatch' : ($role === 'customer' ? 'orders' : 'login'))) ?>" aria-label="Dispatch home">
+                <i class="bi bi-box-seam" aria-hidden="true"></i>
+                <span>Dispatch</span>
+                <?php if ($role === 'admin' || $role === 'dispatcher'): ?>
+                    <span class="navbar-role"><?= $role === 'admin' ? 'Admin' : 'Dispatch team' ?></span>
                 <?php endif; ?>
             </a>
 
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
+                <span class="navbar-toggler-icon" aria-hidden="true"></span>
             </button>
 
             <div class="collapse navbar-collapse" id="mainNavbar">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     <?php if ($role === 'customer'): ?>
-                        <li class="nav-item">
-                            <a class="nav-link <?= str_contains($currentUri, '/orders/new') ? 'active' : '' ?>" href="<?= base_url('orders/new') ?>">
-                                <i class="bi bi-plus-circle me-1"></i>New Order
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link <?= (str_contains($currentUri, '/orders') && !str_contains($currentUri, '/orders/new')) ? 'active' : '' ?>" href="<?= base_url('orders') ?>">
-                                <i class="bi bi-clock-history me-1"></i>My Orders
-                            </a>
-                        </li>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('orders/new') ? ' active' : '' ?>" href="<?= base_url('orders/new') ?>"<?= $navIsActive('orders/new') ? ' aria-current="page"' : '' ?>><i class="bi bi-plus-circle" aria-hidden="true"></i><span>New order</span></a></li>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('orders') && !$navIsActive('orders/new') ? ' active' : '' ?>" href="<?= base_url('orders') ?>"<?= $navIsActive('orders') && !$navIsActive('orders/new') ? ' aria-current="page"' : '' ?>><i class="bi bi-clock-history" aria-hidden="true"></i><span>My Orders</span></a></li>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('addresses') ? ' active' : '' ?>" href="<?= base_url('addresses') ?>"<?= $navIsActive('addresses') ? ' aria-current="page"' : '' ?>><i class="bi bi-geo-alt" aria-hidden="true"></i><span>Saved addresses</span></a></li>
                     <?php elseif ($role === 'dispatcher'): ?>
-                        <li class="nav-item">
-                            <a class="nav-link <?= str_contains($currentUri, '/dispatch') ? 'active' : '' ?>" href="<?= base_url('dispatch') ?>">
-                                <i class="bi bi-kanban me-1"></i>Dispatch Board
-                            </a>
-                        </li>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('dispatch') ? ' active' : '' ?>" href="<?= base_url('dispatch') ?>"<?= $navIsActive('dispatch') ? ' aria-current="page"' : '' ?>><i class="bi bi-kanban" aria-hidden="true"></i><span>Dispatch board</span></a></li>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('orders') ? ' active' : '' ?>" href="<?= base_url('orders') ?>"<?= $navIsActive('orders') ? ' aria-current="page"' : '' ?>><i class="bi bi-box-seam" aria-hidden="true"></i><span>Orders</span></a></li>
                     <?php elseif ($role === 'admin'): ?>
-                        <li class="nav-item">
-                            <a class="nav-link <?= ($currentUri === '/SIAproject/admin' || str_ends_with($currentUri, '/admin')) ? 'active' : '' ?>" href="<?= base_url('admin') ?>">
-                                <i class="bi bi-speedometer2 me-1"></i>Dashboard
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link <?= str_contains($currentUri, '/dispatch') ? 'active' : '' ?>" href="<?= base_url('dispatch') ?>">
-                                <i class="bi bi-kanban me-1"></i>Dispatch
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link <?= str_contains($currentUri, '/admin/users') ? 'active' : '' ?>" href="<?= base_url('admin/users') ?>">
-                                <i class="bi bi-people me-1"></i>Users
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link <?= str_contains($currentUri, '/admin/riders') ? 'active' : '' ?>" href="<?= base_url('admin/riders') ?>">
-                                <i class="bi bi-bicycle me-1"></i>Riders
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link <?= str_contains($currentUri, '/admin/settings') ? 'active' : '' ?>" href="<?= base_url('admin/settings') ?>">
-                                <i class="bi bi-gear me-1"></i>Settings
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link <?= str_contains($currentUri, '/admin/reports') ? 'active' : '' ?>" href="<?= base_url('admin/reports') ?>">
-                                <i class="bi bi-file-earmark-bar-graph me-1"></i>Reports
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link <?= str_contains($currentUri, '/admin/logs') ? 'active' : '' ?>" href="<?= base_url('admin/logs') ?>">
-                                <i class="bi bi-journal-code me-1"></i>API Logs
-                            </a>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('admin') && !$navIsActive('admin/users') && !$navIsActive('admin/riders') && !$navIsActive('admin/service-areas') && !$navIsActive('admin/command-simulator') && !$navIsActive('admin/settings') && !$navIsActive('admin/reports') && !$navIsActive('admin/logs') && !$navIsActive('admin/courier-simulator') && !$navIsActive('admin/service-areas') && !$navIsActive('admin/command-simulator') ? ' active' : '' ?>" href="<?= base_url('admin') ?>"<?= $navIsActive('admin') && !$navIsActive('admin/users') && !$navIsActive('admin/riders') && !$navIsActive('admin/service-areas') && !$navIsActive('admin/command-simulator') && !$navIsActive('admin/settings') && !$navIsActive('admin/reports') && !$navIsActive('admin/logs') && !$navIsActive('admin/courier-simulator') ? ' aria-current="page"' : '' ?>><i class="bi bi-speedometer2" aria-hidden="true"></i><span>Dashboard</span></a></li>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('dispatch') ? ' active' : '' ?>" href="<?= base_url('dispatch') ?>"<?= $navIsActive('dispatch') ? ' aria-current="page"' : '' ?>><i class="bi bi-kanban" aria-hidden="true"></i><span>Dispatch</span></a></li>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('orders') ? ' active' : '' ?>" href="<?= base_url('orders') ?>"<?= $navIsActive('orders') ? ' aria-current="page"' : '' ?>><i class="bi bi-box-seam" aria-hidden="true"></i><span>Orders</span></a></li>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('admin/users') ? ' active' : '' ?>" href="<?= base_url('admin/users') ?>"<?= $navIsActive('admin/users') ? ' aria-current="page"' : '' ?>><i class="bi bi-people" aria-hidden="true"></i><span>Users</span></a></li>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('admin/riders') ? ' active' : '' ?>" href="<?= base_url('admin/riders') ?>"<?= $navIsActive('admin/riders') ? ' aria-current="page"' : '' ?>><i class="bi bi-bicycle" aria-hidden="true"></i><span>Riders</span></a></li>
+                        <li class="nav-item dropdown">
+                            <button class="nav-link dropdown-toggle<?= $adminMoreActive ? ' active' : '' ?>" id="adminMoreDropdown" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">
+                                <span>More</span>
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="adminMoreDropdown">
+                                <li><a class="dropdown-item<?= $navIsActive('admin/settings') ? ' active' : '' ?>" href="<?= base_url('admin/settings') ?>"<?= $navIsActive('admin/settings') ? ' aria-current="page"' : '' ?>><i class="bi bi-gear" aria-hidden="true"></i> Settings</a></li>
+                                <li><a class="dropdown-item<?= $navIsActive('admin/service-areas') ? ' active' : '' ?>" href="<?= base_url('admin/service-areas') ?>"<?= $navIsActive('admin/service-areas') ? ' aria-current="page"' : '' ?>><i class="bi bi-bounding-box" aria-hidden="true"></i> Service areas</a></li>
+                                <li><a class="dropdown-item<?= $navIsActive('admin/command-simulator') ? ' active' : '' ?>" href="<?= base_url('admin/command-simulator') ?>"<?= $navIsActive('admin/command-simulator') ? ' aria-current="page"' : '' ?>><i class="bi bi-lightning" aria-hidden="true"></i> Command simulator</a></li>
+                                <li><a class="dropdown-item<?= $navIsActive('admin/reports') ? ' active' : '' ?>" href="<?= base_url('admin/reports') ?>"<?= $navIsActive('admin/reports') ? ' aria-current="page"' : '' ?>><i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i> Reports</a></li>
+                                <li><a class="dropdown-item<?= $navIsActive('admin/logs') ? ' active' : '' ?>" href="<?= base_url('admin/logs') ?>"<?= $navIsActive('admin/logs') ? ' aria-current="page"' : '' ?>><i class="bi bi-journal-code" aria-hidden="true"></i> API logs</a></li>
+                                <?php if ($showCourierSimulator): ?>
+                                    <li><a class="dropdown-item<?= $navIsActive('admin/courier-simulator') ? ' active' : '' ?>" href="<?= base_url('admin/courier-simulator') ?>"<?= $navIsActive('admin/courier-simulator') ? ' aria-current="page"' : '' ?>><i class="bi bi-truck" aria-hidden="true"></i> Courier simulator</a></li>
+                                <?php endif; ?>
+                            </ul>
                         </li>
                     <?php endif; ?>
                 </ul>
 
-                <ul class="navbar-nav ms-auto align-items-center">
+                <ul class="navbar-nav ms-auto align-items-lg-center">
                     <?php if (auth_check()): ?>
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                <span class="badge rounded-pill bg-light text-dark border px-2 py-1">
-                                    <i class="bi bi-person-circle text-primary me-1"></i>
-                                    <?= e($user['name']) ?>
-                                </span>
-                            </a>
-                            <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="userDropdown">
-                                <li><h6 class="dropdown-header"><?= e($user['email']) ?> (<?= ucfirst($role) ?>)</h6></li>
-                                <li><a class="dropdown-item" href="<?= base_url('profile') ?>"><i class="bi bi-person me-2"></i>Profile</a></li>
+                            <button class="nav-link dropdown-toggle" id="userDropdown" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-person-circle" aria-hidden="true"></i>
+                                <span><?= e($user['name'] ?? 'Account') ?></span>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                                <li><span class="dropdown-header"><?= e($user['email'] ?? '') ?> · <?= e(ucfirst((string) $role)) ?></span></li>
+                                <li><a class="dropdown-item" href="<?= base_url('profile') ?>"><i class="bi bi-person" aria-hidden="true"></i> Profile</a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item text-danger" href="<?= base_url('logout') ?>"><i class="bi bi-box-arrow-right me-2"></i>Sign Out</a></li>
+                                <li><a class="dropdown-item" href="<?= base_url('logout') ?>"><i class="bi bi-box-arrow-right" aria-hidden="true"></i> Sign out</a></li>
                             </ul>
                         </li>
                     <?php else: ?>
-                        <li class="nav-item me-2">
-                            <a class="nav-link <?= str_contains($currentUri, '/login') ? 'active' : '' ?>" href="<?= base_url('login') ?>">
-                                <i class="bi bi-box-arrow-in-right me-1"></i>Log In
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="btn btn-primary btn-sm px-3" href="<?= base_url('register') ?>">
-                                Register
-                            </a>
-                        </li>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('login') ? ' active' : '' ?>" href="<?= base_url('login') ?>"<?= $navIsActive('login') ? ' aria-current="page"' : '' ?>><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i><span>Sign in</span></a></li>
+                        <li class="nav-item"><a class="btn btn-primary" href="<?= base_url('register') ?>">Create account</a></li>
                     <?php endif; ?>
                 </ul>
             </div>
         </div>
     </nav>
 
-    <!-- Global Flash Messages -->
-    <div class="container mt-3">
-        <?php if ($flashSuccess = flash('success')): ?>
-            <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
-                <i class="bi bi-check-circle-fill me-2"></i><?= e($flashSuccess) ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    <?php
+    $flashSuccess = flash('success');
+    $flashError = flash('error');
+    $flashWarning = flash('warning');
+    if ($flashSuccess || $flashError || $flashWarning):
+    ?>
+        <div class="container page-shell" aria-live="polite">
+            <div class="mt-3">
+                <?php if ($flashSuccess): ?><div class="alert alert-success" role="status"><i class="bi bi-check-circle" aria-hidden="true"></i> <?= e($flashSuccess) ?></div><?php endif; ?>
+                <?php if ($flashError): ?><div class="alert alert-danger" role="alert"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i> <?= e($flashError) ?></div><?php endif; ?>
+                <?php if ($flashWarning): ?><div class="alert alert-warning" role="status"><i class="bi bi-info-circle" aria-hidden="true"></i> <?= e($flashWarning) ?></div><?php endif; ?>
             </div>
-        <?php endif; ?>
+        </div>
+    <?php endif; ?>
 
-        <?php if ($flashError = flash('error')): ?>
-            <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
-                <i class="bi bi-exclamation-triangle-fill me-2"></i><?= e($flashError) ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        <?php endif; ?>
-
-        <?php if ($flashWarning = flash('warning')): ?>
-            <div class="alert alert-warning alert-dismissible fade show shadow-sm" role="alert">
-                <i class="bi bi-info-circle-fill me-2"></i><?= e($flashWarning) ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        <?php endif; ?>
-    </div>
-
-    <!-- Main Content Container -->
-    <main class="flex-grow-1 py-4">
+    <main class="app-main" id="main-content" tabindex="-1">

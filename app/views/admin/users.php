@@ -3,107 +3,104 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 $this->call->view('templates/header', ['page_title' => $page_title ?? 'User Management']);
 ?>
 
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container page-shell py-4">
+    <header class="page-header mb-4">
         <div>
-            <h1 class="h3 fw-bold mb-1">User & Role Management</h1>
-            <p class="text-muted small mb-0">System accounts, permissions, and status controls</p>
+            <h1 class="page-title">User and role management</h1>
+            <p class="page-description">Review staff and customer accounts and update staff access.</p>
         </div>
-        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createUserModal">
-            <i class="bi bi-person-plus-fill me-1"></i> Add Staff User
-        </button>
-    </div>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">Add staff user</button>
+    </header>
 
-    <!-- Filter Bar -->
-    <div class="card mb-4 shadow-sm border-0">
-        <div class="card-body py-3">
-            <form action="<?= base_url('admin/users') ?>" method="GET" class="row g-2 align-items-center">
-                <div class="col-md-5">
-                    <div class="input-group input-group-sm">
-                        <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-                        <input type="text" name="search" class="form-control" placeholder="Search by name, email, or phone..." value="<?= e($search) ?>">
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <select name="role" class="form-select form-select-sm">
-                        <option value="">All Roles</option>
-                        <?php foreach ($roles as $r): ?>
-                            <option value="<?= $r['id'] ?>" <?= ($role_filter === (int)$r['id']) ? 'selected' : '' ?>>
-                                <?= ucfirst(e($r['name'])) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-4 d-flex gap-2">
-                    <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-funnel me-1"></i> Filter</button>
-                    <?php if (!empty($search) || $role_filter !== null): ?>
-                        <a href="<?= base_url('admin/users') ?>" class="btn btn-outline-secondary btn-sm">Clear</a>
-                    <?php endif; ?>
-                    <span class="text-muted small ms-auto align-self-center">Total: <?= $total ?></span>
-                </div>
-            </form>
-        </div>
-    </div>
+    <section class="surface surface-section mb-4" aria-label="Filter users">
+        <form action="<?= base_url('admin/users') ?>" method="GET" class="row g-3 align-items-end">
+            <div class="col-12 col-md-5">
+                <label for="user-search" class="form-label">Search users</label>
+                <input id="user-search" type="search" name="search" class="form-control" placeholder="Name, email, or phone" value="<?= e($search) ?>">
+            </div>
+            <div class="col-12 col-md-3">
+                <label for="user-role" class="form-label">Role</label>
+                <select id="user-role" name="role" class="form-select">
+                    <option value="">All roles</option>
+                    <?php foreach ($roles as $r): ?>
+                        <option value="<?= (int)$r['id'] ?>" <?= ($role_filter === (int)$r['id']) ? 'selected' : '' ?>><?= ucfirst(e($r['name'])) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-12 col-md-4 d-flex flex-wrap align-items-center gap-2">
+                <button type="submit" class="btn btn-secondary">Apply filters</button>
+                <?php if (!empty($search) || $role_filter !== null): ?>
+                    <a href="<?= base_url('admin/users') ?>" class="btn btn-secondary">Clear</a>
+                <?php endif; ?>
+                <span class="small text-muted ms-md-auto"><?= number_format((int)$total) ?> users</span>
+            </div>
+        </form>
+    </section>
 
-    <!-- Users Table -->
-    <div class="card shadow-sm border-0">
+    <section class="surface" aria-label="User list">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem;">
-                <thead class="table-light">
+            <table class="table table-clean table-responsive-stack align-middle mb-0">
+                <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Phone</th>
-                        <th>Role</th>
-                        <th>Status</th>
-                        <th>Created</th>
-                        <th class="text-end">Actions</th>
+                        <th scope="col">ID</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Email</th>
+                        <th scope="col">Phone</th>
+                        <th scope="col">Role</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Created</th>
+                        <th scope="col" class="text-end">Action</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($users)): ?>
-                        <tr><td colspan="8" class="text-center py-4 text-muted">No users matched criteria.</td></tr>
+                        <tr><td colspan="8" class="text-center py-4 text-muted">No users match these filters.</td></tr>
                     <?php else: ?>
                         <?php foreach ($users as $u): ?>
                             <tr>
-                                <td class="text-muted">#<?= $u['id'] ?></td>
-                                <td class="fw-semibold">
+                                <td data-label="ID" class="text-muted">#<?= (int)$u['id'] ?></td>
+                                <td data-label="Name" class="fw-medium">
                                     <?= e($u['name']) ?>
                                     <?php if (!empty($u['company_name'])): ?>
-                                        <div class="text-muted small" style="font-size: 0.75rem;"><?= e($u['company_name']) ?></div>
+                                        <div class="small text-muted"><?= e($u['company_name']) ?></div>
                                     <?php endif; ?>
                                 </td>
-                                <td><?= e($u['email']) ?></td>
-                                <td><?= e($u['phone'] ?: '—') ?></td>
-                                <td>
+                                <td data-label="Email" class="text-break"><?= e($u['email']) ?></td>
+                                <td data-label="Phone"><?= e($u['phone'] ?: '—') ?></td>
+                                <td data-label="Role">
                                     <?php if ($u['role_name'] === 'admin'): ?>
-                                        <span class="badge bg-danger">Admin</span>
+                                        <span class="role-chip role-chip--admin">Admin</span>
                                     <?php elseif ($u['role_name'] === 'dispatcher'): ?>
-                                        <span class="badge bg-warning text-dark">Dispatcher</span>
+                                        <span class="role-chip role-chip--dispatcher">Dispatcher</span>
                                     <?php else: ?>
-                                        <span class="badge bg-secondary">Customer</span>
+                                        <span class="role-chip role-chip--customer">Customer</span>
                                     <?php endif; ?>
                                 </td>
-                                <td>
+                                <td data-label="Status">
                                     <?php if ($u['status'] === 'active'): ?>
-                                        <span class="badge bg-success">Active</span>
+                                        <span class="availability-chip account-status-chip--active">Active</span>
                                     <?php else: ?>
-                                        <span class="badge bg-danger">Inactive</span>
+                                        <span class="availability-chip account-status-chip--inactive">Inactive</span>
                                     <?php endif; ?>
                                 </td>
-                                <td class="text-muted"><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
-                                <td class="text-end">
-                                    <?php if ($u['id'] != auth_id()): ?>
-                                        <form action="<?= base_url('admin/toggle_user_status/' . $u['id']) ?>" method="POST" class="d-inline" onsubmit="return confirm('Toggle status for <?= e($u['name']) ?>?');">
-                                            <?= csrf_field() ?>
-                                            <button type="submit" class="btn btn-sm <?= ($u['status'] === 'active') ? 'btn-outline-danger' : 'btn-outline-success' ?> py-0 px-2" style="font-size: 0.75rem;">
-                                                <?= ($u['status'] === 'active') ? 'Deactivate' : 'Activate' ?>
-                                            </button>
-                                        </form>
-                                    <?php else: ?>
-                                        <span class="badge bg-light text-muted border">Current User</span>
-                                    <?php endif; ?>
+                                <td data-label="Created" class="text-muted"><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
+                                <td data-label="Action" class="text-end">
+                                    <div class="d-inline-flex flex-wrap justify-content-end gap-2">
+                                        <a class="btn btn-secondary" href="<?= base_url('admin/users/' . (int)$u['id']) ?>">View / edit</a>
+                                        <?php if ($u['id'] != auth_id()): ?>
+                                            <?php $next_status = ($u['status'] === 'active') ? 'deactivate' : 'activate'; ?>
+                                            <form action="<?= base_url('admin/toggle_user_status/' . (int)$u['id']) ?>" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to <?= $next_status ?> <?= e($u['name']) ?>?');">
+                                                <?= csrf_field() ?>
+                                                <button type="submit" class="btn btn-secondary"><?= ucfirst($next_status) ?> user</button>
+                                            </form>
+                                            <form action="<?= base_url('admin/users/' . (int)$u['id'] . '/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Remove <?= e($u['name']) ?>? This account will be hidden and cannot sign in.');">
+                                                <?= csrf_field() ?>
+                                                <button type="submit" class="btn btn-outline-danger">Delete</button>
+                                            </form>
+                                        <?php else: ?>
+                                            <span class="text-muted">Current user</span>
+                                        <?php endif; ?>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -111,47 +108,46 @@ $this->call->view('templates/header', ['page_title' => $page_title ?? 'User Mana
                 </tbody>
             </table>
         </div>
-    </div>
+    </section>
 </div>
 
-<!-- Create Staff Modal -->
 <div class="modal fade" id="createUserModal" tabindex="-1" aria-labelledby="createUserModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <form action="<?= base_url('admin/create_user') ?>" method="POST">
                 <?= csrf_field() ?>
                 <div class="modal-header">
-                    <h5 class="modal-title fw-bold" id="createUserModalLabel">Create Staff Account</h5>
+                    <h2 class="modal-title h5" id="createUserModalLabel">Create staff account</h2>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Full Name <span class="text-danger">*</span></label>
-                        <input type="text" name="name" class="form-control" required placeholder="e.g. Alex Garcia">
+                        <label for="staff-name" class="form-label">Full name <span class="text-danger">(required)</span></label>
+                        <input id="staff-name" type="text" name="name" class="form-control" required autocomplete="name" placeholder="e.g. Alex Garcia">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Email Address <span class="text-danger">*</span></label>
-                        <input type="email" name="email" class="form-control" required placeholder="name@delivery.local">
+                        <label for="staff-email" class="form-label">Email address <span class="text-danger">(required)</span></label>
+                        <input id="staff-email" type="email" name="email" class="form-control" required autocomplete="email" placeholder="name@delivery.local">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Phone Number</label>
-                        <input type="text" name="phone" class="form-control" placeholder="+639171234567">
+                        <label for="staff-phone" class="form-label">Phone number</label>
+                        <input id="staff-phone" type="tel" name="phone" class="form-control" autocomplete="tel" placeholder="+639171234567">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">System Role <span class="text-danger">*</span></label>
-                        <select name="role_id" class="form-select" required>
-                            <option value="2">Dispatcher (Operations & Board)</option>
-                            <option value="1">Administrator (Full Access)</option>
+                        <label for="staff-role" class="form-label">System role <span class="text-danger">(required)</span></label>
+                        <select id="staff-role" name="role_id" class="form-select" required>
+                            <option value="2">Dispatcher (operations and board)</option>
+                            <option value="1">Administrator (full access)</option>
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Temporary Password <span class="text-danger">*</span></label>
-                        <input type="password" name="password" class="form-control" required minlength="8" placeholder="At least 8 characters">
+                    <div>
+                        <label for="staff-password" class="form-label">Temporary password <span class="text-danger">(required)</span></label>
+                        <input id="staff-password" type="password" name="password" class="form-control" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters">
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create User</button>
+                    <button type="submit" class="btn btn-primary">Create user</button>
                 </div>
             </form>
         </div>

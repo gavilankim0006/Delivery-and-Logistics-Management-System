@@ -370,12 +370,14 @@ $config['security_headers'] = [
     'csp_enabled' => false,
 
     // ── CSP sources ──
-    'script_src'  => ['https://cdn.jsdelivr.net', 'https://cdnjs.cloudflare.com'],
+    'script_src'  => ['https://cdn.jsdelivr.net', 'https://cdnjs.cloudflare.com', 'https://maps.googleapis.com', 'https://maps.gstatic.com', 'https://*.googleapis.com', 'https://*.gstatic.com'],
+
     'style_src'   => ['https://cdn.jsdelivr.net', 'https://fonts.googleapis.com'],
     'font_src'    => ['https://fonts.gstatic.com'],
-    'img_src'     => [],
-    'connect_src' => [],
-    'frame_src'   => [],
+    'img_src'     => ['https://maps.googleapis.com', 'https://maps.gstatic.com', 'https://*.google.com', 'https://*.googleapis.com', 'https://*.gstatic.com'],
+    'connect_src' => ['https://maps.googleapis.com', 'https://maps.gstatic.com', 'https://*.googleapis.com', 'https://*.gstatic.com'],
+    'frame_src'   => ['https://maps.googleapis.com', 'https://maps.gstatic.com', 'https://*.google.com'],
+
     
     // ── CSP rollout ──
     'csp_report_only' => false,

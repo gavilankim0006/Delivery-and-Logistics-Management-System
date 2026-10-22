@@ -12,7 +12,11 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 |  Auto-load Libraries
 | -------------------------------------------------------------------
 */
-$autoload['libraries'] = array('database');
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+$scriptPath = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+$basePath = rtrim(str_replace('\\', '/', dirname($scriptPath)), '/');
+$healthPath = '/' . ltrim(substr((string)$requestPath, strlen($basePath)), '/');
+$autoload['libraries'] = $healthPath === '/health' ? array() : array('database');
 
 /*
 | -------------------------------------------------------------------

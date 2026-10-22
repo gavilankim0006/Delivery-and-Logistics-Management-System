@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Responsive low-fidelity screen wireframes for the Delivery and Logistics Management System.">
+  <title>Delivery Wireframes</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #222;
+      --ink-soft: #444;
+      --muted: #555;
+      --paper: #ededed;
+      --surface: #f8f8f8;
+      --line: #999;
+      --fill: #e5e5e5;
+      --fill-soft: #f3f3f3;
+      --route: #444;
+      --route-pale: var(--fill);
+      --amber: var(--fill);
+      --success: var(--fill);
+      --danger: var(--fill);
+      --white: #fff;
+      --ink-dark: #222;
+      --line-strong: #666;
+      --line-mid: #888;
+      --line-soft: #ccc;
+      --fill-active: #d5d5d5;
+      --fill-button: #dedede;
+      --rule: #ddd;
+      --map-road: #c8c8c8;
+      --map-road-alt: #d0d0d0;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 15px/1.5 "Manrope", "Segoe UI", Arial, sans-serif;
+    }
+    a { color: var(--route); }
+    button, input, select { font: inherit; }
+    .page-wrap { width: min(1200px, 100%); margin: 0 auto; padding: 32px; }
+    .intro { margin: 0 0 22px; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 8px; font-size: clamp(26px, 4vw, 34px); line-height: 1.15; letter-spacing: -.03em; }
+    .intro p:last-child { max-width: 720px; margin-bottom: 0; color: var(--ink-soft); }
+    .screen-index {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 20px 0 30px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 0;
+      background: var(--surface);
+    }
+    .screen-index a {
+      display: inline-flex;
+      min-height: 44px;
+      align-items: center;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 0;
+      background: var(--fill-soft);
+      color: var(--ink-soft);
+      font-size: 13px;
+      text-decoration: none;
+    }
+    .screen-index a:hover, .screen-index a:focus-visible { border-color: var(--route); color: var(--route); outline: 2px solid var(--line-mid); outline-offset: 2px; }
+    .screen {
+      margin: 0 0 32px;
+      scroll-margin-top: 16px;
+    }
+    .screen-heading { margin-bottom: 10px; }
+    .screen-heading h2 { margin: 0; font-size: 18px; }
+    .screen-frame {
+      overflow: hidden;
+      border: 2px solid var(--line-mid);
+      border-radius: 0;
+      background: var(--surface);
+    }
+    .app-nav {
+      display: flex;
+      min-height: 58px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 10px 24px;
+      border-bottom: 1px solid var(--line);
+      background: var(--white);
+    }
+    .brand { color: var(--ink); font-size: 16px; font-weight: 700; text-decoration: none; }
+    .nav-links { display: flex; flex-wrap: wrap; gap: 22px; color: var(--ink-soft); font-size: 13px; }
+    .nav-links span.active { color: var(--route); font-weight: 700; }
+    .account { color: var(--ink-soft); font-size: 13px; }
+    .screen-body { padding: 28px; }
+    .dashboard-wireframe { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 22px; align-items: start; }
+    .dashboard-sidebar { min-height: 100%; padding: 16px; border: 2px solid var(--line); background: var(--fill); }
+    .dashboard-sidebar h4 { margin: 0 0 12px; font-size: 14px; }
+    .dashboard-sidebar nav { display: grid; gap: 6px; }
+    .dashboard-sidebar nav span { display: block; min-height: 44px; padding: 9px 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); font-size: 13px; }
+    .dashboard-sidebar nav span.active { border-color: var(--line-strong); background: var(--fill-active); color: var(--ink); font-weight: 700; }
+    .dashboard-main { min-width: 0; }
+    .page-title {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+    .page-title h3 { margin: 0 0 3px; font-size: 24px; line-height: 1.2; }
+    .page-title p { margin: 0; color: var(--muted); font-size: 14px; }
+    .wire-button, .wire-button-secondary, .wire-link-button {
+      display: inline-flex;
+      min-height: 44px;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 14px;
+      border: 2px solid var(--line-strong);
+      border-radius: 0;
+      background: var(--fill-button);
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .wire-button-secondary { border-color: var(--line); background: var(--surface); color: var(--ink-soft); }
+    .wire-link-button { border-color: transparent; background: transparent; color: var(--route); }
+    .surface {
+      min-width: 0;
+      padding: 18px;
+      border: 2px solid var(--line);
+      border-radius: 0;
+      background: var(--surface);
+    }
+    .surface h4 { margin: 0 0 14px; font-size: 15px; }
+    .cols-2 { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(250px, .9fr); gap: 22px; }
+    .cols-even { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .stack { display: grid; gap: 16px; }
+    .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .field { display: grid; gap: 5px; min-width: 0; }
+    .field.full { grid-column: 1 / -1; }
+    .field label, .field-label { color: var(--ink-soft); font-size: 12px; font-weight: 700; }
+    .fake-input, .fake-select, .fake-textarea {
+      display: flex;
+      min-height: 44px;
+      align-items: center;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 0;
+      background: var(--white);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .fake-textarea { min-height: 70px; align-items: flex-start; }
+    .hint { margin: 0; color: var(--muted); font-size: 12px; }
+    .route-map {
+      position: relative;
+      min-height: 152px;
+      overflow: hidden;
+      border: 2px solid var(--line);
+      border-radius: 0;
+      background-color: var(--fill);
+      background-image: linear-gradient(30deg, transparent 47%, var(--map-road) 48%, var(--map-road) 50%, transparent 51%), linear-gradient(145deg, transparent 46%, var(--map-road-alt) 47%, var(--map-road-alt) 49%, transparent 50%);
+      background-size: 140px 90px, 180px 120px;
+    }
+    .map-label-text { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+    .route-line { position: absolute; top: 52%; left: 18%; width: 63%; border-top: 3px dashed var(--route); transform: rotate(-17deg); }
+    .map-pin { position: absolute; top: 29%; left: 16%; width: 15px; height: 15px; border: 3px solid var(--route); border-radius: 0; background: var(--surface); }
+    .map-pin.end { top: 58%; left: 76%; border-color: var(--route); }
+    .summary-line { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); color: var(--ink-soft); font-size: 13px; }
+    .summary-line strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+    .summary-line.total { margin-top: 4px; border-bottom: 0; font-size: 15px; }
+    .summary-line.total strong { color: var(--route); font-size: 17px; }
+    .field-set { display: grid; gap: 18px; }
+    .field-set + .field-set { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line-soft); }
+    .field-set h4 { margin-bottom: 0; }
+    .radio-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .radio-option { min-height: 44px; display: inline-flex; align-items: center; padding: 7px 12px; border: 1px solid var(--line); border-radius: 0; color: var(--ink-soft); font-size: 12px; }
+    .radio-option.selected { border-color: var(--route); background: var(--route-pale); color: var(--route); }
+    .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .filters .fake-select, .filters .fake-input { min-width: 130px; min-height: 44px; }
+    .filters .search { flex: 1 1 200px; }
+    .order-row {
+      display: grid;
+      grid-template-columns: 1fr 1.5fr 1fr auto;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 2px;
+      border-top: 1px solid var(--line-soft);
+      font-size: 13px;
+    }
+    .order-id { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .subtext { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
+    .route-pair { color: var(--ink-soft); }
+    .status-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid var(--line-mid); border-radius: 0; background: var(--fill); color: var(--ink); font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .status-chip::before { width: 7px; height: 7px; border-radius: 0; background: currentColor; content: ""; }
+    .status-chip.waiting, .status-chip.done, .status-chip.failed { background: var(--fill); color: var(--ink); }
+    .progress-mini { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+    .progress-mini i { display: block; width: 15px; height: 4px; border-radius: 0; background: var(--line-soft); }
+    .progress-mini i.on { background: var(--route); }
+    .empty-state { padding: 26px; border: 1px dashed var(--line); border-radius: 0; color: var(--ink-soft); text-align: center; }
+    .tracker { display: grid; grid-template-columns: repeat(5, 1fr); margin: 22px 0; }
+    .tracker-step { position: relative; min-width: 0; text-align: center; }
+    .tracker-step:not(:last-child)::after { position: absolute; z-index: 0; top: 13px; left: 58%; width: 84%; border-top: 2px solid var(--line); content: ""; }
+    .tracker-step.complete:not(:last-child)::after { border-color: var(--route); }
+    .tracker-dot { position: relative; z-index: 1; display: block; width: 26px; height: 26px; margin: 0 auto 6px; border: 2px solid var(--line); border-radius: 0; background: var(--white); }
+    .tracker-step.complete .tracker-dot, .tracker-step.current .tracker-dot { border-color: var(--route); background: var(--route-pale); }
+    .tracker-step.current .tracker-dot { outline: 2px solid var(--route); outline-offset: 3px; }
+    .tracker-name { display: block; color: var(--ink-soft); font-size: 12px; font-weight: 700; }
+    .tracker-time { color: var(--muted); font-size: 12px; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .detail-item { padding: 9px 0; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
+    .detail-item:last-child { border-bottom: 0; }
+    .detail-item strong { display: block; margin-bottom: 2px; color: var(--muted); font-size: 12px; text-transform: uppercase; }
+    .actions-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px; }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 14px; }
+    .segment { min-height: 44px; display: inline-flex; align-items: center; padding: 7px 11px; border: 1px solid var(--line); border-radius: 0; background: var(--white); color: var(--ink-soft); font-size: 12px; }
+    .segment.active { border-color: var(--route); background: var(--route-pale); color: var(--route); font-weight: 700; }
+    .toolbar-spacer { flex: 1; }
+    .wire-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .wire-table th { padding: 10px 8px; color: var(--muted); font-size: 12px; font-weight: 700; text-align: left; }
+    .wire-table td { padding: 12px 8px; border-top: 1px solid var(--line-soft); color: var(--ink-soft); vertical-align: top; }
+    .wire-table td strong { color: var(--ink); }
+    .table-wrap { overflow-x: auto; }
+    .row-actions { color: var(--route); white-space: nowrap; }
+    .metric-strip { display: grid; grid-template-columns: repeat(3, 1fr); margin-bottom: 20px; border: 1px solid var(--line); border-radius: 0; background: var(--white); }
+    .metric { padding: 16px 18px; border-right: 1px solid var(--line); }
+    .metric:last-child { border-right: 0; }
+    .metric span { display: block; color: var(--muted); font-size: 12px; }
+    .metric strong { display: block; margin-top: 4px; font-size: 23px; font-variant-numeric: tabular-nums; }
+    .chart-placeholder { display: grid; min-height: 190px; place-items: center; border: 2px dashed var(--line); border-radius: 0; background: var(--fill-soft); color: var(--muted); text-align: center; }
+    .error-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line-soft); font-size: 12px; }
+    .error-row:first-of-type { border-top: 0; }
+    .auth-frame { display: grid; min-height: 380px; place-items: center; padding: 36px 18px; }
+    .auth-panel { width: min(380px, 100%); }
+    .auth-brand { margin-bottom: 24px; text-align: center; }
+    .auth-brand strong { display: block; font-size: 22px; }
+    .route-motif { display: flex; align-items: center; justify-content: center; gap: 0; margin: 11px auto 0; color: var(--route); }
+    .route-motif i { display: block; width: 10px; height: 10px; border: 2px solid var(--route); border-radius: 0; background: var(--white); }
+    .route-motif b { width: 44px; border-top: 2px dashed var(--route); }
+    .auth-panel h3 { margin-bottom: 15px; text-align: center; font-size: 21px; }
+    .auth-fields { display: grid; gap: 12px; }
+    .auth-submit { width: 100%; margin-top: 3px; }
+    .auth-foot { margin: 14px 0 0; color: var(--ink-soft); font-size: 13px; text-align: center; }
+    .form-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+    .back-link { display: inline-flex; min-height: 44px; align-items: center; color: var(--route); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+    .inline-note { padding: 9px 11px; border: 1px solid var(--line-mid); background: var(--amber); color: var(--ink-soft); font-size: 12px; }
+    .frame-footer { padding: 9px 14px; border-top: 1px solid var(--line); background: var(--fill-soft); color: var(--muted); font-size: 12px; }
+
+    @media (max-width: 760px) {
+      .page-wrap { padding: 22px 16px; }
+      .app-nav { align-items: flex-start; padding: 12px 16px; }
+      .nav-links { gap: 12px; }
+      .account { display: none; }
+      .screen-body { padding: 20px 16px; }
+      .cols-2, .cols-even { grid-template-columns: 1fr; }
+      .dashboard-wireframe { grid-template-columns: 1fr; }
+      .dashboard-sidebar { min-height: 0; }
+      .dashboard-sidebar nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .detail-grid { grid-template-columns: 1fr; }
+      .order-row { grid-template-columns: 1fr auto; gap: 6px 12px; }
+      .order-row .route-pair { grid-column: 1 / -1; grid-row: 2; }
+      .order-row .order-status { grid-column: 2; grid-row: 1; }
+      .metric { padding: 13px 12px; }
+    }
+    @media (max-width: 560px) {
+      .page-wrap { padding: 20px 16px; }
+      .screen { margin-bottom: 24px; }
+      .app-nav { flex-direction: column; gap: 7px; }
+      .nav-links { width: 100%; justify-content: space-between; gap: 7px; font-size: 12px; }
+      .page-title { flex-direction: column; }
+      .page-title h3 { font-size: 21px; }
+      .page-title .wire-button { align-self: flex-start; }
+      .fields { grid-template-columns: 1fr; }
+      .field.full { grid-column: auto; }
+      .filters > * { flex: 1 1 42%; min-width: 0 !important; }
+      .filters .search { flex-basis: 100%; }
+      .tracker { grid-template-columns: 1fr; gap: 0; margin: 16px 0; }
+      .tracker-step { display: grid; grid-template-columns: 30px 1fr; column-gap: 10px; min-height: 48px; text-align: left; }
+      .tracker-step:not(:last-child)::after { top: 26px; left: 13px; width: 0; height: 23px; border-top: 0; border-left: 2px solid var(--line); }
+      .tracker-step.complete:not(:last-child)::after { border-left-color: var(--route); }
+      .tracker-dot { grid-row: 1 / span 2; width: 26px; margin: 0; }
+      .tracker-name { align-self: end; }
+      .tracker-time { align-self: start; }
+      .metric-strip { grid-template-columns: 1fr; }
+      .metric { display: flex; align-items: center; justify-content: space-between; border-right: 0; border-bottom: 1px solid var(--line); }
+      .metric:last-child { border-bottom: 0; }
+      .metric strong { margin: 0; font-size: 19px; }
+      .table-wrap { overflow: visible; }
+      .wire-table, .wire-table tbody, .wire-table tr, .wire-table td { display: block; width: 100%; }
+      .wire-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+      .wire-table tr { margin-bottom: 10px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 0; }
+      .wire-table td { display: grid; grid-template-columns: minmax(90px, .7fr) 1.3fr; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line-soft); }
+      .wire-table td:first-child { border-top: 0; }
+      .wire-table td::before { color: var(--muted); content: attr(data-label); font-size: 12px; font-weight: 700; }
+      .toolbar { align-items: stretch; }
+      .toolbar-spacer { flex-basis: 100%; }
+      .segment { flex: 1 1 auto; text-align: center; }
+      .actions-row { align-items: flex-start; }
+      .route-map { min-height: 130px; }
+      .screen-index { gap: 6px; }
+      .screen-index a { min-height: 44px; font-size: 12px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page-wrap">
+    <header class="intro">
+      <h1>Screen wireframes</h1>
+      <p>Low-fidelity layouts for the customer, dispatcher, and administrator journeys. These are static visual references, not working application screens.</p>
+    </header>
+
+    <nav class="screen-index" aria-label="Jump to a screen">
+      <a href="#login">Login</a><a href="#register">Register</a><a href="#new-order">New order</a>
+      <a href="#order-list">My orders</a><a href="#order-detail">Order detail</a><a href="#edit-order">Edit order</a>
+      <a href="#delivery-control">Delivery control</a><a href="#order-cancellation">Cancellation</a><a href="#dispatch">Dispatch</a><a href="#admin">Admin</a><a href="#riders">Riders</a><a href="#rider-form">Rider form</a>
+    </nav>
+
+    <section class="screen" id="login" aria-labelledby="login-title">
+      <header class="screen-heading"><h2 id="login-title">Login</h2></header>
+      <div class="screen-frame">
+        <div class="auth-frame">
+          <div class="auth-panel">
+            <div class="auth-brand"><strong>Dispatch</strong><div class="route-motif" aria-hidden="true"><i></i><b></b><i></i><b></b><i></i><b></b><i></i></div></div>
+            <h3>Sign in</h3>
+            <div class="auth-fields">
+              <div class="field"><label>Email</label><div class="fake-input">you@example.com</div></div>
+              <div class="field"><label>Password</label><div class="fake-input">••••••••••</div></div>
+              <span class="wire-button auth-submit">Sign in</span>
+            </div>
+            <p class="auth-foot">New here? <a href="#register">Create an account</a></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="register" aria-labelledby="register-title">
+      <header class="screen-heading"><h2 id="register-title">Register</h2></header>
+      <div class="screen-frame">
+        <div class="auth-frame">
+          <div class="auth-panel">
+            <div class="auth-brand"><strong>Dispatch</strong><div class="route-motif" aria-hidden="true"><i></i><b></b><i></i><b></b><i></i><b></b><i></i></div></div>
+            <h3>Create account</h3>
+            <div class="auth-fields">
+              <div class="field"><label>Full name</label><div class="fake-input">Your name</div></div>
+              <div class="field"><label>Email</label><div class="fake-input">you@example.com</div></div>
+              <div class="field"><label>Phone</label><div class="fake-input">09XX XXX XXXX</div></div>
+              <div class="field"><label>Password</label><div class="fake-input">At least 8 characters</div></div>
+              <span class="wire-button auth-submit">Create account</span>
+            </div>
+            <p class="auth-foot">Already registered? <a href="#login">Sign in</a></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="new-order" aria-labelledby="new-order-title">
+      <header class="screen-heading"><h2 id="new-order-title">New order</h2></header>
+      <div class="screen-frame">
+        <nav class="app-nav" aria-label="Customer navigation"><a class="brand" href="#new-order">Dispatch</a><div class="nav-links"><span class="active">New order</span><span>My orders</span></div><span class="account">Account ▾</span></nav>
+        <div class="screen-body">
+          <div class="page-title"><div><h3>New delivery</h3><p>Enter addresses, parcel details, and estimated road distance.</p></div></div>
+          <div class="cols-2">
+            <div class="surface">
+              <div class="field-set">
+                <h4>Pickup</h4>
+                <div class="fields">
+                  <div class="field full"><label>Pickup address</label><div class="fake-input">Search or enter an address</div></div>
+                  <div class="field"><label>Contact name</label><div class="fake-input">Name</div></div>
+                  <div class="field"><label>Contact phone</label><div class="fake-input">Phone number</div></div>
+                </div>
+              </div>
+              <div class="field-set">
+                <h4>Drop-off</h4>
+                <div class="fields">
+                  <div class="field full"><label>Drop-off address</label><div class="fake-input">Search or enter an address</div></div>
+                  <div class="field"><label>Contact name</label><div class="fake-input">Name</div></div>
+                  <div class="field"><label>Contact phone</label><div class="fake-input">Phone number</div></div>
+                </div>
+              </div>
+              <div class="field-set">
+                <h4>Parcel</h4>
+                <div class="fields">
+                  <div class="field full"><label>Description</label><div class="fake-input">What are you sending?</div></div>
+                  <div class="field"><label>Weight</label><div class="fake-input">e.g. 2 kg</div></div>
+                  <div class="field"><span class="field-label">Size</span><div class="radio-row"><span class="radio-option selected">Small</span><span class="radio-option">Medium</span><span class="radio-option">Large</span></div></div>
+                </div>
+              </div>
+            </div>
+            <aside class="surface stack" aria-label="Route and fee estimate">
+              <div><h4>Route estimate</h4><p class="hint">Map preview will be available with route integration.</p><div class="route-map" aria-hidden="true"><span class="route-line"></span><i class="map-pin"></i><i class="map-pin end"></i></div><p class="map-label-text">Map preview will appear here.</p></div>
+              <div class="field"><label>Distance (km)</label><div class="fake-input">Enter estimated road distance</div></div>
+              <p class="hint">The fee is calculated on save using current delivery rates. No route is automatically calculated.</p>
+              <span class="wire-button">Save draft</span>
+              <p class="hint">Payment checkout is not implemented in the current application flow.</p>
+            </aside>
+          </div>
+        </div>
+        <div class="frame-footer">On mobile, the route estimate and fee summary follow the delivery form.</div>
+      </div>
+    </section>
+
+    <section class="screen" id="order-list" aria-labelledby="order-list-title">
+      <header class="screen-heading"><h2 id="order-list-title">Order list</h2></header>
+      <div class="screen-frame">
+        <nav class="app-nav" aria-label="Customer navigation"><a class="brand" href="#order-list">Dispatch</a><div class="nav-links"><span>New order</span><span class="active">My orders</span></div><span class="account">Account ▾</span></nav>
+        <div class="screen-body">
+          <div class="page-title"><div><h3>My orders</h3><p>Review delivery progress and past orders.</p></div><span class="wire-button">New order</span></div>
+          <div class="filters" aria-label="Order filters"><div class="fake-select">Status: All⌄</div><div class="fake-input">Date range</div><div class="fake-input search">Search order number</div></div>
+          <div class="surface">
+            <div class="order-row"><div><span class="order-id">DLV-20261027-0001</span><span class="subtext">Oct 27 · 09:12</span></div><div class="route-pair">Pickup address <span aria-hidden="true">→</span> Drop-off address<div class="progress-mini" aria-label="Two of five stages complete"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div></div><div class="order-status"><span class="status-chip">Rider assigned</span></div><strong>PHP 152.00</strong></div>
+            <div class="order-row"><div><span class="order-id">DLV-20261026-0002</span><span class="subtext">Oct 26 · 14:40</span></div><div class="route-pair">Pickup address <span aria-hidden="true">→</span> Drop-off address<div class="progress-mini" aria-label="Four of five stages complete"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div></div><div class="order-status"><span class="status-chip waiting">Picked up</span></div><strong>PHP 210.00</strong></div>
+            <div class="order-row"><div><span class="order-id">DLV-20261025-0003</span><span class="subtext">Oct 25 · 11:05</span></div><div class="route-pair">Pickup address <span aria-hidden="true">→</span> Drop-off address<div class="progress-mini" aria-label="Five of five stages complete"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></div></div><div class="order-status"><span class="status-chip done">Delivered</span></div><strong>PHP 125.00</strong></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="order-detail" aria-labelledby="order-detail-title">
+      <header class="screen-heading"><h2 id="order-detail-title">Order detail</h2></header>
+      <div class="screen-frame">
+        <nav class="app-nav" aria-label="Customer navigation"><a class="brand" href="#order-detail">Dispatch</a><div class="nav-links"><span>New order</span><span class="active">My orders</span></div><span class="account">Account ▾</span></nav>
+        <div class="screen-body">
+          <div class="page-title"><div><h3>Order DLV-20261027-0001</h3></div><span class="status-chip">Rider assigned</span></div>
+          <div class="surface">
+            <h4>Delivery progress</h4>
+            <div class="tracker" aria-label="Delivery progress: placed and paid; rider assigned; pickup and delivery pending">
+              <div class="tracker-step complete"><i class="tracker-dot"></i><span class="tracker-name">Placed</span><span class="tracker-time">09:12</span></div>
+              <div class="tracker-step complete"><i class="tracker-dot"></i><span class="tracker-name">Paid</span><span class="tracker-time">09:14</span></div>
+              <div class="tracker-step current"><i class="tracker-dot"></i><span class="tracker-name">Rider assigned</span><span class="tracker-time">09:20</span></div>
+              <div class="tracker-step"><i class="tracker-dot"></i><span class="tracker-name">Picked up</span><span class="tracker-time">Pending</span></div>
+              <div class="tracker-step"><i class="tracker-dot"></i><span class="tracker-name">Delivered</span><span class="tracker-time">Pending</span></div>
+            </div>
+          </div>
+          <div class="detail-grid" style="margin-top:18px">
+            <section class="surface"><h4>Route and parcel</h4><div class="detail-item"><strong>Pickup</strong>Pickup address, Quezon City</div><div class="detail-item"><strong>Drop-off</strong>Drop-off address, Makati City</div><div class="detail-item"><strong>Parcel</strong>Documents · 1 kg · Small</div></section>
+            <section class="surface"><h4>Rider and payment</h4><div class="detail-item"><strong>Rider</strong>Alex Santos · ABC 1234</div><div class="detail-item"><strong>Contact</strong>09XX XXX XXXX</div><div class="detail-item"><strong>Payment</strong>PHP 152.00 · Paid (illustrative)</div><a class="back-link" href="#delivery-control">Open delivery control link →</a></section>
+          </div>
+          <div class="actions-row"><a class="wire-button-secondary" href="#edit-order">Edit order</a><a class="back-link" href="#order-cancellation">Cancel order</a></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="delivery-control" aria-labelledby="delivery-control-title">
+      <header class="screen-heading"><h2 id="delivery-control-title">Delivery control link</h2></header>
+      <div class="screen-frame">
+        <div class="screen-body">
+          <div class="page-title"><div><h3>Order DLV-20261027-0001</h3><p>Shareable delivery status and customer requests.</p></div><span class="status-chip">Rider assigned</span></div>
+          <section class="surface stack" aria-label="Public delivery status">
+            <div><h4>Current status</h4><p class="hint">Status refreshes when this page is reloaded.</p><div class="fake-input">Rider assigned · Approximate remaining route time: 12 minutes</div><p class="hint">Route estimate only. This is not live GPS or a guaranteed arrival time.</p></div>
+            <div><h4>Delivery progress</h4><div class="order-row"><span>Paid</span><span>09:14</span></div><div class="order-row"><span>Rider assigned</span><span>09:20</span></div><div class="order-row"><span>Picked up</span><span>Pending</span></div></div>
+          </section>
+          <div class="cols-even" style="margin-top:18px">
+            <section class="surface"><h4>Update drop-off instructions</h4><p class="hint">Instructions are attached to this order and shared with dispatch.</p><div class="fake-textarea">Enter delivery instructions</div><div class="actions-row"><span class="wire-button">Update instructions</span></div></section>
+            <section class="surface"><h4>Request a delivery hold</h4><p class="hint">Dispatch reviews this request. Sending it does not pause the courier.</p><div class="fake-textarea">Optional note</div><div class="actions-row"><span class="wire-button-secondary">Send hold request</span></div></section>
+          </div>
+          <section class="surface" style="margin-top:18px"><h4>Recent requests</h4><div class="order-row"><span>Drop-off instruction</span><span>Applied · Today 09:25</span></div><div class="order-row"><span>Hold request</span><span>Pending dispatch review</span></div></section>
+          <p class="inline-note" style="margin-top:16px">Requests are available while the order is paid, booking, or rider assigned. Changes are unavailable at other stages.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="order-cancellation" aria-labelledby="order-cancellation-title">
+      <header class="screen-heading"><h2 id="order-cancellation-title">Order cancellation confirmation</h2></header>
+      <div class="screen-frame"><div class="screen-body"><section class="surface" style="max-width:600px"><h3>Cancel this order?</h3><p>Order DLV-20261027-0001 will be marked as cancelled. This action cannot be undone.</p><div class="actions-row"><span class="wire-button-secondary">Keep order</span><span class="wire-button">Cancel order</span></div></section></div></div>
+    </section>
+
+    <section class="screen" id="edit-order" aria-labelledby="edit-order-title">
+      <header class="screen-heading"><h2 id="edit-order-title">Edit order</h2></header>
+      <div class="screen-frame">
+        <nav class="app-nav" aria-label="Customer navigation"><a class="brand" href="#edit-order">Dispatch</a><div class="nav-links"><span>New order</span><span class="active">My orders</span></div><span class="account">Account ▾</span></nav>
+        <div class="screen-body">
+          <div class="page-title"><div><h3>Edit order</h3><p>DLV-20261027-0001</p></div></div>
+          <div class="inline-note">Only draft orders can be edited. Your current values are shown below.</div>
+          <div class="cols-2" style="margin-top:16px">
+            <div class="surface">
+              <div class="field-set"><h4>Pickup</h4><div class="fields"><div class="field full"><label>Pickup address</label><div class="fake-input">Current pickup address</div></div><div class="field"><label>Contact name</label><div class="fake-input">A. Santos</div></div><div class="field"><label>Contact phone</label><div class="fake-input">09XX XXX XXXX</div></div></div></div>
+              <div class="field-set"><h4>Drop-off</h4><div class="fields"><div class="field full"><label>Drop-off address</label><div class="fake-input">Current drop-off address</div></div><div class="field"><label>Contact name</label><div class="fake-input">M. Reyes</div></div><div class="field"><label>Contact phone</label><div class="fake-input">09XX XXX XXXX</div></div></div></div>
+              <div class="field-set"><h4>Parcel</h4><div class="fields"><div class="field full"><label>Description</label><div class="fake-input">Documents</div></div><div class="field"><label>Weight</label><div class="fake-input">1 kg</div></div><div class="field"><span class="field-label">Size</span><div class="radio-row"><span class="radio-option selected">Small</span><span class="radio-option">Medium</span><span class="radio-option">Large</span></div></div></div></div>
+              <div class="form-actions"><span class="wire-button-secondary">Cancel</span><span class="wire-button">Save changes</span></div>
+            </div>
+            <aside class="surface"><h4>Route estimate</h4><p class="hint">Map preview will be available with route integration.</p><div class="route-map" aria-hidden="true"><span class="route-line"></span><i class="map-pin"></i><i class="map-pin end"></i></div><p class="map-label-text">Map preview will appear here.</p><div class="field"><label>Distance (km)</label><div class="fake-input">Enter estimated road distance</div></div><p class="hint" style="margin-top:10px">The fee uses current delivery rates and is calculated on save.</p></aside>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="dispatch" aria-labelledby="dispatch-title">
+      <header class="screen-heading"><h2 id="dispatch-title">Dispatcher board</h2></header>
+      <div class="screen-frame">
+        <nav class="app-nav" aria-label="Dispatcher navigation"><a class="brand" href="#dispatch">Dispatch</a><div class="nav-links"><span class="active">Board</span><span>Orders</span><span>Riders</span></div><span class="account">Dispatcher ▾</span></nav>
+        <div class="screen-body">
+          <div class="page-title"><div><h3>Dispatch</h3><p>Monitor and manage active deliveries.</p></div><div class="fake-input" style="min-width:min(320px,100%)">Search order or customer</div></div>
+          <div class="toolbar"><span class="segment active">All 24</span><span class="segment">Awaiting booking 2</span><span class="segment">In transit 6</span><span class="segment">Failed 1</span><span class="toolbar-spacer"></span><span class="fake-select">Today⌄</span></div>
+          <div class="surface table-wrap">
+            <table class="wire-table"><thead><tr><th>Order</th><th>Customer</th><th>Route</th><th>Status</th><th>Rider</th><th>Actions</th></tr></thead><tbody>
+              <tr><td data-label="Order"><strong>DLV-…-0007</strong><span class="subtext">09:12 today</span></td><td data-label="Customer">A. Santos</td><td data-label="Route">Pickup address → Drop-off address</td><td data-label="Status"><span class="status-chip failed">Failed</span></td><td data-label="Rider">—</td><td data-label="Actions"><span class="row-actions">View · Rebook · Cancel</span></td></tr>
+              <tr><td data-label="Order"><strong>DLV-…-0008</strong><span class="subtext">09:36 today</span></td><td data-label="Customer">M. Reyes</td><td data-label="Route">Pickup address → Drop-off address</td><td data-label="Status"><span class="status-chip">In transit</span></td><td data-label="Rider">J. Cruz</td><td data-label="Actions"><span class="row-actions">View · More</span></td></tr>
+              <tr><td data-label="Order"><strong>DLV-…-0009</strong><span class="subtext">10:04 today</span></td><td data-label="Customer">L. Garcia</td><td data-label="Route">Pickup address → Drop-off address</td><td data-label="Status"><span class="status-chip waiting">Awaiting booking</span></td><td data-label="Rider">—</td><td data-label="Actions"><span class="row-actions">View · More</span></td></tr>
+            </tbody></table>
+          </div>
+        </div>
+        <div class="frame-footer">Below 576px, each table row stacks into a labeled order card.</div>
+      </div>
+    </section>
+
+    <section class="screen" id="admin" aria-labelledby="admin-title">
+      <header class="screen-heading"><h2 id="admin-title">Admin dashboard</h2></header>
+      <div class="screen-frame">
+        <nav class="app-nav" aria-label="Admin navigation"><a class="brand" href="#admin">Dispatch</a><div class="nav-links"><span class="active">Dashboard</span><span>Users</span><span>Riders</span><span>Reports</span><span>Settings</span></div><span class="account">Admin ▾</span></nav>
+        <div class="screen-body">
+          <div class="dashboard-wireframe">
+            <aside class="dashboard-sidebar" aria-label="Admin dashboard sidebar">
+              <h3>Admin menu</h3>
+              <nav><span class="active">Dashboard</span><span>Orders</span><span>Users</span><span>Riders</span><span>Reports</span><span>Settings</span></nav>
+            </aside>
+            <div class="dashboard-main">
+              <div class="page-title"><div><h3>Dashboard</h3><p>Overview of delivery activity.</p></div></div>
+              <div class="metric-strip" aria-label="Illustrative summary metrics"><div class="metric"><span>Orders today</span><strong>128</strong></div><div class="metric"><span>Paid revenue this month</span><strong>PHP 84,250</strong></div><div class="metric"><span>Failed payments this month</span><strong>3</strong></div></div>
+              <p class="hint" style="margin:-10px 0 18px">Illustrative values. Payment data is recorded, but checkout is not wired into the order flow.</p>
+              <div class="cols-even">
+                <section class="surface"><h4>Recent orders</h4><div class="table-wrap"><table class="wire-table"><thead><tr><th>Order</th><th>Customer</th><th>Fee</th><th>Status</th><th>Action</th></tr></thead><tbody><tr><td data-label="Order"><strong>DLV-…-0012</strong></td><td data-label="Customer">A. Santos</td><td data-label="Fee">PHP 152.00</td><td data-label="Status">Draft</td><td data-label="Action">View order</td></tr><tr><td data-label="Order"><strong>DLV-…-0011</strong></td><td data-label="Customer">M. Reyes</td><td data-label="Fee">PHP 210.00</td><td data-label="Status">Failed</td><td data-label="Action">View order</td></tr></tbody></table></div></section>
+                <section class="surface"><h4>Latest API activity</h4><div class="error-row"><span>Courier booking request</span><span class="status-chip failed">502 · 10:42</span></div><div class="error-row"><span>Maps route lookup</span><span class="status-chip failed">Timeout · 10:16</span></div><div class="error-row"><span>Address lookup</span><span class="status-chip">200 · 09:58</span></div><a class="back-link" href="#admin">View all logs →</a></section>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="riders" aria-labelledby="riders-title">
+      <header class="screen-heading"><h2 id="riders-title">Riders list</h2></header>
+      <div class="screen-frame">
+        <nav class="app-nav" aria-label="Admin navigation"><a class="brand" href="#riders">Dispatch</a><div class="nav-links"><span>Dashboard</span><span class="active">Riders</span><span>Users</span><span>Settings</span></div><span class="account">Admin ▾</span></nav>
+        <div class="screen-body">
+          <div class="page-title"><div><h3>Riders</h3><p>Manage rider contact and availability.</p></div><span class="wire-button">Add rider</span></div>
+          <div class="surface table-wrap">
+            <table class="wire-table"><thead><tr><th>Name</th><th>Contact</th><th>Vehicle</th><th>Plate</th><th>Availability</th></tr></thead><tbody>
+              <tr><td data-label="Name"><strong>Alex Santos</strong></td><td data-label="Contact">09XX XXX XXXX</td><td data-label="Vehicle">Motorcycle</td><td data-label="Plate">ABC 1234</td><td data-label="Availability"><span class="status-chip done">Available</span></td></tr>
+              <tr><td data-label="Name"><strong>Jamie Cruz</strong></td><td data-label="Contact">09XX XXX XXXX</td><td data-label="Vehicle">Motorcycle</td><td data-label="Plate">XYZ 5678</td><td data-label="Availability"><span class="status-chip waiting">On delivery</span></td></tr>
+              <tr><td data-label="Name"><strong>Morgan Reyes</strong></td><td data-label="Contact">09XX XXX XXXX</td><td data-label="Vehicle">Van</td><td data-label="Plate">DEF 9012</td><td data-label="Availability"><span class="status-chip done">Available</span></td></tr>
+            </tbody></table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="rider-form" aria-labelledby="rider-form-title">
+      <header class="screen-heading"><h2 id="rider-form-title">Rider form</h2></header>
+      <div class="screen-frame">
+        <nav class="app-nav" aria-label="Admin navigation"><a class="brand" href="#rider-form">Dispatch</a><div class="nav-links"><span>Dashboard</span><span class="active">Riders</span><span>Users</span><span>Settings</span></div><span class="account">Admin ▾</span></nav>
+        <div class="screen-body">
+          <div class="page-title"><div><h3>Add rider</h3><p>Enter rider and vehicle details.</p></div></div>
+          <div class="surface" style="max-width:760px">
+            <div class="fields">
+              <div class="field"><label>Rider name</label><div class="fake-input">Full name</div></div>
+              <div class="field"><label>Phone</label><div class="fake-input">09XX XXX XXXX</div></div>
+              <div class="field"><label>Vehicle type</label><div class="fake-select">Choose vehicle⌄</div></div>
+              <div class="field"><label>Plate number</label><div class="fake-input">ABC 1234</div></div>
+              <div class="field full"><span class="field-label">Availability</span><div class="radio-row"><span class="radio-option selected">Available</span><span class="radio-option">Unavailable</span></div></div>
+            </div>
+            <div class="form-actions"><a class="back-link" href="#riders" style="align-self:center;margin-right:auto">Cancel · Back to riders</a><span class="wire-button">Save rider</span></div>
+          </div>
+          <p class="hint" style="margin-top:12px">Inline field errors appear beneath the relevant input. Rider removal is separate and requires confirmation.</p>
+        </div>
+      </div>
+    </section>
+
+    <footer class="intro"><p class="hint">Static design reference · Responsive layout target widths: 375px, 768px, and 1280px.</p></footer>
+  </main>
+</body>
+</html>
