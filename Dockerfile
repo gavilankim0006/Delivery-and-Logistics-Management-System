@@ -13,7 +13,11 @@ RUN sed -i '/<Directory \/var\/www\/>/,/<\/Directory>/ s/AllowOverride None/Allo
  
 # Copy app files
 COPY . /var/www/html/
- 
+
+# Generate the Composer autoloader required by the application
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+RUN composer install --working-dir=/var/www/html --no-dev --no-interaction --optimize-autoloader
+
 # Fix permissions
 RUN chown -R www-data:www-data /var/www/html \
 && chmod -R 755 /var/www/html

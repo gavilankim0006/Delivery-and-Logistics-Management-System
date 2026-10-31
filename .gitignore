@@ -22,10 +22,11 @@ cookies.txt
 # Dependencies
 node_modules/
 public/build/index.php
-vendor/
+# Composer autoloader is required by app/config/config.php (composer_autoload = TRUE).
+# Keep vendor in the Docker build context; Composer dependencies can be regenerated from composer.json.
 app/vendor/
 composer.lock
-docs/
+
 # Cache & Logs
 runtime/*
 !runtime/.htaccess
