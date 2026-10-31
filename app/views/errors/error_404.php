@@ -51,7 +51,7 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="<?= base_url('public/css/app.css') ?>" rel="stylesheet">
+    <link href="<?= base_url('css/app.css') ?>" rel="stylesheet">
 </head>
 <body class="error-page min-vh-100">
     <main class="container error-page__container">

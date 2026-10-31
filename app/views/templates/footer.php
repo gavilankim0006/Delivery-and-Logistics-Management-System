@@ -58,7 +58,7 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
         });
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="<?= base_url('public/js/ai-assistant.js') ?>"></script>
+    <script src="<?= base_url('js/ai-assistant.js') ?>"></script>
     <?php if (isset($extra_js)) echo $extra_js; ?>
 </body>
 </html>

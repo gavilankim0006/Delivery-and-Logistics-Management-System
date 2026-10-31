@@ -17,5 +17,5 @@ $orderDetailProps = [
     <?= csrf_field() ?>
     <noscript><div class="container py-4 page-shell"><div class="alert alert-warning" role="status">Enable JavaScript to view order details.</div></div></noscript>
 </div>
-<script type="module" src="<?= e(base_url('public/build/orders.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
+<script type="module" src="<?= e(base_url('build/orders.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
 <?php $this->call->view('templates/footer'); ?>

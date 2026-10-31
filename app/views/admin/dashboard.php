@@ -44,5 +44,5 @@ $dashboardProps = [
         <p class="text-muted" role="status">Loading dashboard…</p>
     </div>
 </div>
-<script type="module" src="<?= e(base_url('public/build/admin.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
+<script type="module" src="<?= e(base_url('build/admin.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
 <?php $this->call->view('templates/footer'); ?>

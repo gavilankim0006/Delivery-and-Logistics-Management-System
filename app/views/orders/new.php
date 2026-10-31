@@ -15,12 +15,12 @@ $orderFormProps = [
     <?= $csrfField ?>
     <noscript><div class="container py-4"><div class="alert alert-warning" role="status">JavaScript is required to render this form. Your account and order data remain unchanged.</div></div></noscript>
 </div>
-<script type="module" src="<?= e(base_url('public/build/orders.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
+<script type="module" src="<?= e(base_url('build/orders.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
 <?php
 $extra_js = null;
 if (!empty($maps_js_key)) {
     $mapsKey = rawurlencode($maps_js_key);
-    $extra_js = '<script src="' . e(base_url('public/js/maps.js')) . '"></script>';
+    $extra_js = '<script src="' . e(base_url('js/maps.js')) . '"></script>';
     $extra_js .= '<script async defer src="https://maps.googleapis.com/maps/api/js?key=' . $mapsKey . '&libraries=places,geometry&callback=initDeliveryMap"></script>';
 }
 $this->call->view('templates/footer', ['extra_js' => $extra_js]);

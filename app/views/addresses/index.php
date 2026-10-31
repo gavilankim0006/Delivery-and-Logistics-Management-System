@@ -10,5 +10,5 @@ $addressProps = ['addresses' => $addresses ?? []];
         <?php if (empty($addresses)): ?><div class="surface ds-panel p-4" aria-hidden="true"><div class="form-control mb-3"></div><div class="form-control mb-3"></div><div class="form-control"></div></div><?php endif; ?>
     </section>
 </div>
-<script type="module" src="<?= e(base_url('public/build/auth.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
+<script type="module" src="<?= e(base_url('build/auth.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
 <?php $this->call->view('templates/footer'); ?>

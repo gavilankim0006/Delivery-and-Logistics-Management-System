@@ -14,5 +14,5 @@ $csrfToken = csrf_token();
     data-error-message="<?= e($flashError ?: '') ?>"
     data-success-message="<?= e($flashSuccess ?: '') ?>">
 </div>
-<script type="module" src="<?= e(base_url('public/build/auth.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
+<script type="module" src="<?= e(base_url('build/auth.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
 <?php $this->call->view('templates/footer'); ?>

@@ -54,6 +54,6 @@ window.initServiceAreaMap = function () {
 };
 </script>
 <script async defer src="https://maps.googleapis.com/maps/api/js?key=<?= rawurlencode($maps_js_key) ?>&callback=initServiceAreaMap"></script>
-<script src="<?= base_url('public/js/service-areas.js') ?>"></script>
+<script src="<?= base_url('js/service-areas.js') ?>"></script>
 <?php endif; ?>
 <?php $this->call->view('templates/footer'); ?>

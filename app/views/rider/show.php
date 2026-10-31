@@ -14,5 +14,5 @@ $riderProps = [
 <div id="vue-rider-root" data-page="show" data-props="<?= e(json_encode($riderProps, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>">
     <noscript><div class="container py-4"><div class="alert alert-warning">Enable JavaScript to view delivery details.</div></div></noscript>
 </div>
-<script type="module" src="<?= e(base_url('public/build/rider.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
+<script type="module" src="<?= e(base_url('build/rider.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
 <?php $this->call->view('templates/footer'); ?>

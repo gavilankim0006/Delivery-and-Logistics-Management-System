@@ -166,5 +166,5 @@ $orderListProps = [
 </div>
 </div>
 <script nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>">document.querySelector('#vue-orders-root > .container[hidden]')?.removeAttribute('hidden');</script>
-<script type="module" src="<?= e(base_url('public/build/orders.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
+<script type="module" src="<?= e(base_url('build/orders.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
 <?php $this->call->view('templates/footer'); ?>

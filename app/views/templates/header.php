@@ -25,7 +25,7 @@ $adminMoreActive = $navIsActive('admin/settings')
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light">
     <title><?= isset($page_title) ? e($page_title) . ' · ' : '' ?>Dispatch</title>
-    <link rel="icon" type="image/svg+xml" href="<?= e(base_url('public/dispatch-mark.svg')) ?>">
+    <link rel="icon" type="image/svg+xml" href="<?= e(base_url('dispatch-mark.svg')) ?>">
     <link rel="alternate icon" type="image/x-icon" href="<?= e(base_url('favicon.ico')) ?>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -33,8 +33,8 @@ $adminMoreActive = $navIsActive('admin/settings')
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <?php $appCssPath = dirname(__DIR__, 3) . '/public/css/app.css'; ?>
-    <link href="<?= base_url('public/css/app.css') ?><?= is_file($appCssPath) ? '?v=' . (string)filemtime($appCssPath) : '' ?>" rel="stylesheet">
-    <link href="<?= base_url('public/css/ai-assistant.css') ?>" rel="stylesheet">
+    <link href="<?= base_url('css/app.css') ?><?= is_file($appCssPath) ? '?v=' . (string)filemtime($appCssPath) : '' ?>" rel="stylesheet">
+    <link href="<?= base_url('css/ai-assistant.css') ?>" rel="stylesheet">
     <?php if (isset($extra_css)): ?>
         <?= $extra_css ?>
     <?php endif; ?>

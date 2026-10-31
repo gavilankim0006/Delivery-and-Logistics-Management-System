@@ -53,6 +53,6 @@ $dispatchProps = [
     </section>
 </div>
 <?php
-$extra_js = '<script type="module" nonce="' . e(defined('CSP_NONCE') ? CSP_NONCE : '') . '" src="' . e(base_url('public/build/dispatch.js')) . '"></script>';
+$extra_js = '<script type="module" nonce="' . e(defined('CSP_NONCE') ? CSP_NONCE : '') . '" src="' . e(base_url('build/dispatch.js')) . '"></script>';
 $this->call->view('templates/footer', ['extra_js' => $extra_js]);
 ?>
