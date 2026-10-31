@@ -12,6 +12,7 @@ $showCourierSimulator = $role === 'admin'
     && config_item('environment') === 'development'
     && in_array(strtolower(getenv('COURIER_DRIVER') ?: 'mock'), ['mock', ''], true);
 $adminMoreActive = $navIsActive('admin/settings')
+    || $navIsActive('admin/applications')
     || $navIsActive('admin/service-areas')
     || $navIsActive('admin/command-simulator')
     || $navIsActive('admin/reports')
@@ -72,6 +73,7 @@ $adminMoreActive = $navIsActive('admin/settings')
                         <li class="nav-item"><a class="nav-link<?= $navIsActive('orders') ? ' active' : '' ?>" href="<?= base_url('orders') ?>"<?= $navIsActive('orders') ? ' aria-current="page"' : '' ?>><i class="bi bi-box-seam" aria-hidden="true"></i><span>Orders</span></a></li>
                         <li class="nav-item"><a class="nav-link<?= $navIsActive('admin/users') ? ' active' : '' ?>" href="<?= base_url('admin/users') ?>"<?= $navIsActive('admin/users') ? ' aria-current="page"' : '' ?>><i class="bi bi-people" aria-hidden="true"></i><span>Users</span></a></li>
                         <li class="nav-item"><a class="nav-link<?= $navIsActive('admin/riders') ? ' active' : '' ?>" href="<?= base_url('admin/riders') ?>"<?= $navIsActive('admin/riders') ? ' aria-current="page"' : '' ?>><i class="bi bi-bicycle" aria-hidden="true"></i><span>Riders</span></a></li>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('admin/applications') ? ' active' : '' ?>" href="<?= base_url('admin/applications') ?>"<?= $navIsActive('admin/applications') ? ' aria-current="page"' : '' ?>><i class="bi bi-person-vcard" aria-hidden="true"></i><span>Applications</span></a></li>
                         <li class="nav-item dropdown">
                             <button class="nav-link dropdown-toggle<?= $adminMoreActive ? ' active' : '' ?>" id="adminMoreDropdown" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">
                                 <span>More</span>

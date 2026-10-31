@@ -15,6 +15,11 @@ class Orders extends Controller
             : null;
     }
 
+    protected function demoPaymentSimulationEnabled(): bool
+    {
+        return getenv('DEMO_PAYMENT_SIMULATION_ENABLED') === '1';
+    }
+
     public function __construct()
     {
         parent::__construct();
@@ -549,6 +554,58 @@ class Orders extends Controller
         }
     }
 
+    /**
+     * Mark a pending payment as simulated for a development/demo run only.
+     */
+    public function simulate_payment($id): void
+    {
+        if (!$this->demoPaymentSimulationEnabled()) {
+            http_response_code(404);
+            return;
+        }
+        if (!is_numeric($id) || (int)$id <= 0 || strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST'
+            || auth_role() !== 'customer' || !verify_csrf()) {
+            http_response_code(400);
+            flash('error', 'Invalid payment simulation request.');
+            redirect('orders');
+            return;
+        }
+
+        $customerId = $this->currentCustomerId();
+        if (!$customerId) {
+            http_response_code(403);
+            return;
+        }
+        $id = (int)$id;
+        $db = $this->db;
+        $db->transaction();
+        try {
+            $payment = $db->raw(
+                "SELECT p.id, p.status FROM payments p INNER JOIN orders o ON o.id = p.order_id
+                 WHERE p.order_id = ? AND o.customer_id = ? AND o.deleted_at IS NULL
+                   AND o.status = 'pending_payment' AND p.status = 'pending'
+                 ORDER BY p.id DESC LIMIT 1 FOR UPDATE",
+                [$id, $customerId]
+            )->fetch(PDO::FETCH_ASSOC);
+            if (!$payment) {
+                throw new DomainException('There is no pending payment to simulate for this order.');
+            }
+            $now = date('Y-m-d H:i:s');
+            $this->Order_model->set_status($id, 'paid', 'Demo payment simulated; no PayMongo charge was verified.', 'system');
+            $db->raw(
+                "UPDATE payments SET status = 'paid', payment_method = 'demo_simulated', paid_at = ?, updated_at = ? WHERE id = ? AND status = 'pending'",
+                [$now, $now, (int)$payment['id']]
+            );
+            $db->commit();
+            flash('success', 'Demo payment simulated. No real payment was processed.');
+        } catch (Throwable $e) {
+            $db->roll_back();
+            error_log('Demo payment simulation failed for order ' . $id . ': ' . $e->getMessage());
+            flash('error', $e instanceof DomainException ? $e->getMessage() : 'Could not simulate this demo payment.');
+        }
+        redirect('orders/' . $id);
+    }
+
     public function location($id): void
     {
         header('Content-Type: application/json; charset=utf-8');
@@ -611,6 +668,7 @@ class Orders extends Controller
             'page_title' => "Order #{$order['order_no']}",
             'order' => $order,
             'role' => $role,
+            'demo_payment_simulation_enabled' => $role === 'customer' && $this->demoPaymentSimulationEnabled(),
             'rider_location_enabled' => $role === 'customer'
                 && $order['fulfillment_mode'] === 'internal'
                 && in_array($order['status'], ['rider_assigned', 'picked_up'], true),

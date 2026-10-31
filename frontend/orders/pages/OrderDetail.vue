@@ -7,6 +7,7 @@ const props = defineProps({
     controlPassActive: { type: Boolean, default: false },
     riderLocationEnabled: { type: Boolean, default: false },
     paymentNotice: { type: String, default: '' },
+    demoPaymentSimulationEnabled: { type: Boolean, default: false },
     currentUser: { type: Object, default: () => ({}) },
     csrfToken: { type: String, default: '' },
     baseUrl: { type: String, default: '/' }
@@ -48,6 +49,9 @@ function date(value, format = 'medium') {
     return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString(undefined, { dateStyle: format, timeStyle: 'short' });
 }
 function postForm(path) { return `${props.baseUrl}orders/${Number(props.order.id)}/${path}`; }
+function confirmDemoPayment(event) {
+    if (!window.confirm('This only simulates payment for a demo. No PayMongo payment will be verified. Continue?')) event.preventDefault();
+}
 async function refreshLocation() {
     if (stopped || document.hidden) return;
     try {
@@ -90,6 +94,7 @@ onUnmounted(() => {
                     <span v-if="order.payment_status === 'paid'" class="btn btn-success disabled" aria-disabled="true">Payment received</span>
                     <a v-else-if="order.checkout_url" class="btn btn-primary" :href="order.checkout_url" rel="noopener noreferrer">Continue payment · {{ money(order.delivery_fee) }}</a>
                     <form v-else method="post" :action="postForm('checkout')"><input type="hidden" name="csrf_token" :value="csrfToken"><button class="btn btn-primary" type="submit">Pay now · {{ money(order.delivery_fee) }}</button></form>
+                    <form v-if="demoPaymentSimulationEnabled && order.status === 'pending_payment' && order.payment_status === 'pending'" method="post" :action="postForm('simulate-payment')" @submit="confirmDemoPayment"><input type="hidden" name="csrf_token" :value="csrfToken"><button class="btn btn-outline-warning" type="submit">Simulate payment (demo only)</button></form>
                 </template>
                 <template v-if="role === 'customer' && order.status === 'draft'"><a class="btn btn-outline-primary" :href="`${baseUrl}orders/${Number(order.id)}/edit`">Edit draft</a><button class="btn btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#deleteDraftModal">Delete draft</button></template>
                 <template v-if="role === 'customer' && ['paid', 'booking', 'rider_assigned', 'picked_up', 'delivered'].includes(order.status)">

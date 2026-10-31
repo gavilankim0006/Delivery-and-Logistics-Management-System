@@ -8,6 +8,7 @@ $orderDetailProps = [
     'controlPassActive' => !empty($control_pass_active),
     'riderLocationEnabled' => !empty($rider_location_enabled),
     'paymentNotice' => in_array($_GET['payment'] ?? '', ['return', 'cancelled'], true) ? $_GET['payment'] : '',
+    'demoPaymentSimulationEnabled' => !empty($demo_payment_simulation_enabled),
     'currentUser' => array_intersect_key($currentUser, array_flip(['id', 'phone', 'delivery_status_sms_opt_in', 'push_opt_in', 'fcm_token'])),
     'csrfToken' => csrf_token(),
     'baseUrl' => base_url()

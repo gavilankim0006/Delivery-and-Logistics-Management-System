@@ -6,6 +6,10 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 // Default entry
 $router->get('/', 'Welcome::index');
 $router->get('/health', 'Health::index');
+$router->match('/careers/apply', 'Careers::apply', 'GET|POST');
+$router->get('/admin/applications', 'Admin::applications');
+$router->post('/admin/applications/{id}/review', 'Admin::review_application');
+$router->get('/admin/applications/{id}/id', 'Admin::application_id_document');
 
 // Authentication routes
 $router->match('/login', 'Auth::login', 'GET|POST');
@@ -66,6 +70,7 @@ $router->get('/orders/{id}/edit', 'Orders::edit');
 $router->post('/orders/{id}/edit', 'Orders::update');
 $router->post('/orders/{id}/delete', 'Orders::delete_draft');
 $router->post('/orders/{id}/checkout', 'Orders::checkout');
+$router->post('/orders/{id}/simulate-payment', 'Orders::simulate_payment');
 $router->post('/orders/{id}/cancel', 'Orders::cancel');
 $router->get('/orders/{id}/location', 'Orders::location');
 $router->post('/orders/{id}/control-pass', 'Orders::issue_control_pass');

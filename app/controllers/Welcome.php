@@ -16,7 +16,7 @@ class Welcome extends Controller {
                 redirect('profile');
             }
         } else {
-            redirect('login');
+            $this->call->view('public_home');
         }
     }
 }

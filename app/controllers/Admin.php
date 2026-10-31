@@ -16,10 +16,59 @@ class Admin extends Controller
         $this->call->model('Order_model');
         $this->call->model('Service_area_model');
         $this->call->model('Report_model');
+        $this->call->model('Job_application_model');
+        $this->call->library('JobApplicationDocumentService');
 
         $this->call->library('CourierProviderFactory');
         $this->call->library('MockCourierDriver');
         $this->call->library('DeliveryCommandSimulator');
+    }
+
+    public function applications(): void
+    {
+        $statusFilter = isset($_GET['status']) && $_GET['status'] !== '' ? (string)$_GET['status'] : null;
+        $this->call->view('admin/job_applications', [
+            'page_title' => 'Job applications',
+            'applications' => $this->Job_application_model->list_all($statusFilter),
+            'status_filter' => $statusFilter,
+        ]);
+    }
+
+    public function review_application(int $id): void
+    {
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST' || !verify_csrf()) {
+            http_response_code(400);
+            flash('error', 'Invalid request or security token.');
+            redirect('admin/applications');
+            return;
+        }
+        $status = (string)($_POST['status'] ?? '');
+        $note = trim((string)($_POST['admin_note'] ?? ''));
+        if (!in_array($status, ['pending', 'approved', 'rejected'], true) || mb_strlen($note) > 3000
+            || !$this->Job_application_model->find($id)) {
+            flash('error', 'Application review could not be saved. Check decision and note.');
+            redirect('admin/applications');
+            return;
+        }
+        $this->Job_application_model->update_status($id, $status, (int)auth_id(), $note);
+        flash('success', 'Application review saved.');
+        redirect('admin/applications');
+    }
+
+    public function application_id_document(int $id): void
+    {
+        $application = $this->Job_application_model->find($id);
+        $path = $application ? $this->JobApplicationDocumentService->readPath((string)$application['id_storage_key']) : null;
+        if (!$application || !$path || !in_array($application['id_mime_type'], ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'], true)) {
+            http_response_code(404);
+            return;
+        }
+        header('Content-Type: ' . $application['id_mime_type']);
+        header('Content-Length: ' . (string)filesize($path));
+        header('Content-Disposition: inline; filename="' . rawurlencode((string)$application['id_original_name']) . '"');
+        header('X-Content-Type-Options: nosniff');
+        header('Cache-Control: private, no-store, max-age=0');
+        readfile($path);
     }
 
     /**
