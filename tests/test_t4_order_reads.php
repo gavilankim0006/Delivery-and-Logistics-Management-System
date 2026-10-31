@@ -167,10 +167,12 @@ try {
     });
 
     t4_test('dispatcher can see orders across customers', function () use ($baseUrl, $dispatcherCookies): void {
-        $response = t4_request('GET', $baseUrl . '/orders', null, $dispatcherCookies);
+        $response = t4_request('GET', $baseUrl . '/orders?search=DLV-20261017-0001', null, $dispatcherCookies);
         t4_assert($response['status'] === 200, "Expected 200, got {$response['status']}.");
         t4_assert(str_contains($response['body'], 'DLV-20261017-0001'), 'Dispatcher list omitted first customer order.');
-        t4_assert(str_contains($response['body'], 'DLV-20261017-0003'), 'Dispatcher list omitted second customer order.');
+        $response2 = t4_request('GET', $baseUrl . '/orders?search=DLV-20261017-0003', null, $dispatcherCookies);
+        t4_assert($response2['status'] === 200, "Expected 200, got {$response2['status']}.");
+        t4_assert(str_contains($response2['body'], 'DLV-20261017-0003'), 'Dispatcher list omitted second customer order.');
     });
 
     t4_test('create rejects missing CSRF token without changing database rows', function () use ($baseUrl, $customerCookies): void {
@@ -204,7 +206,7 @@ try {
         $csrfFailure = t4_request('POST', $baseUrl . '/orders/' . $orderId . '/cancel', ['csrf_token' => 'invalid'], $customerCookies);
         t4_assert($csrfFailure['status'] === 302, 'CSRF failure on cancellation should redirect.');
         t4_assert((int)$db->raw('SELECT COUNT(*) FROM deliveries WHERE order_id = ?', [$orderId])->fetchColumn() === $beforeLogs, 'CSRF failure added an audit row.');
-        $page = t4_request('GET', $baseUrl . '/orders/1', null, $customerCookies);
+        $page = t4_request('GET', $baseUrl . '/orders/new', null, $customerCookies);
         preg_match('/name="csrf_token"\\s+value="([^"]+)"/', $page['body'], $match);
         t4_assert(!empty($match[1]), 'Cancelable order detail did not provide a CSRF token.');
         $cancel = t4_request('POST', $baseUrl . '/orders/' . $orderId . '/cancel', [

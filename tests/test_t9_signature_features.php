@@ -35,7 +35,7 @@ class T9Database
     public function raw(string $sql, array $params = []): T9Statement
     {
         $this->calls[] = [$sql, $params];
-        if (str_contains($sql, 'SELECT status, lalamove_quotation_id, lalamove_order_id FROM orders')) return new T9Statement($this->order);
+        if (str_contains($sql, 'SELECT status, fulfillment_mode, rider_id, lalamove_quotation_id, lalamove_order_id FROM orders')) return new T9Statement($this->order);
         if (str_contains($sql, 'INSERT INTO dispatch_recovery_locks')) {
             if ($this->locked) throw new PDOException('Duplicate lock.', 23000);
             $this->locked = true; return new T9Statement(true);
@@ -102,12 +102,14 @@ try {
         $delayed = DispatchRecoveryService::recommendation(['status'=>'booking','status_since'=>'2026-10-18 11:00:00','lalamove_order_id'=>'PROVIDER-1'], $now);
         t9_assert(($delayed['kind'] ?? '') === 'escalate', 'Stale booking should be escalation only.');
         $paid = DispatchRecoveryService::recommendation(['status'=>'paid','status_since'=>'2026-10-18 11:59:00'], $now);
-        t9_assert(($paid['kind'] ?? '') === 'book', 'Unbooked paid order should be actionable.');
+        t9_assert(($paid['kind'] ?? '') === 'choose_fulfillment', 'Paid order without a dispatch choice must require explicit fulfillment selection.');
         $ambiguous = DispatchRecoveryService::recommendation(['status'=>'failed','status_since'=>'2026-10-18 11:00:00','lalamove_quotation_id'=>'QUOTE-1'], $now);
         t9_assert(($ambiguous['kind'] ?? '') === 'escalate', 'Failed order with provider quotation must not auto-retry.');
+        $internalFailure = DispatchRecoveryService::recommendation(['status'=>'failed','fulfillment_mode'=>'internal','status_since'=>'2026-10-18 11:00:00'], $now);
+        t9_assert($internalFailure === null, 'Internal assignment failures must not enter courier recovery.');
     });
     t9_test('courier booking reserves an order during placement and releases on success', function (): void {
-        $order = ['id'=>9,'order_no'=>'DLV-9','status'=>'paid','lalamove_quotation_id'=>null,'lalamove_order_id'=>null,
+        $order = ['id'=>9,'order_no'=>'DLV-9','status'=>'paid','fulfillment_mode'=>'lalamove','rider_id'=>null,'lalamove_quotation_id'=>null,'lalamove_order_id'=>null,
             'pickup_address'=>'Pickup','pickup_lat'=>14.5,'pickup_lng'=>121.0,'pickup_contact_name'=>'A','pickup_phone'=>'1',
             'dropoff_address'=>'Dropoff','dropoff_lat'=>14.6,'dropoff_lng'=>121.1,'dropoff_contact_name'=>'B','dropoff_phone'=>'2',
             'weight_kg'=>1,'parcel_description'=>'Parcel','distance_km'=>2,'delivery_fee'=>60];
@@ -118,7 +120,7 @@ try {
         t9_assert(!$db->locked && $db->order['lalamove_order_id']==='T9-ORDER', 'Success should persist provider ID and release lock.');
     });
     t9_test('ambiguous provider placement retains reservation and prevents retry', function (): void {
-        $order = ['id'=>10,'order_no'=>'DLV-10','status'=>'paid','lalamove_quotation_id'=>null,'lalamove_order_id'=>null,
+        $order = ['id'=>10,'order_no'=>'DLV-10','status'=>'paid','fulfillment_mode'=>'lalamove','rider_id'=>null,'lalamove_quotation_id'=>null,'lalamove_order_id'=>null,
             'pickup_address'=>'Pickup','pickup_lat'=>14.5,'pickup_lng'=>121.0,'pickup_contact_name'=>'A','pickup_phone'=>'1',
             'dropoff_address'=>'Dropoff','dropoff_lat'=>14.6,'dropoff_lng'=>121.1,'dropoff_contact_name'=>'B','dropoff_phone'=>'2',
             'weight_kg'=>1,'parcel_description'=>'Parcel','distance_km'=>2,'delivery_fee'=>60];

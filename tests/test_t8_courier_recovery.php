@@ -156,7 +156,7 @@ class CourierRecoveryTestDatabase
 
     public function raw(string $sql, array $params = []): CourierRecoveryTestStatement
     {
-        if (str_contains($sql, 'SELECT status, lalamove_quotation_id, lalamove_order_id FROM orders')) {
+        if (str_contains($sql, 'SELECT status, fulfillment_mode, rider_id, lalamove_quotation_id, lalamove_order_id FROM orders')) {
             return new CourierRecoveryTestStatement($this->order);
         }
         if (str_contains($sql, 'INSERT INTO dispatch_recovery_locks')) {
@@ -201,6 +201,8 @@ function t8_booking_order(): array
 {
     return [
         'id' => 21, 'order_no' => 'DLV-TEST-0021', 'status' => 'paid',
+        'fulfillment_mode' => 'lalamove', 'rider_id' => null,
+        'lalamove_quotation_id' => null, 'lalamove_order_id' => null,
         'pickup_address' => 'Makati', 'pickup_lat' => 14.55, 'pickup_lng' => 121.02,
         'pickup_contact_name' => 'Sender', 'pickup_phone' => '+639171234567',
         'dropoff_address' => 'BGC', 'dropoff_lat' => 14.58, 'dropoff_lng' => 121.06,

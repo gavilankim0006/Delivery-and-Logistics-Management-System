@@ -1,14 +1,47 @@
 <?php
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
-require_once APP_DIR . 'libraries/CourierWebhookProcessor.php';
-
 class Webhooks extends Controller
 {
     public function __construct()
     {
         parent::__construct();
         $this->call->model('Order_model');
+        $this->call->library('CourierWebhookProcessor');
+        $this->call->library('PayMongoWebhookProcessor');
+    }
+
+    public function paymongo()
+    {
+        header('Content-Type: application/json');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            return $this->respond(405, ['success' => false, 'error' => 'Method Not Allowed']);
+        }
+        $contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+        if ($contentLength > 1048576) {
+            return $this->respond(413, ['success' => false, 'error' => 'Payload Too Large']);
+        }
+        $rawBody = file_get_contents('php://input', false, null, 0, 1048577);
+        if (!is_string($rawBody) || strlen($rawBody) > 1048576) {
+            return $this->respond(413, ['success' => false, 'error' => 'Payload Too Large']);
+        }
+        $signature = $_SERVER['HTTP_PAYMONGO_SIGNATURE'] ?? '';
+        if (!PayMongoWebhookProcessor::verifySignature((string)$rawBody, $signature)) {
+            return $this->respond(401, ['success' => false, 'error' => 'Invalid webhook signature.']);
+        }
+        $payload = json_decode((string)$rawBody, true);
+        if (!is_array($payload)) {
+            return $this->respond(400, ['success' => false, 'error' => 'Invalid JSON payload.']);
+        }
+        try {
+            $result = (new PayMongoWebhookProcessor($this->db, $this->Order_model))->process($payload);
+            return $this->respond(200, ['success' => true, 'data' => $result]);
+        } catch (InvalidArgumentException $e) {
+            return $this->respond(400, ['success' => false, 'error' => $e->getMessage()]);
+        } catch (Throwable $e) {
+            error_log('PayMongo webhook processing failed: ' . $e->getMessage());
+            return $this->respond(500, ['success' => false, 'error' => 'Webhook processing failed.']);
+        }
     }
 
     public function lalamove()

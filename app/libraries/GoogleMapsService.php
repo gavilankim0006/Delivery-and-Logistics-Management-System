@@ -35,7 +35,7 @@ class GoogleMapsService extends ApiClient
     public function __construct(?string $apiKey = null)
     {
         parent::__construct('google_maps', 'https://maps.googleapis.com/maps/api');
-        $this->apiKey = $apiKey ?? (getenv('GOOGLE_MAPS_API_KEY') ?: '');
+        $this->apiKey = $apiKey ?? (function_exists('config_item') ? (config_item('google_maps_api_key') ?: (getenv('GOOGLE_MAPS_API_KEY') ?: '')) : (getenv('GOOGLE_MAPS_API_KEY') ?: ''));
         $this->mockMode = empty($this->apiKey) || str_starts_with($this->apiKey, 'AIzaSyDemo');
     }
 

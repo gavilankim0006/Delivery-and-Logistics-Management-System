@@ -13,8 +13,10 @@ if (!function_exists('auth_init')) {
     {
         if (session_status() === PHP_SESSION_NONE) {
             // Secure session cookie flags
-            ini_set('session.cookie_httponly', 1);
-            ini_set('session.use_only_cookies', 1);
+            if (!headers_sent()) {
+                ini_set('session.cookie_httponly', 1);
+                ini_set('session.use_only_cookies', 1);
+            }
             session_start();
         }
     }
@@ -126,7 +128,7 @@ if (!function_exists('csrf_field')) {
 }
 
 if (!function_exists('verify_csrf')) {
-    function verify_csrf(): bool
+    function verify_csrf(?string $payloadToken = null): bool
     {
         if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
             return true;
@@ -140,7 +142,7 @@ if (!function_exists('verify_csrf')) {
         $postToken = $_POST['csrf_token'] ?? null;
         $headerToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;
 
-        $submitted = $postToken ?: $headerToken;
+        $submitted = $payloadToken ?: ($postToken ?: $headerToken);
         if (empty($submitted)) {
             return false;
         }
@@ -226,7 +228,7 @@ if (!function_exists('auth_login')) {
         $_SESSION['user'] = [
             'id' => (int)$user['id'],
             'role_id' => (int)$user['role_id'],
-            'role' => $user['role_name'] ?? ($user['role_id'] == 1 ? 'admin' : ($user['role_id'] == 2 ? 'dispatcher' : 'customer')),
+            'role' => $user['role_name'] ?? ($user['role_id'] == 1 ? 'admin' : ($user['role_id'] == 2 ? 'dispatcher' : ($user['role_id'] == 4 ? 'rider' : 'customer'))),
             'name' => $user['name'],
             'email' => $user['email'],
             'phone' => $user['phone'] ?? null,

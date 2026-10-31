@@ -6,10 +6,15 @@ class CourierWebhookProcessor
     private $db;
     private $orderModel;
 
-    public function __construct($db, $orderModel)
+    public function __construct($db = null, $orderModel = null)
     {
-        $this->db = $db;
-        $this->orderModel = $orderModel;
+        $lava = function_exists('lava_instance') ? lava_instance() : null;
+        $this->db = $db ?? ($lava ? $lava->db : null);
+        if ($orderModel) {
+            $this->orderModel = $orderModel;
+        } elseif ($lava) {
+            $this->orderModel = $lava->Order_model ?? (isset($lava->call) ? $lava->call->model('Order_model') : null);
+        }
     }
 
     public function process(array $payload, string $actorType = 'system', ?int $actorId = null, bool $persistEvent = true): array
@@ -111,6 +116,12 @@ class CourierWebhookProcessor
             );
             $this->markEvent($eventId, 'processed');
             $db->commit();
+            try {
+                require_once APP_DIR . 'libraries/DeliveryNotificationService.php';
+                (new DeliveryNotificationService($db))->dispatchPendingForOrder((int)$order['id']);
+            } catch (Throwable $notificationError) {
+                error_log('Courier status notification failed for order ' . (int)$order['id'] . ': ' . $notificationError->getMessage());
+            }
             return ['duplicate' => false, 'order_id' => (int)$order['id'], 'status' => $newStatus];
         } catch (Throwable $e) {
             $db->roll_back();

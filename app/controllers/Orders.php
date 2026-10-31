@@ -22,7 +22,7 @@ class Orders extends Controller
         $this->call->helper('fee');
         $this->call->model('Order_model');
         require_role(['customer', 'dispatcher', 'admin']);
-        require_once APP_DIR . 'libraries/DeliveryControlService.php';
+        $this->call->library('DeliveryControlService');
     }
 
     /**
@@ -96,6 +96,8 @@ class Orders extends Controller
             'page_title' => 'New delivery',
             'user' => auth_user(),
             'rates' => get_delivery_rates(),
+            'maps_js_key' => getenv('GOOGLE_MAPS_MAPS_JS_API_KEY') ?: '',
+            'route_api_endpoint' => base_url('api/route/calculate'),
             'form_data' => $formData,
             'errors' => $errors,
             'form_error' => $formError
@@ -141,6 +143,15 @@ class Orders extends Controller
         $isFragile = !empty($formData['is_fragile']) ? 1 : 0;
         $distanceInput = trim($formData['distance_km'] ?? '');
         $distanceKm = is_numeric($distanceInput) ? (float)$distanceInput : 0.0;
+        $pickupLatInput = trim($formData['pickup_lat'] ?? '');
+        $pickupLngInput = trim($formData['pickup_lng'] ?? '');
+        $dropoffLatInput = trim($formData['dropoff_lat'] ?? '');
+        $dropoffLngInput = trim($formData['dropoff_lng'] ?? '');
+        $pickupLat = $pickupLatInput !== '' && is_numeric($pickupLatInput) ? (float)$pickupLatInput : null;
+        $pickupLng = $pickupLngInput !== '' && is_numeric($pickupLngInput) ? (float)$pickupLngInput : null;
+        $dropoffLat = $dropoffLatInput !== '' && is_numeric($dropoffLatInput) ? (float)$dropoffLatInput : null;
+        $dropoffLng = $dropoffLngInput !== '' && is_numeric($dropoffLngInput) ? (float)$dropoffLngInput : null;
+        $hasMapLocations = $pickupLat !== null && $pickupLng !== null && $dropoffLat !== null && $dropoffLng !== null;
         $errors = [];
         if (mb_strlen($pickupNotes) > 1000) {
             $errors['pickup_notes'] = 'Please keep pickup notes to 1000 characters or fewer.';
@@ -175,11 +186,35 @@ class Orders extends Controller
         if (!in_array($parcelSize, ['S', 'M', 'L'], true)) {
             $errors['parcel_size'] = 'Choose a parcel size.';
         }
-        if (!is_numeric($distanceInput) || $distanceKm <= 0 || $distanceKm > 10000) {
-            $errors['distance_km'] = 'Enter a distance greater than 0 and no more than 10000 km.';
-        }
         if ($pickupAddress !== '' && strcasecmp($pickupAddress, $dropoffAddress) === 0) {
             $errors['dropoff_address'] = 'Pickup and drop-off addresses cannot be identical.';
+        }
+        foreach ([
+            'pickup' => [$pickupLatInput, $pickupLngInput, $pickupLat, $pickupLng],
+            'dropoff' => [$dropoffLatInput, $dropoffLngInput, $dropoffLat, $dropoffLng]
+        ] as $stop => [$latInput, $lngInput, $lat, $lng]) {
+            if (($latInput !== '' || $lngInput !== '') && ($lat === null || $lng === null || $lat < 4.0 || $lat > 22.0 || $lng < 115.0 || $lng > 128.0)) {
+                $errors[$stop . '_address'] = 'Choose a valid map location in the Philippines.';
+            }
+        }
+        if ($hasMapLocations && !$errors) {
+            try {
+                $maps = $this->call->library('GoogleMapsService');
+                $route = $maps->route(
+                    ['lat' => $pickupLat, 'lng' => $pickupLng],
+                    ['lat' => $dropoffLat, 'lng' => $dropoffLng]
+                );
+                $distanceKm = (float)$route['distance_km'];
+                $distanceInput = (string)$distanceKm;
+                $formData['distance_km'] = $distanceInput;
+            } catch (Throwable $e) {
+                $errors['dropoff_address'] = $e instanceof InvalidArgumentException
+                    ? $e->getMessage()
+                    : 'Unable to confirm the Google Maps route. Please check the selected locations.';
+            }
+        }
+        if (!is_numeric($distanceInput) || $distanceKm <= 0 || $distanceKm > 10000) {
+            $errors['distance_km'] = 'Enter a distance greater than 0 and no more than 10000 km.';
         }
 
         if (!empty($errors)) {
@@ -188,7 +223,6 @@ class Orders extends Controller
         }
 
         try {
-            // Distance is manually entered until Phase D; fee is always computed server-side.
             $feeCalc = calculate_delivery_fee($distanceKm, $parcelWeight);
 
             $orderData = [
@@ -201,8 +235,8 @@ class Orders extends Controller
                 'pickup' => [
                     'label' => 'Pickup Location',
                     'address_line' => $pickupAddress,
-                    'latitude' => null,
-                    'longitude' => null,
+                    'latitude' => $pickupLat,
+                    'longitude' => $pickupLng,
                     'contact_name' => $pickupContactName,
                     'contact_phone' => $pickupContactPhone,
                     'notes' => $pickupNotes
@@ -210,8 +244,8 @@ class Orders extends Controller
                 'dropoff' => [
                     'label' => 'Drop-off Location',
                     'address_line' => $dropoffAddress,
-                    'latitude' => null,
-                    'longitude' => null,
+                    'latitude' => $dropoffLat,
+                    'longitude' => $dropoffLng,
                     'contact_name' => $dropoffContactName,
                     'contact_phone' => $dropoffContactPhone,
                     'notes' => $dropoffNotes
@@ -243,8 +277,15 @@ class Orders extends Controller
     /**
      * Show the edit form for a customer's own draft order.
      */
-    public function edit(int $id)
+    public function edit($id)
     {
+        if (!is_numeric($id) || (int)$id <= 0) {
+            http_response_code(404);
+            $this->call->view('orders/not_found', ['page_title' => 'Order not found']);
+            return;
+        }
+        $id = (int)$id;
+
         if (auth_role() !== 'customer') {
             redirect('orders');
             return;
@@ -289,8 +330,14 @@ class Orders extends Controller
     /**
      * Soft-delete a customer's own draft order.
      */
-    public function delete_draft(int $id): void
+    public function delete_draft($id): void
     {
+        if (!is_numeric($id) || (int)$id <= 0) {
+            redirect('orders');
+            return;
+        }
+        $id = (int)$id;
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             redirect('orders/' . $id);
             return;
@@ -323,8 +370,14 @@ class Orders extends Controller
     /**
      * Update editable details on a customer's own draft order.
      */
-    public function update(int $id)
+    public function update($id)
     {
+        if (!is_numeric($id) || (int)$id <= 0) {
+            redirect('orders');
+            return;
+        }
+        $id = (int)$id;
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             redirect('orders/' . $id);
             return;
@@ -456,10 +509,93 @@ class Orders extends Controller
     }
 
     /**
+     * Start a customer-owned PayMongo checkout from an explicit POST.
+     */
+    public function checkout($id)
+    {
+        if (!is_numeric($id) || (int)$id <= 0) {
+            redirect('orders');
+            return;
+        }
+        $id = (int)$id;
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || auth_role() !== 'customer' || !verify_csrf()) {
+            http_response_code(400);
+            flash('error', 'Invalid checkout request or security token.');
+            redirect('orders/' . $id);
+            return;
+        }
+        $customerId = $this->currentCustomerId();
+        if (!$customerId) {
+            http_response_code(403);
+            return;
+        }
+        try {
+            $this->call->library('PaymentCheckoutService');
+            $successUrl = base_url('orders/' . $id) . '?payment=return';
+            $cancelUrl = base_url('orders/' . $id) . '?payment=cancelled';
+            $successHost = strtolower((string)(parse_url($successUrl, PHP_URL_HOST) ?? ''));
+            $allowedLocalHost = config_item('environment') === 'development' && in_array($successHost, ['localhost', '127.0.0.1'], true);
+            if (parse_url($successUrl, PHP_URL_SCHEME) !== 'https' && !$allowedLocalHost) {
+                throw new RuntimeException('PayMongo checkout requires HTTPS except for local development hosts.');
+            }
+            $checkout = (new PaymentCheckoutService($this->db, $this->Order_model))->start($id, $customerId, $successUrl, $cancelUrl);
+            header('Location: ' . $checkout['checkout_url'], true, 303);
+            exit;
+        } catch (Throwable $e) {
+            error_log('PayMongo checkout initialization failed for order ' . $id . ': ' . $e->getMessage());
+            flash('error', 'We could not start payment. Your order has not been marked paid. Please try again or contact support.');
+            redirect('orders/' . $id);
+        }
+    }
+
+    public function location($id): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: private, no-store, max-age=0');
+        if (!is_numeric($id) || (int)$id <= 0 || strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET' || auth_role() !== 'customer') {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Location unavailable.']);
+            return;
+        }
+        $id = (int)$id;
+
+        $customerId = $this->currentCustomerId();
+        $location = $customerId ? $this->Order_model->get_customer_shared_location($id, $customerId) : null;
+        if (!$location) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'No recent rider-shared location is available.']);
+            return;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'latitude' => (float)$location['latitude'],
+            'longitude' => (float)$location['longitude'],
+            'accuracy_m' => (float)$location['accuracy_m'],
+            'received_at' => date(DATE_ATOM, strtotime($location['received_at'])),
+            'age_seconds' => (int)$location['age_seconds'],
+        ], JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
      * Show order tracking and detail page
      */
-    public function show(int $id)
+    public function show($id)
     {
+        // Gracefully recover if user visits or is redirected to malformed URL (e.g. 11paymentcancelled)
+        if (is_string($id) && preg_match('/^(\d+)payment(cancelled|return)$/', $id, $matches)) {
+            redirect('orders/' . $matches[1] . '?payment=' . $matches[2]);
+            return;
+        }
+
+        if (!is_numeric($id) || (int)$id <= 0) {
+            http_response_code(404);
+            $this->call->view('orders/not_found', ['page_title' => 'Order not found']);
+            return;
+        }
+        $id = (int)$id;
+
         $role = auth_role();
         $customerId = ($role === 'customer') ? $this->currentCustomerId() : null;
 
@@ -475,12 +611,21 @@ class Orders extends Controller
             'page_title' => "Order #{$order['order_no']}",
             'order' => $order,
             'role' => $role,
+            'rider_location_enabled' => $role === 'customer'
+                && $order['fulfillment_mode'] === 'internal'
+                && in_array($order['status'], ['rider_assigned', 'picked_up'], true),
             'control_pass_active' => $role === 'customer' && $this->currentCustomerId() ? (new DeliveryControlService($this->db))->hasActivePass($id, (int)$this->currentCustomerId()) : false
         ]);
     }
 
-    public function issue_control_pass(int $id)
+    public function issue_control_pass($id)
     {
+        if (!is_numeric($id) || (int)$id <= 0) {
+            redirect('orders');
+            return;
+        }
+        $id = (int)$id;
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf() || auth_role() !== 'customer') {
             http_response_code(400);
             flash('error', 'Invalid request or security token.');
@@ -497,8 +642,14 @@ class Orders extends Controller
         redirect('orders/' . $id);
     }
 
-    public function revoke_control_pass(int $id)
+    public function revoke_control_pass($id)
     {
+        if (!is_numeric($id) || (int)$id <= 0) {
+            redirect('orders');
+            return;
+        }
+        $id = (int)$id;
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf() || auth_role() !== 'customer') {
             http_response_code(400);
             flash('error', 'Invalid request or security token.');
@@ -513,8 +664,14 @@ class Orders extends Controller
     /**
      * Cancel an order (allowed only before pickup)
      */
-    public function cancel(int $id)
+    public function cancel($id)
     {
+        if (!is_numeric($id) || (int)$id <= 0) {
+            redirect('orders');
+            return;
+        }
+        $id = (int)$id;
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             redirect('orders/' . $id);
             return;
@@ -540,8 +697,14 @@ class Orders extends Controller
         $actorType = $role;
 
         try {
-            require_once APP_DIR . 'libraries/OrderCancellationService.php';
+            $this->call->library('OrderCancellationService');
             (new OrderCancellationService($this->Order_model))->cancel($id, $reason, $actorType, auth_id());
+            try {
+                $this->call->library('DeliveryNotificationService');
+                (new DeliveryNotificationService($this->db))->dispatchPendingForOrder($id);
+            } catch (Throwable $notificationError) {
+                error_log('Cancellation status notification failed for order ' . $id . ': ' . $notificationError->getMessage());
+            }
             flash('success', "Order #{$order['order_no']} has been cancelled.");
         } catch (\Throwable $e) {
             flash('error', 'Unable to cancel order: ' . $e->getMessage());

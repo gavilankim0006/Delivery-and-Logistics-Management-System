@@ -34,8 +34,13 @@ class RiderTestDb
     public array $updates = [];
     public int $updateResult = 0;
     public bool $throwOnUpdate = false;
+    public bool $transactionOpen = false;
+    public function transaction(): void { $this->transactionOpen = true; }
+    public function commit(): void { $this->transactionOpen = false; }
+    public function roll_back(): void { $this->transactionOpen = false; }
     public function raw(string $sql, array $params = []): RiderTestStatement
     {
+        if (str_contains($sql, 'FROM rider_assignments')) return new RiderTestStatement(false);
         return new RiderTestStatement(($params[0] ?? 0) === 3 ? ['id' => 3, 'name' => 'Rider'] : false);
     }
     public function table(string $table): RiderTestTable { return new RiderTestTable($this, $table); }

@@ -1,17 +1,13 @@
 <?php
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
-require_once APP_DIR . 'libraries/CourierProviderFactory.php';
-require_once APP_DIR . 'libraries/MockCourierDriver.php';
-require_once APP_DIR . 'libraries/DeliveryCommandSimulator.php';
-require_once APP_DIR . 'helpers/fee_helper.php';
-
 class Admin extends Controller
 {
     public function __construct()
     {
         parent::__construct();
         $this->call->helper('auth');
+        $this->call->helper('fee');
         // Enforce strict role check: admin only (deny by default)
         require_role('admin');
 
@@ -20,6 +16,10 @@ class Admin extends Controller
         $this->call->model('Order_model');
         $this->call->model('Service_area_model');
         $this->call->model('Report_model');
+
+        $this->call->library('CourierProviderFactory');
+        $this->call->library('MockCourierDriver');
+        $this->call->library('DeliveryCommandSimulator');
     }
 
     /**
@@ -137,7 +137,7 @@ class Admin extends Controller
                 header('Location: ' . base_url('admin/users'));
                 exit;
             }
-            if (mb_strlen($name) < 2 || mb_strlen($name) > 100 || strlen($password) < 8 || !in_array($roleId, [1, 2], true)) {
+            if (mb_strlen($name) < 2 || mb_strlen($name) > 100 || strlen($password) < 8 || !in_array($roleId, [1, 2, 4], true)) {
                 flash('error', 'Check the name, role, and password requirements.');
                 header('Location: ' . base_url('admin/users'));
                 exit;
@@ -213,7 +213,7 @@ class Admin extends Controller
         $password = $_POST['password'] ?? '';
 
         if (mb_strlen($name) < 2 || mb_strlen($name) > 100 || !filter_var($email, FILTER_VALIDATE_EMAIL)
-            || strlen($phone) > 30 || !in_array($roleId, [1, 2, 3], true)
+            || strlen($phone) > 30 || !in_array($roleId, [1, 2, 3, 4], true)
             || !in_array($status, ['active', 'inactive'], true)
             || ($password !== '' && strlen($password) < 8)) {
             flash('error', 'Please correct the user details and try again.');
@@ -238,7 +238,7 @@ class Admin extends Controller
         if ($this->User_model->update_user($id, $changes)) {
             flash('success', 'User details updated.');
         } else {
-            flash('error', 'No account details changed.');
+            flash('error', 'Account update was not completed. Active deliveries must be resolved, and rider accounts must be provisioned through Rider management.');
         }
         header('Location: ' . base_url('admin/users/' . $id));
         exit;
@@ -267,7 +267,7 @@ class Admin extends Controller
         if ($this->User_model->soft_delete_user($id)) {
             flash('success', 'User account removed.');
         } else {
-            flash('error', 'User not found or already removed.');
+            flash('error', 'User account was not removed. Resolve active rider deliveries before removing this account.');
         }
         header('Location: ' . base_url('admin/users'));
         exit;
@@ -292,8 +292,11 @@ class Admin extends Controller
                     flash('error', 'You cannot deactivate your own administrative account.');
                 } else {
                     $newStatus = ($user['status'] === 'active') ? 'inactive' : 'active';
-                    $this->User_model->update_user((int)$id, ['status' => $newStatus]);
-                    flash('success', "User {$user['name']} status changed to {$newStatus}.");
+                    if ($this->User_model->update_user((int)$id, ['status' => $newStatus])) {
+                        flash('success', "User {$user['name']} status changed to {$newStatus}.");
+                    } else {
+                        flash('error', 'User status was not changed. Resolve active rider deliveries before deactivation.');
+                    }
                 }
             }
         }
@@ -312,8 +315,52 @@ class Admin extends Controller
         $this->call->view('admin/riders', [
             'page_title' => 'Rider Fleet Management',
             'riders' => $riders,
+            'unlinked_rider_users' => $this->Rider_model->get_unlinked_rider_users(),
             'status_filter' => $statusFilter
         ]);
+    }
+
+    public function link_rider_account(int $id): void
+    {
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            http_response_code(405);
+            return;
+        }
+        if (!verify_csrf()) {
+            http_response_code(400);
+            flash('error', 'Invalid request or security token.');
+            redirect('admin/riders');
+            return;
+        }
+        try {
+            $userId = (int)($_POST['user_id'] ?? 0);
+            $this->Rider_model->link_account($id, $userId);
+            flash('success', 'Rider portal account linked.');
+        } catch (Throwable $e) {
+            flash('error', 'Rider account was not linked: ' . $e->getMessage());
+        }
+        redirect('admin/riders');
+    }
+
+    public function unlink_rider_account(int $id): void
+    {
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            http_response_code(405);
+            return;
+        }
+        if (!verify_csrf()) {
+            http_response_code(400);
+            flash('error', 'Invalid request or security token.');
+            redirect('admin/riders');
+            return;
+        }
+        try {
+            $this->Rider_model->unlink_account($id);
+            flash('success', 'Rider portal account unlinked.');
+        } catch (Throwable $e) {
+            flash('error', 'Rider account was not unlinked: ' . $e->getMessage());
+        }
+        redirect('admin/riders');
     }
 
     /**
@@ -447,10 +494,156 @@ class Admin extends Controller
             exit;
         }
 
+        $outbox = $db->raw("
+            SELECT o.id, o.order_id, o.user_id, o.status_code, o.channel, o.recipient, o.message, o.status, o.sent_at, o.created_at, ord.order_no
+            FROM delivery_notification_outbox o
+            LEFT JOIN orders ord ON ord.id = o.order_id
+            ORDER BY o.id DESC
+            LIMIT 30
+        ")->fetchAll(PDO::FETCH_ASSOC);
+
+        $outboxStatsRaw = $db->raw("
+            SELECT status, COUNT(*) as cnt
+            FROM delivery_notification_outbox
+            GROUP BY status
+        ")->fetchAll(PDO::FETCH_ASSOC);
+        $outboxStats = [];
+        foreach ($outboxStatsRaw as $row) {
+            $outboxStats[$row['status']] = (int)$row['cnt'];
+        }
+
+        $usersWithTokens = $db->raw("
+            SELECT id, name, email, role_id, fcm_token
+            FROM users
+            WHERE fcm_token IS NOT NULL AND fcm_token <> '' AND deleted_at IS NULL
+            ORDER BY id ASC
+            LIMIT 50
+        ")->fetchAll(PDO::FETCH_ASSOC);
+
         $this->call->view('admin/settings', [
             'page_title' => 'Fee Rates & Configuration',
-            'settings' => $settings
+            'settings' => $settings,
+            'outbox' => $outbox,
+            'outbox_stats' => $outboxStats,
+            'users_with_tokens' => $usersWithTokens,
+            'semaphore_enabled' => getenv('SEMAPHORE_ENABLED') === '1',
+            'semaphore_api_key' => getenv('SEMAPHORE_API_KEY') ?: '',
+            'semaphore_sender_name' => getenv('SEMAPHORE_SENDER_NAME') ?: 'SEMAPHORE',
+            'firebase_enabled' => getenv('FIREBASE_PUSH_ENABLED') === '1',
+            'firebase_project_id' => getenv('FIREBASE_PROJECT_ID') ?: '',
+            'firebase_has_key' => !empty(getenv('FIREBASE_PRIVATE_KEY')) || file_exists(dirname(APP_DIR) . DIRECTORY_SEPARATOR . 'delivery-and-logistics-system-firebase-adminsdk-fbsvc-0a9478f6dd.json')
         ]);
+    }
+
+    /**
+     * Trigger queue dispatch for pending delivery notifications
+     */
+    public function dispatch_outbox()
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf()) {
+            flash('error', 'Invalid security token.');
+            redirect('admin/settings');
+            return;
+        }
+
+        try {
+            $this->call->library('DeliveryNotificationService');
+            $notificationService = new DeliveryNotificationService($this->db);
+
+            $pendingOrders = $this->db->raw("
+                SELECT DISTINCT order_id
+                FROM delivery_notification_outbox
+                WHERE status = 'pending'
+            ")->fetchAll(PDO::FETCH_COLUMN);
+
+            $processedCount = 0;
+            foreach ($pendingOrders as $orderId) {
+                $notificationService->dispatchPendingForOrder((int)$orderId);
+                $processedCount++;
+            }
+
+            flash('success', "Notification queue processed: {$processedCount} order(s) evaluated.");
+        } catch (Throwable $e) {
+            flash('error', 'Notification dispatch failed: ' . $e->getMessage());
+        }
+
+        redirect('admin/settings');
+    }
+
+    /**
+     * Admin tool to send a test SMS via Semaphore
+     */
+    public function test_sms()
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf()) {
+            flash('error', 'Invalid security token.');
+            redirect('admin/settings');
+            return;
+        }
+
+        $phone = trim($_POST['phone'] ?? '');
+        $message = trim($_POST['message'] ?? 'Dispatch test message from Admin.');
+        if (empty($phone)) {
+            flash('error', 'Recipient phone number is required.');
+            redirect('admin/settings');
+            return;
+        }
+
+        try {
+            $this->call->library('SemaphoreService');
+            $sms = new SemaphoreService();
+            $res = $sms->send($phone, $message);
+            if (!empty($res['sent'])) {
+                flash('success', "Test SMS successfully sent to {$phone} via Semaphore!");
+            } elseif (!empty($res['disabled'])) {
+                flash('warning', "Semaphore is currently disabled (SEMAPHORE_ENABLED != 1). Message simulated for {$phone}.");
+            } else {
+                flash('error', 'Semaphore request failed.');
+            }
+        } catch (Throwable $e) {
+            flash('error', 'SMS sending failed: ' . $e->getMessage());
+        }
+
+        redirect('admin/settings');
+    }
+
+    /**
+     * Admin tool to send a test Push notification via Firebase
+     */
+    public function test_push()
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf()) {
+            flash('error', 'Invalid security token.');
+            redirect('admin/settings');
+            return;
+        }
+
+        $userId = (int)($_POST['user_id'] ?? 0);
+        $user = $userId ? $this->User_model->find_by_id($userId) : null;
+        $token = trim($user['fcm_token'] ?? ($_POST['token'] ?? ''));
+
+        if (empty($token)) {
+            flash('error', 'Target user has no registered FCM push token.');
+            redirect('admin/settings');
+            return;
+        }
+
+        try {
+            $this->call->library('FirebasePushService');
+            $firebase = new FirebasePushService();
+            $res = $firebase->sendToToken($token, 'Dispatch Admin Test', 'This is a test notification from the admin control panel.');
+            if (!empty($res['sent'])) {
+                flash('success', 'Push notification successfully dispatched via FCM!');
+            } elseif (!empty($res['disabled'])) {
+                flash('warning', 'Firebase Push is disabled (FIREBASE_PUSH_ENABLED != 1).');
+            } else {
+                flash('error', 'Push dispatch failed: ' . ($res['error'] ?? 'Unknown error'));
+            }
+        } catch (Throwable $e) {
+            flash('error', 'Push failed: ' . $e->getMessage());
+        }
+
+        redirect('admin/settings');
     }
 
     /**
@@ -491,7 +684,7 @@ class Admin extends Controller
                 http_response_code(404);
                 return;
             }
-            require_once APP_DIR . 'libraries/CourierBookingService.php';
+            $this->call->library('CourierBookingService');
             (new CourierBookingService($this->db, $this->Order_model, new MockCourierDriver()))->book($id, 'admin', auth_id());
             flash('success', 'Mock courier booking completed and rider assignment was processed through the webhook handler.');
         } catch (Throwable $e) {
@@ -536,7 +729,7 @@ class Admin extends Controller
         try {
             $driver = new MockCourierDriver();
             $payload = $driver->webhookEvent($eventType, $order, ['reason' => trim((string)($_POST['reason'] ?? ''))]);
-            require_once APP_DIR . 'controllers/Webhooks.php';
+            $this->call->controller('Webhooks');
             $result = Webhooks::processPayload($this->db, $this->Order_model, $payload, 'admin', auth_id(), true);
             flash(!empty($result['ignored']) ? 'warning' : 'success', !empty($result['ignored']) ? 'The event was ignored.' : 'Courier event processed: ' . $eventType . '.');
         } catch (Throwable $e) {

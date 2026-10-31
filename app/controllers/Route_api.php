@@ -1,8 +1,6 @@
 <?php
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
-require_once APP_DIR . 'libraries/GoogleMapsService.php';
-
 /**
  * Route & Geocoding API Controller
  * Provides routing calculations, fee estimation, and Places autocomplete
@@ -15,7 +13,8 @@ class Route_api extends Controller
     {
         parent::__construct();
         $this->call->helper('fee');
-        $this->mapsService = new GoogleMapsService();
+        $this->mapsService = $this->call->library('GoogleMapsService');
+        $this->call->library('api');
     }
 
     /**
@@ -24,15 +23,14 @@ class Route_api extends Controller
      */
     public function calculate()
     {
-        header('Content-Type: application/json');
-
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            http_response_code(405);
-            echo json_encode(['success' => false, 'error' => 'Method Not Allowed']);
-            exit;
+            $this->api->respond(['success' => false, 'error' => 'Method Not Allowed'], 405);
         }
 
-        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $input = $this->api->body();
+        if (empty($input)) {
+            $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        }
 
         $origin = $input['origin'] ?? $input['pickup_address'] ?? null;
         $destination = $input['destination'] ?? $input['dropoff_address'] ?? null;
@@ -47,22 +45,18 @@ class Route_api extends Controller
         }
 
         if (empty($origin)) {
-            http_response_code(422);
-            echo json_encode(['success' => false, 'error' => 'Pickup address is required.']);
-            exit;
+            $this->api->respond(['success' => false, 'error' => 'Pickup address is required.'], 422);
         }
 
         if (empty($destination)) {
-            http_response_code(422);
-            echo json_encode(['success' => false, 'error' => 'Drop-off address is required.']);
-            exit;
+            $this->api->respond(['success' => false, 'error' => 'Drop-off address is required.'], 422);
         }
 
         try {
             $route = $this->mapsService->route($origin, $destination);
             $feeBreakdown = calculate_delivery_fee($route['distance_km'], $weightKg);
 
-            echo json_encode([
+            $this->api->respond([
                 'success' => true,
                 'data' => [
                     'distance_km' => $route['distance_km'],
@@ -77,15 +71,10 @@ class Route_api extends Controller
                     'source' => $route['source'] ?? 'google_api'
                 ]
             ]);
-            exit;
         } catch (\InvalidArgumentException $e) {
-            http_response_code(422);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-            exit;
+            $this->api->respond(['success' => false, 'error' => $e->getMessage()], 422);
         } catch (\Throwable $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => 'Unable to calculate delivery route. Please verify addresses.']);
-            exit;
+            $this->api->respond(['success' => false, 'error' => 'Unable to calculate delivery route. Please verify addresses.'], 500);
         }
     }
 
@@ -95,21 +84,16 @@ class Route_api extends Controller
      */
     public function autocomplete()
     {
-        header('Content-Type: application/json');
-
         $query = trim($_GET['q'] ?? '');
         if (strlen($query) < 2) {
-            echo json_encode(['success' => true, 'data' => []]);
-            exit;
+            $this->api->respond(['success' => true, 'data' => []]);
         }
 
         try {
             $suggestions = $this->mapsService->place_autocomplete($query);
-            echo json_encode(['success' => true, 'data' => $suggestions]);
-            exit;
+            $this->api->respond(['success' => true, 'data' => $suggestions]);
         } catch (\Throwable $e) {
-            echo json_encode(['success' => false, 'error' => 'Autocomplete lookup failed.']);
-            exit;
+            $this->api->respond(['success' => false, 'error' => 'Autocomplete lookup failed.'], 500);
         }
     }
 }

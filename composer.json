@@ -1,0 +1,13 @@
+{
+    "name": "omniroute/delivery-and-logistics",
+    "description": "OmniRoute Delivery & Logistics Platform on LavaLust Framework",
+    "type": "project",
+    "require": {
+        "php": ">=8.0"
+    },
+    "autoload": {
+        "classmap": [
+            "app/libraries/"
+        ]
+    }
+}

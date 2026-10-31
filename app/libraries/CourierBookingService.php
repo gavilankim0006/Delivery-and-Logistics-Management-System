@@ -10,10 +10,15 @@ class CourierBookingService
     private $orderModel;
     private CourierProviderInterface $driver;
 
-    public function __construct($db, $orderModel, ?CourierProviderInterface $driver = null)
+    public function __construct($db = null, $orderModel = null, ?CourierProviderInterface $driver = null)
     {
-        $this->db = $db;
-        $this->orderModel = $orderModel;
+        $lava = function_exists('lava_instance') ? lava_instance() : null;
+        $this->db = $db ?? ($lava ? $lava->db : null);
+        if ($orderModel) {
+            $this->orderModel = $orderModel;
+        } elseif ($lava) {
+            $this->orderModel = $lava->Order_model ?? (isset($lava->call) ? $lava->call->model('Order_model') : null);
+        }
         $this->driver = $driver ?? CourierProviderFactory::create();
     }
 
@@ -110,6 +115,12 @@ class CourierBookingService
             require_once APP_DIR . 'controllers/Webhooks.php';
             Webhooks::processPayload($this->db, $this->orderModel, $assignment, 'system', null, true);
         }
+        try {
+            require_once APP_DIR . 'libraries/DeliveryNotificationService.php';
+            (new DeliveryNotificationService($this->db))->dispatchPendingForOrder($orderId);
+        } catch (Throwable $notificationError) {
+            error_log('Courier booking status notification failed for order ' . $orderId . ': ' . $notificationError->getMessage());
+        }
 
         return ['quotation' => $quote, 'order' => $booked];
     }
@@ -119,11 +130,13 @@ class CourierBookingService
         $this->db->transaction();
         $insertAttempted = false;
         try {
-            $order = $this->db->raw('SELECT status, lalamove_quotation_id, lalamove_order_id FROM orders WHERE id = ? FOR UPDATE', [$orderId])->fetch(PDO::FETCH_ASSOC);
+            $order = $this->db->raw('SELECT status, fulfillment_mode, rider_id, lalamove_quotation_id, lalamove_order_id FROM orders WHERE id = ? FOR UPDATE', [$orderId])->fetch(PDO::FETCH_ASSOC);
             if (!$order) {
                 throw new InvalidArgumentException('Order not found.');
             }
             if (!in_array($order['status'], ['paid', 'failed'], true)
+                || ($order['fulfillment_mode'] ?? null) !== 'lalamove'
+                || trim((string)($order['rider_id'] ?? '')) !== ''
                 || trim((string)($order['lalamove_order_id'] ?? '')) !== ''
                 || trim((string)($order['lalamove_quotation_id'] ?? '')) !== '') {
                 throw new DomainException('This order is not safe for automatic courier booking; review provider state first.');

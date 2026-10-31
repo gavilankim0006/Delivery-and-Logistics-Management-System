@@ -1,8 +1,6 @@
 <?php
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
-require_once APP_DIR . 'libraries/DeliveryControlService.php';
-
 class Delivery_control extends Controller
 {
     private DeliveryControlService $control;
@@ -11,7 +9,7 @@ class Delivery_control extends Controller
     {
         parent::__construct();
         $this->call->helper('auth');
-        $this->control = new DeliveryControlService($this->db);
+        $this->control = $this->call->library('DeliveryControlService', $this->db);
     }
 
     public function show(string $token)

@@ -2,13 +2,14 @@
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 $this->call->view('templates/header', ['page_title' => $page_title ?? 'User details']);
 $roles = $this->User_model->get_roles();
+$isCurrentUser = ((int)$user['id'] === (int)auth_id());
 ?>
 <div class="container page-shell py-4">
     <nav aria-label="Breadcrumb" class="mb-3"><a href="<?= base_url('admin/users') ?>">Users</a><span class="text-muted"> / User #<?= (int)$user['id'] ?></span></nav>
     <header class="page-header mb-4">
         <div>
             <h1 class="page-title">User account</h1>
-            <p class="page-description">Review or update account access and contact details.</p>
+            <p class="page-description">Review or update account access and contact details.<?= $isCurrentUser ? ' <span class="badge bg-secondary ms-1">Your account</span>' : '' ?></p>
         </div>
     </header>
 
@@ -31,18 +32,36 @@ $roles = $this->User_model->get_roles();
                 </div>
                 <div class="col-12 col-md-6">
                     <label class="form-label" for="user-role">Role</label>
-                    <select class="form-select" id="user-role" name="role_id" required>
-                        <?php foreach ($roles as $role): ?>
-                            <option value="<?= (int)$role['id'] ?>" <?= (int)$user['role_id'] === (int)$role['id'] ? 'selected' : '' ?>><?= e(ucfirst($role['name'])) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <?php if ($isCurrentUser): ?>
+                        <select class="form-select" id="user-role" disabled aria-describedby="user-role-help">
+                            <?php foreach ($roles as $role): ?>
+                                <option value="<?= (int)$role['id'] ?>" <?= (int)$user['role_id'] === (int)$role['id'] ? 'selected' : '' ?>><?= e(ucfirst($role['name'])) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <input type="hidden" name="role_id" value="<?= (int)$user['role_id'] ?>">
+                        <div class="form-text text-muted" id="user-role-help">You cannot change your own role to prevent losing administrator access.</div>
+                    <?php else: ?>
+                        <select class="form-select" id="user-role" name="role_id" required>
+                            <?php foreach ($roles as $role): ?>
+                                <option value="<?= (int)$role['id'] ?>" <?= (int)$user['role_id'] === (int)$role['id'] ? 'selected' : '' ?>><?= e(ucfirst($role['name'])) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    <?php endif; ?>
                 </div>
                 <div class="col-12 col-md-6">
                     <label class="form-label" for="user-status">Status</label>
-                    <select class="form-select" id="user-status" name="status" required>
-                        <option value="active" <?= $user['status'] === 'active' ? 'selected' : '' ?>>Active</option>
-                        <option value="inactive" <?= $user['status'] === 'inactive' ? 'selected' : '' ?>>Inactive</option>
-                    </select>
+                    <?php if ($isCurrentUser): ?>
+                        <select class="form-select" id="user-status" disabled aria-describedby="user-status-help">
+                            <option value="active" selected>Active</option>
+                        </select>
+                        <input type="hidden" name="status" value="active">
+                        <div class="form-text text-muted" id="user-status-help">You cannot deactivate your own account while signed in.</div>
+                    <?php else: ?>
+                        <select class="form-select" id="user-status" name="status" required>
+                            <option value="active" <?= $user['status'] === 'active' ? 'selected' : '' ?>>Active</option>
+                            <option value="inactive" <?= $user['status'] === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                        </select>
+                    <?php endif; ?>
                 </div>
                 <div class="col-12 col-md-6">
                     <label class="form-label" for="user-password">New password <span class="text-muted">(leave blank to keep current)</span></label>
@@ -68,7 +87,7 @@ $roles = $this->User_model->get_roles();
         <section class="mt-4" aria-label="Remove user account">
             <form action="<?= base_url('admin/users/' . (int)$user['id'] . '/delete') ?>" method="POST" onsubmit="return confirm('Remove this account? The account will be hidden from user lists and unable to sign in.');">
                 <?= csrf_field() ?>
-                <button type="submit" class="btn btn-outline-danger">Delete user account</button>
+                <button type="submit" class="btn btn-outline-danger" data-busy-text="Deleting…">Delete user account</button>
             </form>
         </section>
     <?php endif; ?>

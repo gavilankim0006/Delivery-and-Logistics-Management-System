@@ -44,12 +44,13 @@ $this->call->view('templates/header', ['page_title' => $page_title ?? 'Rider Fle
                         <th scope="col">Vehicle</th>
                         <th scope="col">Plate number</th>
                         <th scope="col">Status</th>
+                        <th scope="col">Portal account</th>
                         <th scope="col" class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($riders)): ?>
-                        <tr><td colspan="7" class="text-center py-4 text-muted">No riders match this filter.</td></tr>
+                        <tr><td colspan="8" class="text-center py-4 text-muted">No riders match this filter.</td></tr>
                     <?php else: ?>
                         <?php foreach ($riders as $r): ?>
                             <tr>
@@ -65,6 +66,33 @@ $this->call->view('templates/header', ['page_title' => $page_title ?? 'Rider Fle
                                         <span class="availability-chip availability-chip--busy">Busy</span>
                                     <?php else: ?>
                                         <span class="availability-chip availability-chip--offline">Offline</span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($r['has_active_assignment'])): ?><div class="small text-muted mt-1">Active delivery</div><?php endif; ?>
+                                </td>
+                                <td data-label="Portal account">
+                                    <?php if (!empty($r['user_id'])): ?>
+                                        <div class="fw-medium"><?= e($r['account_email'] ?? 'Linked account') ?></div>
+                                        <div class="small text-muted">Account <?= e($r['account_status'] ?? 'unknown') ?></div>
+                                        <?php if (empty($r['has_active_assignment'])): ?>
+                                            <form action="<?= base_url('admin/riders/' . (int)$r['id'] . '/unlink-account') ?>" method="POST" class="mt-2" onsubmit="return confirm('Unlink this account? The rider will no longer be able to log into the delivery portal until linked again.');">
+                                                <?= csrf_field() ?>
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" data-busy-text="Unlinking…">Unlink account</button>
+                                            </form>
+                                        <?php else: ?>
+                                            <span class="small text-muted">Cannot unlink during active delivery</span>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <form action="<?= base_url('admin/riders/' . (int)$r['id'] . '/link-account') ?>" method="POST" class="dispatch-rider-link-form">
+                                            <?= csrf_field() ?>
+                                            <label class="visually-hidden" for="rider-account-<?= (int)$r['id'] ?>">Rider portal account for <?= e($r['name']) ?></label>
+                                            <select id="rider-account-<?= (int)$r['id'] ?>" name="user_id" class="form-select form-select-sm" required>
+                                                <option value="" disabled selected>Select rider account</option>
+                                                <?php foreach ($unlinked_rider_users as $riderUser): ?>
+                                                    <option value="<?= (int)$riderUser['id'] ?>"><?= e($riderUser['name']) ?> · <?= e($riderUser['email']) ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <button type="submit" class="btn btn-sm btn-primary"<?= empty($unlinked_rider_users) ? ' disabled' : '' ?>>Link account</button>
+                                        </form>
                                     <?php endif; ?>
                                 </td>
                                 <td data-label="Actions" class="text-end">
@@ -117,9 +145,9 @@ $this->call->view('templates/header', ['page_title' => $page_title ?? 'Rider Fle
                         <div>
                             <label for="rider-status-<?= (int)$r['id'] ?>" class="form-label">Status</label>
                             <select id="rider-status-<?= (int)$r['id'] ?>" name="status" class="form-select">
-                                <option value="available" <?= $r['status'] === 'available' ? 'selected' : '' ?>>Available</option>
+                                <option value="available" <?= $r['status'] === 'available' ? 'selected' : '' ?><?= !empty($r['has_active_assignment']) ? ' disabled' : '' ?>>Available</option>
                                 <option value="busy" <?= $r['status'] === 'busy' ? 'selected' : '' ?>>Busy</option>
-                                <option value="offline" <?= $r['status'] === 'offline' ? 'selected' : '' ?>>Offline</option>
+                                <option value="offline" <?= $r['status'] === 'offline' ? 'selected' : '' ?><?= !empty($r['has_active_assignment']) ? ' disabled' : '' ?>>Offline</option>
                             </select>
                         </div>
                     </div>
@@ -146,7 +174,7 @@ $this->call->view('templates/header', ['page_title' => $page_title ?? 'Rider Fle
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-danger">Delete rider</button>
+                        <button type="submit" class="btn btn-danger" data-busy-text="Deleting…">Delete rider</button>
                     </div>
                 </form>
             </div>

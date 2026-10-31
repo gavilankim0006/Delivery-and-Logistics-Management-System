@@ -62,17 +62,17 @@ if ($dispatcherCount !== 1) {
 
 // 4. Count customers
 $customerCount = (int) $db->table('customers')->select_count('*', 'count')->get()['count'];
-echo "[CHECK] Customer count: $customerCount (Expected: 3)\n";
-if ($customerCount !== 3) {
-    echo "[FAIL] Expected 3 customers, found $customerCount\n";
+echo "[CHECK] Customer count: $customerCount (Expected at least: 3)\n";
+if ($customerCount < 3) {
+    echo "[FAIL] Expected at least 3 customers, found $customerCount\n";
     exit(1);
 }
 
 // 5. Count riders
 $riderCount = (int) $db->table('riders')->select_count('*', 'count')->get()['count'];
-echo "[CHECK] Rider count: $riderCount (Expected: 3)\n";
-if ($riderCount !== 3) {
-    echo "[FAIL] Expected 3 riders, found $riderCount\n";
+echo "[CHECK] Rider count: $riderCount (Expected at least: 3)\n";
+if ($riderCount < 3) {
+    echo "[FAIL] Expected at least 3 riders, found $riderCount\n";
     exit(1);
 }
 

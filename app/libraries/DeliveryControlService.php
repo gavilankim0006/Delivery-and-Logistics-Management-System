@@ -5,9 +5,10 @@ class DeliveryControlService
 {
     private $db;
 
-    public function __construct($db)
+    public function __construct($db = null)
     {
-        $this->db = $db;
+        $lava = function_exists('lava_instance') ? lava_instance() : null;
+        $this->db = $db ?? ($lava ? $lava->db : null);
     }
 
     public function issue(int $orderId, int $customerId): string

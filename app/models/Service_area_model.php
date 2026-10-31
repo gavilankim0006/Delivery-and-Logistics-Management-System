@@ -10,13 +10,17 @@ class Service_area_model extends Model
 
     public function get_all(bool $activeOnly = false): array
     {
-        $sql = 'SELECT * FROM service_areas' . ($activeOnly ? ' WHERE is_active = 1' : '') . ' ORDER BY name ASC, id ASC';
-        return $this->getDb()->raw($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $query = $this->getDb()->table('service_areas');
+        if ($activeOnly) {
+            $query->where('is_active', 1);
+        }
+        $rows = $query->order_by('name', 'ASC')->order_by('id', 'ASC')->get_all();
+        return $rows ?: [];
     }
 
     public function find(int $id): ?array
     {
-        $row = $this->getDb()->raw('SELECT * FROM service_areas WHERE id = ? LIMIT 1', [$id])->fetch(PDO::FETCH_ASSOC);
+        $row = $this->getDb()->table('service_areas')->where('id', $id)->get();
         return $row ?: null;
     }
 

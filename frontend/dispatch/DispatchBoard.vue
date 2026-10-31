@@ -4,10 +4,13 @@ import { onMounted, onUnmounted, ref } from 'vue';
 const props = defineProps({
     dataUrl: { type: String, required: true },
     baseUrl: { type: String, required: true },
-    csrfToken: { type: String, required: true }
+    csrfToken: { type: String, required: true },
+    fulfillmentActions: { type: Boolean, default: false },
+    availableRiders: { type: Array, default: () => [] }
 });
 
 const orders = ref([]);
+const availableRiders = ref(props.availableRiders);
 const loading = ref(true);
 const error = ref('');
 const lastUpdated = ref('');
@@ -36,10 +39,18 @@ async function loadBoard() {
         }
 
         orders.value = result.data.orders;
-        Object.entries(result.data).forEach(([key, value]) => {
-            const target = document.querySelector(`[data-summary="${key}"]`);
-            if (target && key !== 'orders') target.textContent = Number(value).toLocaleString();
-        });
+        if (Array.isArray(result.data.available_riders)) {
+            availableRiders.value = result.data.available_riders;
+        }
+        const controlsRoot = document.getElementById('dispatch-controls-vue-root');
+        if (controlsRoot) {
+            controlsRoot.dispatchEvent(new CustomEvent('dispatch-summary', { detail: {
+                today_total: result.data.today_total,
+                awaiting_booking: result.data.awaiting_booking,
+                in_transit: result.data.in_transit,
+                failed_count: result.data.failed_count
+            } }));
+        }
         error.value = '';
         lastUpdated.value = new Date().toLocaleTimeString([], {
             hour: 'numeric', minute: '2-digit', second: '2-digit'
@@ -97,6 +108,39 @@ function recoveryUrl(id) {
     return `${props.baseUrl}dispatch/recover/${encodeURIComponent(id)}`;
 }
 
+function assignInternalUrl(id) {
+    return `${props.baseUrl}dispatch/orders/${encodeURIComponent(id)}/assign-internal`;
+}
+
+function selectLalamoveUrl(id) {
+    return `${props.baseUrl}dispatch/orders/${encodeURIComponent(id)}/select-lalamove`;
+}
+
+function canChooseFulfillment(order) {
+    return props.fulfillmentActions
+        && order.status === 'paid'
+        && !order.fulfillment_mode
+        && !order.rider_id
+        && !order.lalamove_quotation_id
+        && !order.lalamove_order_id;
+}
+
+function canReassignInternal(order) {
+    return props.fulfillmentActions
+        && order.status === 'rider_assigned'
+        && order.fulfillment_mode === 'internal'
+        && Boolean(Number(order.active_internal_assignment));
+}
+
+function canRetryInternalAssignment(order) {
+    return props.fulfillmentActions
+        && order.status === 'failed'
+        && order.fulfillment_mode === 'internal'
+        && !order.rider_id
+        && !order.lalamove_quotation_id
+        && !order.lalamove_order_id;
+}
+
 function trackingUrl(value) {
     if (typeof value !== 'string' || value.trim() === '') return null;
     try {
@@ -117,6 +161,8 @@ function recoveryClass(priority) {
 
 function onFilterSubmit(event) {
     event.preventDefault();
+    const params = new URLSearchParams(new FormData(filterForm));
+    window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
     loadBoard();
 }
 
@@ -199,6 +245,23 @@ onUnmounted(() => {
                     </td>
                     <td data-label="Fee" class="fw-semibold text-nowrap">₱{{ money(order.delivery_fee) }}</td>
                     <td data-label="Action" class="text-end">
+                        <div v-if="canChooseFulfillment(order) || canReassignInternal(order) || canRetryInternalAssignment(order)" class="dispatch-fulfillment-actions text-start mb-2">
+                            <span class="form-label d-block">{{ canReassignInternal(order) ? 'Change internal rider' : (canRetryInternalAssignment(order) ? 'Reassign internal rider' : 'Choose fulfillment') }}</span>
+                            <form v-if="availableRiders.length" method="post" :action="assignInternalUrl(order.id)" class="dispatch-fulfillment-form">
+                                <input type="hidden" name="csrf_token" :value="csrfToken">
+                                <label class="visually-hidden" :for="`rider-${order.id}`">Select an internal rider for order {{ order.order_no }}</label>
+                                <select :id="`rider-${order.id}`" name="rider_id" class="form-select form-select-sm" required>
+                                    <option value="" disabled selected>Select available rider</option>
+                                    <option v-for="rider in availableRiders" :key="rider.id" :value="rider.id">{{ rider.name }} · {{ rider.vehicle_type }}<template v-if="rider.plate_number"> · {{ rider.plate_number }}</template></option>
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-primary">{{ canReassignInternal(order) || canRetryInternalAssignment(order) ? 'Assign rider again' : 'Assign rider' }}</button>
+                            </form>
+                            <p v-else class="small text-muted mb-2">No portal-linked riders are available right now.</p>
+                            <form v-if="canChooseFulfillment(order)" method="post" :action="selectLalamoveUrl(order.id)">
+                                <input type="hidden" name="csrf_token" :value="csrfToken">
+                                <button type="submit" class="btn btn-sm btn-outline-primary">Select &amp; book Lalamove</button>
+                            </form>
+                        </div>
                         <template v-if="order.recovery">
                             <div class="small text-start mb-2">
                                 <span class="badge" :class="recoveryClass(order.recovery.priority)">{{ statusLabel(order.recovery.priority) }}</span>
@@ -211,7 +274,7 @@ onUnmounted(() => {
                                 <input type="hidden" name="csrf_token" :value="csrfToken">
                                 <button type="submit" class="btn btn-sm btn-primary">{{ order.recovery.label }}</button>
                             </form>
-                            <a v-else-if="order.pickup_phone" class="btn btn-sm btn-outline-primary mb-2" :href="phoneUrl(order.pickup_phone)">Call customer</a>
+                            <a v-else-if="order.recovery.kind === 'escalate' && order.pickup_phone" class="btn btn-sm btn-outline-primary mb-2" :href="phoneUrl(order.pickup_phone)">Call customer</a>
                         </template>
                         <a :href="orderUrl(order.id)" class="dispatch-row-action">View order</a>
                     </td>

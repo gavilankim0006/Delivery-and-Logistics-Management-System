@@ -61,7 +61,7 @@ if ( ! function_exists('base_url'))
 
 		$uri = ltrim(trim((string) $uri), '/');
 
-		$uri = preg_replace('/[^a-zA-Z0-9\/\-\._~]/', '', $uri);
+		$uri = preg_replace('/[^a-zA-Z0-9\/\-\._~?&=#+%]/', '', $uri);
 
 		return $base_url . '/' . $uri;
 	}
@@ -118,7 +118,10 @@ if ( ! function_exists('redirect'))
 		{
 			header('Location: ' . $uri, true, ($permanent === true) ? 301 : 302);
 		}
-		($exit === true) ?? exit();
+		if ($exit === true)
+		{
+			exit();
+		}
 	}
 }
 

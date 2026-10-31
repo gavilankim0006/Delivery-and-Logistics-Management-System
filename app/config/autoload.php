@@ -37,5 +37,5 @@ $autoload['models'] = array();
 |  Auto-load Config files
 | -------------------------------------------------------------------
 */
-$autoload['configs'] = array();
+$autoload['configs'] = array('google_maps', 'paymongo', 'courier', 'semaphore', 'firebase', 'ai', 'api');
 ?>

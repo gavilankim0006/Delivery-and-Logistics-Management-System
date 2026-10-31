@@ -13,9 +13,13 @@ class DeliveryMapManager {
         this.distanceDisplayId = config.distanceDisplayId || 'summary-distance';
         this.durationDisplayId = config.durationDisplayId || 'summary-duration';
         this.feeDisplayId = config.feeDisplayId || 'summary-fee';
+        this.sourceNoteId = config.sourceNoteId || 'route-source-note';
         this.errorContainerId = config.errorContainerId || 'route-error-alert';
         this.submitButtonId = config.submitButtonId || 'btn-confirm-order';
         this.calculateEndpoint = config.calculateEndpoint || '/SIAproject/api/route/calculate';
+        this.activeStop = 'pickup';
+        this.requestId = 0;
+        this.routeReady = false;
 
         this.map = null;
         this.directionsRenderer = null;
@@ -34,6 +38,18 @@ class DeliveryMapManager {
         this.initElements();
         this.initGoogleMaps();
         this.attachEventListeners();
+        this.restoreSavedLocations();
+        const form = this.mapEl?.closest('form');
+        if (form) {
+            form.addEventListener('submit', (event) => {
+                const hasAnyMapLocation = ['pickup_lat', 'pickup_lng', 'dropoff_lat', 'dropoff_lng']
+                    .some((id) => document.getElementById(id)?.value !== '');
+                if (this.map && hasAnyMapLocation && !this.routeReady) {
+                    event.preventDefault();
+                    this.showError('Select both locations and wait for a verified Google route before saving.');
+                }
+            }, true);
+        }
     }
 
     initElements() {
@@ -44,6 +60,7 @@ class DeliveryMapManager {
         this.distanceDisplay = document.getElementById(this.distanceDisplayId);
         this.durationDisplay = document.getElementById(this.durationDisplayId);
         this.feeDisplay = document.getElementById(this.feeDisplayId);
+        this.sourceNote = document.getElementById(this.sourceNoteId);
         this.errorContainer = document.getElementById(this.errorContainerId);
         this.submitBtn = document.getElementById(this.submitButtonId);
     }
@@ -66,7 +83,7 @@ class DeliveryMapManager {
 
             this.directionsRenderer = new google.maps.DirectionsRenderer({
                 map: this.map,
-                suppressMarkers: false,
+                suppressMarkers: true,
                 polylineOptions: {
                     strokeColor: '#1F4FD8',
                     strokeWeight: 5,
@@ -75,10 +92,32 @@ class DeliveryMapManager {
             });
 
             this.initAutocomplete();
+            this.initMapInteractions();
         } else {
             // Leaflet or fallback map rendering if Google Maps JS script not present
             this.renderMockMapPreview(defaultCenter);
         }
+    }
+
+    initMapInteractions() {
+        if (!this.map || !window.google || !google.maps) return;
+
+        this.map.addListener('click', (event) => {
+            const coords = { lat: event.latLng.lat(), lng: event.latLng.lng() };
+            const address = `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`;
+            this.setStopLocation(this.activeStop, coords, address);
+        });
+
+        document.querySelectorAll('[data-map-select]').forEach((button) => {
+            button.addEventListener('click', () => {
+                this.activeStop = button.dataset.mapSelect === 'dropoff' ? 'dropoff' : 'pickup';
+                document.querySelectorAll('[data-map-select]').forEach((option) => {
+                    const active = option === button;
+                    option.classList.toggle('active', active);
+                    option.setAttribute('aria-pressed', String(active));
+                });
+            });
+        });
     }
 
     initAutocomplete() {
@@ -94,12 +133,11 @@ class DeliveryMapManager {
             this.pickupAutocomplete.addListener('place_changed', () => {
                 const place = this.pickupAutocomplete.getPlace();
                 if (place.geometry && place.geometry.location) {
-                    this.pickupCoords = {
+                    this.setStopLocation('pickup', {
                         lat: place.geometry.location.lat(),
                         lng: place.geometry.location.lng()
-                    };
+                    }, place.formatted_address || place.name || this.pickupInput.value);
                 }
-                this.triggerRouteCalculation();
             });
         }
 
@@ -108,12 +146,11 @@ class DeliveryMapManager {
             this.dropoffAutocomplete.addListener('place_changed', () => {
                 const place = this.dropoffAutocomplete.getPlace();
                 if (place.geometry && place.geometry.location) {
-                    this.dropoffCoords = {
+                    this.setStopLocation('dropoff', {
                         lat: place.geometry.location.lat(),
                         lng: place.geometry.location.lng()
-                    };
+                    }, place.formatted_address || place.name || this.dropoffInput.value);
                 }
-                this.triggerRouteCalculation();
             });
         }
     }
@@ -139,11 +176,21 @@ class DeliveryMapManager {
         };
 
         if (this.pickupInput) {
-            this.pickupInput.addEventListener('input', debouncedCalc);
+            this.pickupInput.addEventListener('input', () => {
+                this.clearStopLocation('pickup');
+                this.clearRouteEstimate();
+                this.clearError();
+                debouncedCalc();
+            });
             this.pickupInput.addEventListener('blur', () => this.triggerRouteCalculation());
         }
         if (this.dropoffInput) {
-            this.dropoffInput.addEventListener('input', debouncedCalc);
+            this.dropoffInput.addEventListener('input', () => {
+                this.clearStopLocation('dropoff');
+                this.clearRouteEstimate();
+                this.clearError();
+                debouncedCalc();
+            });
             this.dropoffInput.addEventListener('blur', () => this.triggerRouteCalculation());
         }
         if (this.weightInput) {
@@ -156,8 +203,13 @@ class DeliveryMapManager {
         const pickup = this.pickupInput ? this.pickupInput.value.trim() : '';
         const dropoff = this.dropoffInput ? this.dropoffInput.value.trim() : '';
         const weight = this.weightInput ? parseFloat(this.weightInput.value) || 1.0 : 1.0;
+        if (this.weightInput && (!Number.isFinite(parseFloat(this.weightInput.value)) || parseFloat(this.weightInput.value) <= 0)) return;
 
         if (!pickup || !dropoff) {
+            return;
+        }
+
+        if (window.google && window.google.maps && (!this.pickupCoords || !this.dropoffCoords)) {
             return;
         }
 
@@ -166,6 +218,7 @@ class DeliveryMapManager {
             return;
         }
 
+        const requestId = ++this.requestId;
         this.setLoading(true);
         this.clearError();
 
@@ -191,18 +244,20 @@ class DeliveryMapManager {
             return data;
         })
         .then((res) => {
+            if (requestId !== this.requestId) return;
             if (res.success && res.data) {
                 this.updateSummaryUI(res.data);
                 this.drawRouteOnMap(res.data);
+                this.routeReady = true;
             } else {
                 throw new Error(res.error || 'Unable to compute route.');
             }
         })
         .catch((err) => {
-            this.showError(err.message);
+            if (requestId === this.requestId) this.showError(err.message);
         })
         .finally(() => {
-            this.setLoading(false);
+            if (requestId === this.requestId) this.setLoading(false);
         });
     }
 
@@ -210,11 +265,18 @@ class DeliveryMapManager {
         if (this.distanceDisplay) {
             this.distanceDisplay.textContent = `${data.distance_km} km`;
         }
+        const distanceInput = document.getElementById('distance_km');
+        if (distanceInput) distanceInput.value = data.distance_km;
         if (this.durationDisplay) {
             this.durationDisplay.textContent = `~${data.duration_min} min`;
         }
         if (this.feeDisplay) {
             this.feeDisplay.textContent = `PHP ${parseFloat(data.fee).toFixed(2)}`;
+        }
+        if (this.sourceNote) {
+            this.sourceNote.textContent = data.source === 'google_api'
+                ? 'Route verified by Google Maps.'
+                : 'Route estimate is approximate (offline fallback); verify the road distance before saving.';
         }
 
         // Store hidden fields in order form if present
@@ -283,13 +345,17 @@ class DeliveryMapManager {
 
     showError(msg) {
         if (this.errorContainer) {
-            this.errorContainer.innerHTML = `
-                <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center" role="alert">
-                    <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
-                    <div class="flex-grow-1">${msg}</div>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            `;
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-danger d-flex align-items-center';
+            alert.setAttribute('role', 'alert');
+            const icon = document.createElement('i');
+            icon.className = 'bi bi-exclamation-triangle-fill me-2 fs-5';
+            icon.setAttribute('aria-hidden', 'true');
+            const message = document.createElement('div');
+            message.className = 'flex-grow-1';
+            message.textContent = msg;
+            alert.append(icon, message);
+            this.errorContainer.replaceChildren(alert);
             this.errorContainer.classList.remove('d-none');
         } else {
             console.error(msg);
@@ -297,6 +363,7 @@ class DeliveryMapManager {
         if (this.submitBtn) {
             this.submitBtn.disabled = true;
         }
+        this.routeReady = false;
     }
 
     clearError() {
@@ -309,6 +376,98 @@ class DeliveryMapManager {
     setHiddenField(id, val) {
         const el = document.getElementById(id);
         if (el) el.value = val;
+    }
+
+    setStopLocation(stop, coords, address) {
+        const isPickup = stop === 'pickup';
+        const input = isPickup ? this.pickupInput : this.dropoffInput;
+        const latField = document.getElementById(`${stop}_lat`);
+        const lngField = document.getElementById(`${stop}_lng`);
+
+        if (isPickup) this.pickupCoords = coords;
+        else this.dropoffCoords = coords;
+
+        if (input && address) input.value = address;
+        if (latField) latField.value = coords.lat;
+        if (lngField) lngField.value = coords.lng;
+
+        const markerKey = isPickup ? 'pickupMarker' : 'dropoffMarker';
+        if (this[markerKey]) this[markerKey].setMap(null);
+        if (this.map && window.google && google.maps) {
+            this[markerKey] = new google.maps.Marker({
+                map: this.map,
+                position: coords,
+                label: isPickup ? 'P' : 'D',
+                title: isPickup ? 'Pickup location' : 'Drop-off location',
+                draggable: true
+            });
+            this[markerKey].addListener('dragend', (event) => {
+                const moved = { lat: event.latLng.lat(), lng: event.latLng.lng() };
+                const movedAddress = `${moved.lat.toFixed(6)}, ${moved.lng.toFixed(6)}`;
+                this.setStopLocation(stop, moved, movedAddress);
+            });
+        }
+
+        this.clearRouteEstimate();
+        this.clearError();
+        this.triggerRouteCalculation();
+    }
+
+    clearStopLocation(stop) {
+        const isPickup = stop === 'pickup';
+        if (isPickup) this.pickupCoords = null;
+        else this.dropoffCoords = null;
+        this.setHiddenField(`${stop}_lat`, '');
+        this.setHiddenField(`${stop}_lng`, '');
+        const markerKey = isPickup ? 'pickupMarker' : 'dropoffMarker';
+        if (this[markerKey]) {
+            this[markerKey].setMap(null);
+            this[markerKey] = null;
+        }
+    }
+
+    restoreSavedLocations() {
+        for (const stop of ['pickup', 'dropoff']) {
+            const lat = parseFloat(document.getElementById(`${stop}_lat`)?.value);
+            const lng = parseFloat(document.getElementById(`${stop}_lng`)?.value);
+            const input = stop === 'pickup' ? this.pickupInput : this.dropoffInput;
+            if (Number.isFinite(lat) && Number.isFinite(lng) && input?.value) {
+                if (stop === 'pickup') this.pickupCoords = { lat, lng };
+                else this.dropoffCoords = { lat, lng };
+                if (this.map && window.google && google.maps) {
+                    const markerKey = stop === 'pickup' ? 'pickupMarker' : 'dropoffMarker';
+                    this[markerKey] = new google.maps.Marker({
+                        map: this.map,
+                        position: { lat, lng },
+                        label: stop === 'pickup' ? 'P' : 'D',
+                        title: stop === 'pickup' ? 'Pickup location' : 'Drop-off location',
+                        draggable: true
+                    });
+                    this[markerKey].addListener('dragend', (event) => {
+                        const moved = { lat: event.latLng.lat(), lng: event.latLng.lng() };
+                        this.setStopLocation(stop, moved, `${moved.lat.toFixed(6)}, ${moved.lng.toFixed(6)}`);
+                    });
+                }
+            }
+        }
+        if (this.pickupCoords && this.dropoffCoords) this.triggerRouteCalculation();
+    }
+
+    clearRouteEstimate() {
+        this.requestId++;
+        this.setLoading(false);
+        this.setHiddenField('distance_km', '');
+        if (this.distanceDisplay) this.distanceDisplay.textContent = 'Not calculated';
+        if (this.durationDisplay) this.durationDisplay.textContent = '—';
+        if (this.feeDisplay) this.feeDisplay.textContent = '—';
+        if (this.sourceNote) this.sourceNote.textContent = '';
+        this.routeReady = false;
+        if (this.submitBtn) this.submitBtn.disabled = false;
+        if (this.directionsRenderer) this.directionsRenderer.set('directions', null);
+        if (this.polyline) {
+            this.polyline.setMap(null);
+            this.polyline = null;
+        }
     }
 }
 

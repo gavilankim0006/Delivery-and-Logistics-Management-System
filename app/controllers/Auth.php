@@ -179,6 +179,11 @@ class Auth extends Controller
                 'name' => $name,
                 'phone' => $phone
             ];
+            if (auth_role() === 'customer') {
+                $updateData['sms_opt_in'] = !empty($_POST['sms_opt_in']) ? 1 : 0;
+                $updateData['delivery_status_sms_opt_in'] = !empty($_POST['delivery_status_sms_opt_in']) ? 1 : 0;
+                $updateData['push_opt_in'] = !empty($_POST['push_opt_in']) ? 1 : 0;
+            }
 
             if (!empty($password)) {
                 if (strlen($password) < 8) {
@@ -194,7 +199,17 @@ class Auth extends Controller
                 $updateData['password'] = $password;
             }
 
-            $this->User_model->update_user(auth_id(), $updateData);
+            $profileChanged = $name !== (string)($user['name'] ?? '')
+                || $phone !== (string)($user['phone'] ?? '')
+                || (auth_role() === 'customer' && (!empty($_POST['sms_opt_in']) ? 1 : 0) !== (int)($user['sms_opt_in'] ?? 0))
+                || (auth_role() === 'customer' && (!empty($_POST['delivery_status_sms_opt_in']) ? 1 : 0) !== (int)($user['delivery_status_sms_opt_in'] ?? 0))
+                || (auth_role() === 'customer' && (!empty($_POST['push_opt_in']) ? 1 : 0) !== (int)($user['push_opt_in'] ?? 0))
+                || $password !== '';
+            if ($profileChanged && !$this->User_model->update_user(auth_id(), $updateData)) {
+                flash('error', 'Profile changes could not be saved. Please try again.');
+                header('Location: ' . base_url('profile'));
+                exit;
+            }
             $_SESSION['user']['name'] = $name;
             $_SESSION['user']['phone'] = $phone;
 
@@ -235,6 +250,11 @@ class Auth extends Controller
         }
 
         $payload = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        if (!verify_csrf($payload['csrf_token'] ?? '')) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Invalid security token.']);
+            exit;
+        }
         $token = trim($payload['token'] ?? '');
 
         if (empty($token)) {
@@ -249,6 +269,98 @@ class Auth extends Controller
     }
 
     /**
+     * AJAX endpoint to test client push notification
+     */
+    public function test_push()
+    {
+        require_auth();
+        header('Content-Type: application/json');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode(['error' => 'Method Not Allowed']);
+            exit;
+        }
+
+        $payload = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        if (!verify_csrf($payload['csrf_token'] ?? '')) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Invalid security token.']);
+            exit;
+        }
+
+        $user = $this->User_model->find_by_id(auth_id());
+        $token = trim($user['fcm_token'] ?? '');
+        if (empty($token)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'No push device token found for your account. Please enable browser notifications first.']);
+            exit;
+        }
+
+        try {
+            $this->call->library('FirebasePushService');
+            $firebase = new FirebasePushService();
+            $result = $firebase->sendToToken($token, 'Dispatch Notification Test', 'Live push notification verified successfully!');
+            if (!empty($result['sent'])) {
+                echo json_encode(['success' => true, 'message' => 'Push notification delivered to your browser via FCM!']);
+            } elseif (!empty($result['disabled'])) {
+                echo json_encode(['success' => true, 'message' => 'Firebase Push is in local test mode (simulated notification).']);
+            } else {
+                echo json_encode(['success' => false, 'error' => $result['error'] ?? 'Could not deliver push notification.']);
+            }
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    /**
+     * AJAX endpoint to test customer SMS notification
+     */
+    public function test_sms()
+    {
+        require_auth();
+        header('Content-Type: application/json');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode(['error' => 'Method Not Allowed']);
+            exit;
+        }
+
+        $payload = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        if (!verify_csrf($payload['csrf_token'] ?? '')) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Invalid security token.']);
+            exit;
+        }
+
+        $user = $this->User_model->find_by_id(auth_id());
+        $phone = trim($user['phone'] ?? '');
+        if (empty($phone)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Please enter and save a mobile phone number in your profile first.']);
+            exit;
+        }
+
+        try {
+            $this->call->library('SemaphoreService');
+            $sms = new SemaphoreService();
+            $res = $sms->send($phone, 'Dispatch SMS Test: Your phone number is verified and ready for delivery updates.');
+            if (!empty($res['sent'])) {
+                echo json_encode(['success' => true, 'message' => "Test SMS sent to {$phone}!"]);
+            } elseif (!empty($res['disabled'])) {
+                echo json_encode(['success' => true, 'message' => "Semaphore is disabled in configuration. SMS was simulated for {$phone}."]);
+            } else {
+                echo json_encode(['success' => false, 'error' => 'Failed to send test SMS.']);
+            }
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    /**
      * Helper to redirect authenticated user to their role landing page
      */
     protected function redirect_by_role(?string $role): void
@@ -259,6 +371,9 @@ class Auth extends Controller
                 break;
             case 'dispatcher':
                 header('Location: ' . base_url('dispatch'));
+                break;
+            case 'rider':
+                header('Location: ' . base_url('rider'));
                 break;
             case 'customer':
             default:

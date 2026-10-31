@@ -13,11 +13,11 @@ class Order_model extends Model
     protected const ALLOWED_TRANSITIONS = [
         'draft' => ['pending_payment', 'cancelled'],
         'pending_payment' => ['paid', 'cancelled', 'failed'],
-        'paid' => ['booking', 'cancelled', 'failed'],
+        'paid' => ['booking', 'rider_assigned', 'cancelled', 'failed'],
         'booking' => ['rider_assigned', 'failed', 'cancelled'],
         'rider_assigned' => ['picked_up', 'cancelled', 'failed'],
         'picked_up' => ['delivered', 'failed'],
-        'failed' => ['booking'],
+        'failed' => ['booking', 'rider_assigned'],
         'delivered' => [],
         'cancelled' => []
     ];
@@ -204,11 +204,43 @@ class Order_model extends Model
         $db = $this->getDb();
         $db->transaction();
         try {
-            $order = $db->raw('SELECT id, status FROM orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [$orderId])->fetch(PDO::FETCH_ASSOC);
+            $order = $db->raw('SELECT id, status, fulfillment_mode, rider_id, lalamove_quotation_id, lalamove_order_id FROM orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [$orderId])->fetch(PDO::FETCH_ASSOC);
             if (!$order) {
                 throw new InvalidArgumentException("Order #{$orderId} not found.");
             }
             $currentStatus = $order['status'];
+            if ($newStatus === 'rider_assigned' && ($order['fulfillment_mode'] ?? null) === 'lalamove'
+                && trim((string)$order['lalamove_order_id']) === '' && !in_array($actorType, ['lalamove_webhook', 'system'], true)) {
+                throw new DomainException('Lalamove driver assignment must be recorded through its courier webhook.');
+            }
+            if (($order['fulfillment_mode'] ?? null) === 'internal' && in_array($newStatus, ['picked_up', 'delivered'], true)) {
+                $ownedAssignment = $db->raw(
+                    'SELECT ra.id FROM rider_assignments ra
+                     INNER JOIN riders r ON r.id = ra.rider_id
+                     INNER JOIN users u ON u.id = r.user_id
+                     INNER JOIN roles ro ON ro.id = u.role_id AND ro.name = \'rider\'
+                     WHERE ra.order_id = ? AND ra.rider_id = ? AND ra.released_at IS NULL AND r.user_id = ?
+                       AND r.deleted_at IS NULL AND u.status = \'active\' AND u.deleted_at IS NULL
+                     LIMIT 1 FOR UPDATE',
+                    [$orderId, (int)$order['rider_id'], (int)($actorId ?? 0)]
+                )->fetch(PDO::FETCH_ASSOC);
+                if ($actorType !== 'rider' || !$actorId || !$ownedAssignment) {
+                    throw new DomainException('Only the assigned rider can update this internal delivery.');
+                }
+            }
+            if ($newStatus === 'rider_assigned' && ($order['fulfillment_mode'] ?? null) === 'internal') {
+                if (trim((string)$order['lalamove_quotation_id']) !== '' || trim((string)$order['lalamove_order_id']) !== '') {
+                    throw new DomainException('An internal rider assignment cannot coexist with Lalamove provider state.');
+                }
+                $activeAssignment = $db->raw(
+                    'SELECT rider_id FROM rider_assignments WHERE order_id = ? AND rider_id = ? AND released_at IS NULL LIMIT 1 FOR UPDATE',
+                    [$orderId, (int)$order['rider_id']]
+                )->fetch(PDO::FETCH_ASSOC);
+                if ($actorType !== 'dispatcher' || !$actorId || !$activeAssignment
+                    || (int)$activeAssignment['rider_id'] !== (int)$order['rider_id']) {
+                    throw new DomainException('Internal rider assignments must be changed through DispatchFulfillmentService.');
+                }
+            }
             if ($currentStatus === $newStatus) {
                 $db->commit();
                 return true;
@@ -218,8 +250,25 @@ class Order_model extends Model
             }
 
             $updates = array_merge($extraData, ['status' => $newStatus, 'updated_at' => date('Y-m-d H:i:s')]);
+            if (($order['fulfillment_mode'] ?? null) === 'internal' && $newStatus === 'rider_assigned') {
+                $updates['fulfillment_mode'] = 'internal';
+                if (array_key_exists('rider_id', $extraData)) {
+                    $updates['rider_id'] = (int)$extraData['rider_id'];
+                }
+            }
+            if (($order['fulfillment_mode'] ?? null) === 'internal' && in_array($newStatus, ['delivered', 'cancelled', 'failed'], true)) {
+                $updates['rider_id'] = null;
+            }
             if ($db->table('orders')->where('id', $orderId)->update($updates) === false) {
                 throw new RuntimeException('Order status update failed.');
+            }
+            if (($order['fulfillment_mode'] ?? null) === 'internal' && in_array($newStatus, ['delivered', 'cancelled', 'failed'], true)) {
+                $assignment = $db->raw('SELECT id, rider_id FROM rider_assignments WHERE order_id = ? AND released_at IS NULL LIMIT 1 FOR UPDATE', [$orderId])->fetch(PDO::FETCH_ASSOC);
+                if ($assignment) {
+                    $now = date('Y-m-d H:i:s');
+                    $db->raw('UPDATE rider_assignments SET released_at = ?, release_reason = ? WHERE id = ?', [$now, 'Order ' . $newStatus . '.', (int)$assignment['id']]);
+                    $db->raw("UPDATE riders SET status = 'available', updated_at = ? WHERE id = ? AND status = 'busy'", [$now, (int)$assignment['rider_id']]);
+                }
             }
             $db->table('deliveries')->insert([
                 'order_id' => $orderId,
@@ -230,6 +279,13 @@ class Order_model extends Model
                 'actor_id' => $actorId,
                 'created_at' => date('Y-m-d H:i:s')
             ]);
+            if (in_array($newStatus, ['rider_assigned', 'picked_up', 'delivered', 'cancelled', 'failed'], true)) {
+                require_once APP_DIR . 'libraries/DeliveryNotificationService.php';
+                (new DeliveryNotificationService($db))->enqueueForTransition($orderId, $newStatus);
+            }
+            if (($order['fulfillment_mode'] ?? null) === 'internal' && in_array($newStatus, ['delivered', 'cancelled', 'failed'], true)) {
+                $db->raw('DELETE FROM rider_order_locations WHERE order_id = ?', [$orderId]);
+            }
             $db->commit();
             return true;
         } catch (Throwable $e) {
@@ -256,6 +312,28 @@ class Order_model extends Model
         return $this->set_status($orderId, 'cancelled', "Cancellation Reason: {$reason}", $actorType, $actorId, ['cancel_reason' => $reason]);
     }
 
+    public function get_customer_shared_location(int $orderId, int $customerId): ?array
+    {
+        $stmt = $this->getDb()->raw(
+            "SELECT loc.latitude, loc.longitude, loc.accuracy_m, loc.received_at,
+                    TIMESTAMPDIFF(SECOND, loc.received_at, NOW()) AS age_seconds
+             FROM orders o
+             INNER JOIN rider_order_locations loc ON loc.order_id = o.id
+             WHERE o.id = ? AND o.customer_id = ? AND o.deleted_at IS NULL
+               AND o.fulfillment_mode = 'internal' AND o.status IN ('rider_assigned', 'picked_up')
+               AND EXISTS (
+                   SELECT 1 FROM rider_assignments ra
+                   WHERE ra.order_id = o.id AND ra.rider_id = o.rider_id AND ra.released_at IS NULL
+               )
+               AND loc.sharing_enabled = 1 AND loc.received_at >= DATE_SUB(NOW(), INTERVAL 2 MINUTE)
+               AND loc.latitude IS NOT NULL AND loc.longitude IS NOT NULL
+             LIMIT 1",
+            [$orderId, $customerId]
+        );
+        $row = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : false;
+        return $row ?: null;
+    }
+
     public function get_by_id(int $orderId, ?int $customerId = null): ?array
     {
         $where = 'WHERE o.id = ? AND o.deleted_at IS NULL';
@@ -265,6 +343,7 @@ class Order_model extends Model
             $params[] = $customerId;
         }
         $sql = "SELECT o.*,
+                       (SELECT pay.checkout_url FROM payments pay WHERE pay.order_id = o.id AND pay.status = 'pending' ORDER BY pay.id DESC LIMIT 1) AS checkout_url,
                        u.name AS customer_name, u.email AS customer_email, u.phone AS customer_user_phone,
                        c.company_name,
                        pa.address_line AS pickup_address, pa.contact_name AS pickup_contact_name, pa.contact_phone AS pickup_phone,
@@ -273,7 +352,9 @@ class Order_model extends Model
                        da.latitude AS dropoff_lat, da.longitude AS dropoff_lng, da.notes AS dropoff_notes,
                        p.description AS parcel_description, p.weight_kg, p.size AS parcel_size, p.is_fragile,
                        r.name AS rider_name, r.phone AS rider_phone, r.vehicle_type AS rider_vehicle, r.plate_number,
-                       pay.id AS payment_id, pay.status AS payment_status, pay.payment_method, pay.amount AS paid_amount, pay.paymongo_session_id
+                       pay.id AS payment_id, pay.status AS payment_status, pay.payment_method, pay.amount AS paid_amount, pay.paymongo_session_id,
+                       dp.id AS delivery_proof_id, dp.recipient_name AS delivery_proof_recipient,
+                       dp.note AS delivery_proof_note, dp.captured_at AS delivery_proof_captured_at
                 FROM orders o
                 INNER JOIN customers c ON o.customer_id = c.id
                 INNER JOIN users u ON c.user_id = u.id
@@ -282,11 +363,13 @@ class Order_model extends Model
                 LEFT JOIN parcels p ON p.order_id = o.id
                 LEFT JOIN riders r ON o.rider_id = r.id
                 LEFT JOIN payments pay ON pay.order_id = o.id
+                LEFT JOIN delivery_proofs dp ON dp.order_id = o.id
                 {$where} LIMIT 1";
         $order = $this->getDb()->raw($sql, $params)->fetch(PDO::FETCH_ASSOC);
         if (!$order) {
             return null;
         }
+        $order['payment_status'] = $this->getDb()->raw("SELECT status FROM payments WHERE order_id = ? ORDER BY id DESC LIMIT 1", [$orderId])->fetch(PDO::FETCH_ASSOC)['status'] ?? null;
         $order['timeline'] = $this->getDb()->raw('SELECT * FROM deliveries WHERE order_id = ? ORDER BY id ASC', [$orderId])->fetchAll(PDO::FETCH_ASSOC);
         return $order;
     }

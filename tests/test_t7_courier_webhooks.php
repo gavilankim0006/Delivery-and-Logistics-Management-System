@@ -7,6 +7,7 @@ define('PREVENT_DIRECT_ACCESS', true);
 define('APP_DIR', dirname(__DIR__) . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR);
 
 require_once APP_DIR . 'libraries/MockCourierDriver.php';
+require_once APP_DIR . 'libraries/CourierWebhookProcessor.php';
 
 class Controller
 {

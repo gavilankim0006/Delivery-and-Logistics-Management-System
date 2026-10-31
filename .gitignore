@@ -1,9 +1,23 @@
 # macOS
 .DS_Store
 
-# Environment
+# Environment and local credentials
 .env
 !.env.example
+cookies.txt
+*firebase-adminsdk*.json
+
+# Documentation (not required at runtime)
+*.md
+
+# Non-runtime project material
+/docs/
+/tests/
+/scripts/
+.impeccable/
+*.mmd
+*.puml
+*.html
 
 # Dependencies
 node_modules/
@@ -11,7 +25,7 @@ public/build/index.php
 vendor/
 app/vendor/
 composer.lock
-
+docs/
 # Cache & Logs
 runtime/*
 !runtime/.htaccess

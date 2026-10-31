@@ -72,6 +72,8 @@ $this->call->view('templates/header', ['page_title' => $page_title ?? 'User Mana
                                         <span class="role-chip role-chip--admin">Admin</span>
                                     <?php elseif ($u['role_name'] === 'dispatcher'): ?>
                                         <span class="role-chip role-chip--dispatcher">Dispatcher</span>
+                                    <?php elseif ($u['role_name'] === 'rider'): ?>
+                                        <span class="role-chip">Rider</span>
                                     <?php else: ?>
                                         <span class="role-chip role-chip--customer">Customer</span>
                                     <?php endif; ?>
@@ -86,7 +88,7 @@ $this->call->view('templates/header', ['page_title' => $page_title ?? 'User Mana
                                 <td data-label="Created" class="text-muted"><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
                                 <td data-label="Action" class="text-end">
                                     <div class="d-inline-flex flex-wrap justify-content-end gap-2">
-                                        <a class="btn btn-secondary" href="<?= base_url('admin/users/' . (int)$u['id']) ?>">View / edit</a>
+                                        <?php if ($u['role_name'] !== 'rider'): ?><a class="btn btn-secondary" href="<?= base_url('admin/users/' . (int)$u['id']) ?>">View / edit</a><?php else: ?><span class="text-muted">Manage link in Riders</span><?php endif; ?>
                                         <?php if ($u['id'] != auth_id()): ?>
                                             <?php $next_status = ($u['status'] === 'active') ? 'deactivate' : 'activate'; ?>
                                             <form action="<?= base_url('admin/toggle_user_status/' . (int)$u['id']) ?>" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to <?= $next_status ?> <?= e($u['name']) ?>?');">
@@ -95,7 +97,7 @@ $this->call->view('templates/header', ['page_title' => $page_title ?? 'User Mana
                                             </form>
                                             <form action="<?= base_url('admin/users/' . (int)$u['id'] . '/delete') ?>" method="POST" class="d-inline" onsubmit="return confirm('Remove <?= e($u['name']) ?>? This account will be hidden and cannot sign in.');">
                                                 <?= csrf_field() ?>
-                                                <button type="submit" class="btn btn-outline-danger">Delete</button>
+                                                <button type="submit" class="btn btn-outline-danger" data-busy-text="Deleting…">Delete</button>
                                             </form>
                                         <?php else: ?>
                                             <span class="text-muted">Current user</span>
@@ -137,6 +139,7 @@ $this->call->view('templates/header', ['page_title' => $page_title ?? 'User Mana
                         <label for="staff-role" class="form-label">System role <span class="text-danger">(required)</span></label>
                         <select id="staff-role" name="role_id" class="form-select" required>
                             <option value="2">Dispatcher (operations and board)</option>
+                            <option value="4">Rider (limited delivery portal)</option>
                             <option value="1">Administrator (full access)</option>
                         </select>
                     </div>

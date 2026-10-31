@@ -8,9 +8,14 @@ class OrderCancellationService
     private $orderModel;
     private ?CourierProviderInterface $driver;
 
-    public function __construct($orderModel, ?CourierProviderInterface $driver = null)
+    public function __construct($orderModel = null, ?CourierProviderInterface $driver = null)
     {
-        $this->orderModel = $orderModel;
+        $lava = function_exists('lava_instance') ? lava_instance() : null;
+        if ($orderModel) {
+            $this->orderModel = $orderModel;
+        } elseif ($lava) {
+            $this->orderModel = $lava->Order_model ?? (isset($lava->call) ? $lava->call->model('Order_model') : null);
+        }
         $this->driver = $driver;
     }
 

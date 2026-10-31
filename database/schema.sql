@@ -4,6 +4,11 @@
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS `dispatch_recovery_locks`;
+DROP TABLE IF EXISTS `delivery_notification_outbox`;
+DROP TABLE IF EXISTS `rider_order_locations`;
+DROP TABLE IF EXISTS `delivery_proofs`;
+DROP TABLE IF EXISTS `notifications`;
+DROP TABLE IF EXISTS `rider_assignments`;
 DROP TABLE IF EXISTS `delivery_change_requests`;
 DROP TABLE IF EXISTS `delivery_control_passes`;
 DROP TABLE IF EXISTS `service_areas`;
@@ -31,6 +36,12 @@ CREATE TABLE `roles` (
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+INSERT INTO `roles` (`id`, `name`, `description`) VALUES
+(1, 'admin', 'System Administrator'),
+(2, 'dispatcher', 'Dispatcher managing live orders and assignments'),
+(3, 'customer', 'Customer placing and tracking deliveries'),
+(4, 'rider', 'Internal delivery rider with assigned-order access');
+
 -- 2. Users Table
 CREATE TABLE `users` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -40,6 +51,9 @@ CREATE TABLE `users` (
     `phone` VARCHAR(30) NULL,
     `password` VARCHAR(255) NOT NULL,
     `fcm_token` TEXT NULL,
+    `sms_opt_in` TINYINT(1) NOT NULL DEFAULT 0,
+    `delivery_status_sms_opt_in` TINYINT(1) NOT NULL DEFAULT 0,
+    `push_opt_in` TINYINT(1) NOT NULL DEFAULT 0,
     `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
     `deleted_at` DATETIME NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -70,6 +84,7 @@ CREATE TABLE `riders` (
     `deleted_at` DATETIME NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE INDEX `uq_riders_user_id` (`user_id`),
     CONSTRAINT `fk_riders_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -94,6 +109,7 @@ CREATE TABLE `orders` (
     `order_no` VARCHAR(50) NOT NULL UNIQUE,
     `customer_id` BIGINT UNSIGNED NOT NULL,
     `rider_id` BIGINT UNSIGNED NULL,
+    `fulfillment_mode` ENUM('internal', 'lalamove') NULL,
     `pickup_address_id` BIGINT UNSIGNED NOT NULL,
     `dropoff_address_id` BIGINT UNSIGNED NOT NULL,
     `status` ENUM('draft', 'pending_payment', 'paid', 'booking', 'rider_assigned', 'picked_up', 'delivered', 'cancelled', 'failed') NOT NULL DEFAULT 'draft',
@@ -136,6 +152,7 @@ CREATE TABLE `payments` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `order_id` BIGINT UNSIGNED NOT NULL,
     `paymongo_session_id` VARCHAR(150) NULL,
+    `checkout_url` VARCHAR(1000) NULL,
     `paymongo_payment_id` VARCHAR(150) NULL,
     `amount` DECIMAL(10, 2) NOT NULL,
     `fee` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
@@ -179,6 +196,56 @@ CREATE TABLE `notifications` (
     INDEX `idx_notifications_order_id` (`order_id`),
     CONSTRAINT `fk_notifications_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_notifications_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 10a. Latest opt-in rider location, private delivery evidence and idempotent status notification outbox
+CREATE TABLE `rider_order_locations` (
+    `order_id` BIGINT UNSIGNED PRIMARY KEY,
+    `latitude` DECIMAL(10, 8) NULL,
+    `longitude` DECIMAL(11, 8) NULL,
+    `accuracy_m` DECIMAL(8, 2) NULL,
+    `received_at` DATETIME NULL,
+    `sharing_enabled` TINYINT(1) NOT NULL DEFAULT 0,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT `fk_rider_order_locations_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 10b. Private delivery evidence and idempotent delivery-status notification outbox
+CREATE TABLE `delivery_proofs` (
+    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `order_id` BIGINT UNSIGNED NOT NULL,
+    `uploaded_by` BIGINT UNSIGNED NOT NULL,
+    `recipient_name` VARCHAR(100) NOT NULL,
+    `note` VARCHAR(500) NULL,
+    `storage_key` VARCHAR(80) NOT NULL,
+    `mime_type` VARCHAR(30) NOT NULL,
+    `file_size` INT UNSIGNED NOT NULL,
+    `sha256` CHAR(64) NOT NULL,
+    `captured_at` DATETIME NOT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE INDEX `uq_delivery_proofs_order` (`order_id`),
+    CONSTRAINT `fk_delivery_proofs_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_delivery_proofs_uploader` FOREIGN KEY (`uploaded_by`) REFERENCES `users` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `delivery_notification_outbox` (
+    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `order_id` BIGINT UNSIGNED NOT NULL,
+    `user_id` BIGINT UNSIGNED NOT NULL,
+    `status_code` VARCHAR(30) NOT NULL,
+    `channel` ENUM('sms', 'push') NOT NULL DEFAULT 'sms',
+    `recipient` VARCHAR(255) NOT NULL,
+    `message` VARCHAR(500) NOT NULL,
+    `status` ENUM('pending', 'sending', 'sent', 'failed') NOT NULL DEFAULT 'pending',
+    `provider_response` TEXT NULL,
+    `claimed_at` DATETIME NULL,
+    `sent_at` DATETIME NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE INDEX `uq_delivery_notification_event` (`order_id`, `status_code`, `channel`),
+    INDEX `idx_delivery_notification_pending` (`status`, `created_at`),
+    INDEX `idx_delivery_notification_claimed` (`status`, `claimed_at`),
+    CONSTRAINT `fk_delivery_notification_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_delivery_notification_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 11. Polygon delivery service areas and zone-specific fee rates
@@ -225,7 +292,23 @@ CREATE TABLE `delivery_change_requests` (
     CONSTRAINT `fk_change_request_reviewer` FOREIGN KEY (`reviewed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 14. Dispatcher recovery idempotency lock (short-lived during provider booking)
+-- 14. Internal rider assignment history
+CREATE TABLE `rider_assignments` (
+    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `order_id` BIGINT UNSIGNED NOT NULL,
+    `rider_id` BIGINT UNSIGNED NOT NULL,
+    `assigned_by` BIGINT UNSIGNED NOT NULL,
+    `assigned_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `released_at` DATETIME NULL,
+    `release_reason` VARCHAR(255) NULL,
+    INDEX `idx_rider_assignments_active_rider` (`rider_id`, `released_at`),
+    INDEX `idx_rider_assignments_active_order` (`order_id`, `released_at`),
+    CONSTRAINT `fk_rider_assignments_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_rider_assignments_rider` FOREIGN KEY (`rider_id`) REFERENCES `riders` (`id`) ON DELETE RESTRICT,
+    CONSTRAINT `fk_rider_assignments_assigner` FOREIGN KEY (`assigned_by`) REFERENCES `users` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 15. Dispatcher recovery idempotency lock (short-lived during provider booking)
 CREATE TABLE `dispatch_recovery_locks` (
     `order_id` BIGINT UNSIGNED PRIMARY KEY,
     `started_at` DATETIME NOT NULL,
@@ -272,3 +355,32 @@ CREATE TABLE `settings` (
     `description` VARCHAR(255) NULL,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 16. AI Assistant Conversations & Message History
+CREATE TABLE `ai_conversations` (
+    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `session_id` VARCHAR(64) NOT NULL,
+    `user_id` BIGINT UNSIGNED NULL,
+    `role` VARCHAR(32) NOT NULL DEFAULT 'guest',
+    `title` VARCHAR(255) NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_ai_conversations_session` (`session_id`),
+    INDEX `idx_ai_conversations_user` (`user_id`),
+    CONSTRAINT `fk_ai_conversations_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `ai_messages` (
+    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `conversation_id` BIGINT UNSIGNED NOT NULL,
+    `sender` ENUM('user', 'assistant', 'system', 'tool') NOT NULL,
+    `content` MEDIUMTEXT NOT NULL,
+    `tool_calls` JSON NULL,
+    `tool_call_id` VARCHAR(64) NULL,
+    `tool_name` VARCHAR(64) NULL,
+    `tokens` INT UNSIGNED NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_ai_messages_conversation` (`conversation_id`),
+    CONSTRAINT `fk_ai_messages_conversation` FOREIGN KEY (`conversation_id`) REFERENCES `ai_conversations` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

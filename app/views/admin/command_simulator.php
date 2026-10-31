@@ -23,7 +23,7 @@ $form = $form_data ?? [];
                 <div class="col-6 col-lg"><label class="form-label" for="sim-<?= e($key) ?>"><?= e($label) ?></label><input class="form-control" id="sim-<?= e($key) ?>" name="<?= e($key) ?>" type="number" min="0" max="100000" step="0.01" value="<?= e($form[$key] ?? ($area_rates[$key] ?? $baseline_rates[$key])) ?>" required></div>
             <?php endforeach; ?>
         </div></details>
-        <div class="d-flex justify-content-end mt-4"><button type="submit" class="btn btn-primary" <?= empty($areas) ? 'disabled' : '' ?>>Run what-if scenario</button></div>
+        <div class="d-flex justify-content-end mt-4"><button type="submit" class="btn btn-primary" data-busy-text="Running scenario…" <?= empty($areas) ? 'disabled' : '' ?>>Run what-if scenario</button></div>
     </form>
     <?php if ($result): ?>
         <section class="surface p-3 p-md-4 mt-4" aria-labelledby="scenario-results">
@@ -31,10 +31,10 @@ $form = $form_data ?? [];
             <p class="text-muted">Zone <?= e($zone_data['zone']['name'] ?? '') ?> · <?= (int)$result['zone_orders'] ?> existing orders in zone · <?= (int)$result['missing_coordinates'] ?> orders skipped for missing coordinates.</p>
             <div class="row g-3">
                 <div class="col-6 col-lg-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Estimated capacity</div><strong><?= (int)$result['capacity'] ?> deliveries</strong></div></div>
-                <div class="col-6 col-lg-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Projected backlog</div><strong><?= (int)$result['projected_backlog'] ?> orders</strong></div></div>
-                <div class="col-6 col-lg-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Baseline average fee</div><strong>₱<?= number_format($result['baseline_fee'], 2) ?></strong></div></div>
-                <div class="col-6 col-lg-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Proposed average fee</div><strong>₱<?= number_format($result['scenario_fee'], 2) ?></strong></div></div>
-                <div class="col-12"><hr><p class="mb-1">Gross revenue at baseline fees: <strong>₱<?= number_format($result['baseline_gross_revenue'], 2) ?></strong></p><p class="mb-1">Gross revenue at proposed fees: <strong>₱<?= number_format($result['scenario_gross_revenue'], 2) ?></strong></p><p class="mb-0">Estimated workload at entered rider throughput: <strong><?= $result['estimated_workload_hours'] === null ? 'No riders available' : number_format($result['estimated_workload_hours'], 1) . ' rider-hours' ?></strong></p></div>
+                <div class="col-6 col-lg-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Projected backlog</div><strong class="<?= (int)$result['projected_backlog'] > 0 ? 'text-danger' : 'text-success' ?>"><?= (int)$result['projected_backlog'] ?> orders</strong></div></div>
+                <div class="col-6 col-lg-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Baseline average fee</div><strong class="money">₱<?= number_format($result['baseline_fee'], 2) ?></strong></div></div>
+                <div class="col-6 col-lg-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Proposed average fee</div><strong class="money">₱<?= number_format($result['scenario_fee'], 2) ?></strong></div></div>
+                <div class="col-12"><hr><p class="mb-1">Gross revenue at baseline fees: <strong class="money">₱<?= number_format($result['baseline_gross_revenue'], 2) ?></strong></p><p class="mb-1">Gross revenue at proposed fees: <strong class="money">₱<?= number_format($result['scenario_gross_revenue'], 2) ?></strong></p><p class="mb-0">Estimated workload at entered rider throughput: <strong><?= $result['estimated_workload_hours'] === null ? 'No riders available' : number_format($result['estimated_workload_hours'], 1) . ' rider-hours' ?></strong></p></div>
             </div>
         </section>
     <?php endif; ?>

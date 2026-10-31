@@ -1,27 +1,31 @@
 -- Delivery & Logistics Management System Seed Data
 -- 1 Admin, 1 Dispatcher, 3 Customers, 3 Riders, 10 Orders, Settings
 
-SET FOREIGN_KEY_CHECKS = 0;
-
-TRUNCATE TABLE `notifications`;
-TRUNCATE TABLE `deliveries`;
-TRUNCATE TABLE `payments`;
-TRUNCATE TABLE `parcels`;
-TRUNCATE TABLE `orders`;
-TRUNCATE TABLE `addresses`;
-TRUNCATE TABLE `riders`;
-TRUNCATE TABLE `customers`;
-TRUNCATE TABLE `users`;
-TRUNCATE TABLE `roles`;
-TRUNCATE TABLE `settings`;
-
-SET FOREIGN_KEY_CHECKS = 1;
+DELETE FROM `dispatch_recovery_locks`;
+DELETE FROM `delivery_change_requests`;
+DELETE FROM `delivery_control_passes`;
+DELETE FROM `rider_order_locations`;
+DELETE FROM `rider_assignments`;
+DELETE FROM `delivery_notification_outbox`;
+DELETE FROM `delivery_proofs`;
+DELETE FROM `notifications`;
+DELETE FROM `deliveries`;
+DELETE FROM `payments`;
+DELETE FROM `parcels`;
+DELETE FROM `orders`;
+DELETE FROM `addresses`;
+DELETE FROM `riders`;
+DELETE FROM `customers`;
+DELETE FROM `users`;
+DELETE FROM `roles`;
+DELETE FROM `settings`;
 
 -- 1. Roles
 INSERT INTO `roles` (`id`, `name`, `description`) VALUES
 (1, 'admin', 'System Administrator with full access to settings, reports, and management'),
 (2, 'dispatcher', 'Dispatcher managing live orders, assignments, and rebooking'),
-(3, 'customer', 'Registered customer placing and tracking deliveries');
+(3, 'customer', 'Registered customer placing and tracking deliveries'),
+(4, 'rider', 'Internal delivery rider with assigned-order access');
 
 -- 2. Users (Default password for all seeded users is: password123)
 -- Hash: $2y$10$9tw14F8Ux6khgDBY28OuWOPEb.H9FjlgcXuBUbKrpvDLdWb809k4q

@@ -16,7 +16,7 @@ $exportQuery = http_build_query(array_merge($filters, ['export' => 'csv']));
             <h1 class="page-title">Reports</h1>
             <p class="page-description">Read-only operational delivery and recorded payment summaries. Payment data reflects stored records, not live payment-provider reconciliation.</p>
         </div>
-        <a class="btn btn-primary" href="<?= base_url('admin/reports?' . e($exportQuery)) ?>">Export CSV</a>
+        <a class="btn btn-primary" href="<?= base_url('admin/reports') . '?' . e($exportQuery) ?>">Export CSV</a>
     </header>
 
     <?php if (!empty($report_error)): ?>
@@ -75,7 +75,7 @@ $exportQuery = http_build_query(array_merge($filters, ['export' => 'csv']));
                 'Paid amount' => '₱' . number_format((float)($summary['paid_amount'] ?? 0), 2),
                 'Payment fees' => '₱' . number_format((float)($summary['payment_fees'] ?? 0), 2)
             ] as $label => $value): ?>
-                <div class="col-12 col-sm-6 col-xl-3"><article class="surface p-3 h-100"><div class="small text-muted"><?= e($label) ?></div><div class="h3 mb-0"><?= e($value) ?></div></article></div>
+                <div class="col-12 col-sm-6 col-xl-3"><article class="surface p-3 h-100"><div class="small text-muted"><?= e($label) ?></div><div class="h3 mb-0 money"><?= e($value) ?></div></article></div>
             <?php endforeach; ?>
         <?php else: ?>
             <?php foreach ([
@@ -83,7 +83,7 @@ $exportQuery = http_build_query(array_merge($filters, ['export' => 'csv']));
                 'Delivery fees' => '₱' . number_format((float)($summary['delivery_fees'] ?? 0), 2),
                 'Recorded paid amount' => '₱' . number_format((float)($summary['paid_amount'] ?? 0), 2)
             ] as $label => $value): ?>
-                <div class="col-12 col-sm-6 col-xl-4"><article class="surface p-3 h-100"><div class="small text-muted"><?= e($label) ?></div><div class="h3 mb-0"><?= e($value) ?></div></article></div>
+                <div class="col-12 col-sm-6 col-xl-4"><article class="surface p-3 h-100"><div class="small text-muted"><?= e($label) ?></div><div class="h3 mb-0 money"><?= e($value) ?></div></article></div>
             <?php endforeach; ?>
         <?php endif; ?>
     </section>

@@ -13,12 +13,12 @@ class Address_model extends Model
 
     public function get_owned(int $addressId, int $customerId): ?array
     {
-        $stmt = $this->getDb()->raw(
-            'SELECT id, label, address_line, contact_name, contact_phone, notes, created_at FROM addresses WHERE id = ? AND customer_id = ? LIMIT 1',
-            [$addressId, $customerId]
-        );
-        $address = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : false;
-        return $address ?: null;
+        $row = $this->getDb()->table('addresses')
+            ->select('id, label, address_line, contact_name, contact_phone, notes, created_at')
+            ->where('id', $addressId)
+            ->where('customer_id', $customerId)
+            ->get();
+        return $row ?: null;
     }
 
     public function create_for_customer(int $customerId, array $data): int
@@ -66,12 +66,15 @@ class Address_model extends Model
                     'notes' => $data['notes'] !== '' ? $data['notes'] : null,
                     'created_at' => date('Y-m-d H:i:s')
                 ]);
-                $db->raw('UPDATE addresses SET customer_id = NULL WHERE id = ? AND customer_id = ?', [$addressId, $customerId]);
+                $db->table('addresses')->where('id', $addressId)->where('customer_id', $customerId)->update(['customer_id' => null]);
             } else {
-                $db->raw(
-                    'UPDATE addresses SET label = ?, address_line = ?, contact_name = ?, contact_phone = ?, notes = ? WHERE id = ? AND customer_id = ?',
-                    [$data['label'] !== '' ? $data['label'] : null, $data['address_line'], $data['contact_name'], $data['contact_phone'], $data['notes'] !== '' ? $data['notes'] : null, $addressId, $customerId]
-                );
+                $db->table('addresses')->where('id', $addressId)->where('customer_id', $customerId)->update([
+                    'label' => $data['label'] !== '' ? $data['label'] : null,
+                    'address_line' => $data['address_line'],
+                    'contact_name' => $data['contact_name'],
+                    'contact_phone' => $data['contact_phone'],
+                    'notes' => $data['notes'] !== '' ? $data['notes'] : null,
+                ]);
             }
             $db->commit();
             return true;
@@ -108,7 +111,7 @@ class Address_model extends Model
                 $db->roll_back();
                 return 'referenced';
             }
-            $db->raw('DELETE FROM addresses WHERE id = ? AND customer_id = ?', [$addressId, $customerId]);
+            $db->table('addresses')->where('id', $addressId)->where('customer_id', $customerId)->delete();
             $db->commit();
             return true;
         } catch (\Throwable $e) {
@@ -122,14 +125,12 @@ class Address_model extends Model
      */
     public function get_by_customer(int $customerId): array
     {
-        $stmt = $this->getDb()->raw(
-            "SELECT id, label, address_line, contact_name, contact_phone, notes, created_at
-             FROM addresses
-             WHERE customer_id = ?
-             ORDER BY id DESC",
-            [$customerId]
-        );
+        $rows = $this->getDb()->table('addresses')
+            ->select('id, label, address_line, contact_name, contact_phone, notes, created_at')
+            ->where('customer_id', $customerId)
+            ->order_by('id', 'DESC')
+            ->get_all();
 
-        return $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+        return $rows ?: [];
     }
 }

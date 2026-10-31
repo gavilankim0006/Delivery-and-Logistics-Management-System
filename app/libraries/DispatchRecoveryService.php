@@ -26,6 +26,7 @@ class DispatchRecoveryService
         $age = self::ageMinutes($order['status_since'] ?? null, $now);
         $providerId = trim((string)($order['lalamove_order_id'] ?? ''));
         $quotationId = trim((string)($order['lalamove_quotation_id'] ?? ''));
+        $fulfillmentMode = (string)($order['fulfillment_mode'] ?? '');
         $recoveryLocked = !empty($order['recovery_locked']);
         if ($recoveryLocked) {
             return [
@@ -36,14 +37,38 @@ class DispatchRecoveryService
         if ($age === null) {
             return null;
         }
-        if ($status === 'paid' && $providerId === '' && $quotationId === '') {
+        if ($fulfillmentMode === 'internal') {
+            return null;
+        }
+        if ($fulfillmentMode !== '' && $fulfillmentMode !== 'lalamove') {
+            return null;
+        }
+        if ($fulfillmentMode === '' && $providerId === '' && $quotationId !== '') {
             return [
-                'kind' => 'book', 'label' => 'Book a courier', 'age_minutes' => $age,
-                'priority' => $age >= self::DELAY_THRESHOLD_MINUTES ? 'delayed' : 'ready',
-                'message' => $age >= self::DELAY_THRESHOLD_MINUTES ? 'Paid and unbooked for at least 60 minutes.' : 'Paid order has no courier booking.'
+                'kind' => 'escalate', 'label' => 'Review courier quotation', 'age_minutes' => $age,
+                'priority' => 'failed', 'message' => 'A provider quotation exists without an explicit fulfillment selection; review before booking.'
             ];
         }
-        if ($status === 'failed' && $providerId === '' && $quotationId === '') {
+        if ($fulfillmentMode === '' && trim((string)($order['rider_id'] ?? '')) !== '') {
+            return [
+                'kind' => 'escalate', 'label' => 'Review rider assignment', 'age_minutes' => $age,
+                'priority' => 'failed', 'message' => 'A rider reference exists without a fulfillment mode; review before making another assignment.'
+            ];
+        }
+        if ($status === 'paid' && $fulfillmentMode === 'lalamove' && $providerId === '' && $quotationId === '') {
+            return [
+                'kind' => 'book', 'label' => 'Book a Lalamove courier', 'age_minutes' => $age,
+                'priority' => $age >= self::DELAY_THRESHOLD_MINUTES ? 'delayed' : 'ready',
+                'message' => $age >= self::DELAY_THRESHOLD_MINUTES ? 'Paid Lalamove order has been awaiting booking for at least 60 minutes.' : 'Dispatch selected Lalamove; order is ready for booking.'
+            ];
+        }
+        if ($status === 'paid' && $fulfillmentMode === '' && $providerId === '' && $quotationId === '') {
+            return [
+                'kind' => 'choose_fulfillment', 'label' => 'Choose fulfillment', 'age_minutes' => $age,
+                'priority' => 'ready', 'message' => 'Select an internal rider or Lalamove before booking.'
+            ];
+        }
+        if ($status === 'failed' && $fulfillmentMode === 'lalamove' && $providerId === '' && $quotationId === '') {
             return [
                 'kind' => 'retry', 'label' => 'Retry courier booking', 'age_minutes' => $age,
                 'priority' => 'failed', 'message' => 'Booking failed before a provider quotation; no provider order is recorded.'
