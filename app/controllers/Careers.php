@@ -13,6 +13,19 @@ class Careers extends Controller
 
     public function apply(): void
     {
+        $formData = [
+            'full_name' => '',
+            'email' => '',
+            'phone' => '',
+            'role_applied' => '',
+            'location' => '',
+            'experience' => '',
+            'availability' => '',
+            'id_type' => '',
+            'id_number' => '',
+        ];
+        $errors = [];
+
         if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             if (!verify_csrf()) {
                 flash('error', 'Invalid security token. Please try again.');
@@ -20,7 +33,7 @@ class Careers extends Controller
                 return;
             }
 
-            $data = [
+            $formData = [
                 'full_name' => trim((string)($_POST['full_name'] ?? '')),
                 'email' => trim((string)($_POST['email'] ?? '')),
                 'phone' => trim((string)($_POST['phone'] ?? '')),
@@ -31,39 +44,146 @@ class Careers extends Controller
                 'id_type' => trim((string)($_POST['id_type'] ?? '')),
                 'id_number' => trim((string)($_POST['id_number'] ?? '')),
             ];
-            if (mb_strlen($data['full_name']) < 2 || mb_strlen($data['full_name']) > 150
-                || !filter_var($data['email'], FILTER_VALIDATE_EMAIL) || mb_strlen($data['email']) > 254
-                || mb_strlen($data['phone']) < 7 || mb_strlen($data['phone']) > 40
-                || !in_array($data['role_applied'], ['rider', 'dispatcher'], true)
-                || $data['location'] === '' || mb_strlen($data['location']) > 180
-                || $data['experience'] === '' || mb_strlen($data['experience']) > 3000
-                || $data['availability'] === '' || mb_strlen($data['availability']) > 180
-                || $data['id_type'] === '' || mb_strlen($data['id_type']) > 100
-                || $data['id_number'] === '' || mb_strlen($data['id_number']) > 100) {
-                flash('error', 'Check all fields. Please provide valid contact, role, experience, availability, and ID details.');
-                redirect('careers/apply');
+
+            // 1. Full legal name
+            if ($formData['full_name'] === '') {
+                $errors['full_name'] = 'Full legal name is required.';
+            } elseif (mb_strlen($formData['full_name']) < 2 || mb_strlen($formData['full_name']) > 150) {
+                $errors['full_name'] = 'Full legal name must be between 2 and 150 characters.';
+            }
+
+            // 2. Role applied
+            if ($formData['role_applied'] === '') {
+                $errors['role_applied'] = 'Role is required.';
+            } elseif (!in_array($formData['role_applied'], ['rider', 'dispatcher'], true)) {
+                $errors['role_applied'] = 'Please select a valid role (Rider or Dispatcher).';
+            }
+
+            // 3. Email address
+            if ($formData['email'] === '') {
+                $errors['email'] = 'Email address is required.';
+            } elseif (!filter_var($formData['email'], FILTER_VALIDATE_EMAIL) || mb_strlen($formData['email']) > 254) {
+                $errors['email'] = 'Please enter a valid email address.';
+            }
+
+            // 4. Philippine Phone (09XXXXXXXXX or +639XXXXXXXXX)
+            $cleanedPhone = preg_replace('/[\s\-\(\)\.]/', '', $formData['phone']);
+            if ($formData['phone'] === '') {
+                $errors['phone'] = 'Phone number is required.';
+            } elseif (!preg_match('/^(09|\+639|639)\d{9}$/', $cleanedPhone)) {
+                $errors['phone'] = 'Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX).';
+            } else {
+                if (preg_match('/^(?:09|\+639|639)(\d{9})$/', $cleanedPhone, $matches)) {
+                    $formData['phone'] = '09' . $matches[1];
+                }
+            }
+
+            // 5. Location
+            if ($formData['location'] === '') {
+                $errors['location'] = 'Current city or area is required.';
+            } elseif (mb_strlen($formData['location']) > 180) {
+                $errors['location'] = 'Location cannot exceed 180 characters.';
+            }
+
+            // 6. Availability
+            if ($formData['availability'] === '') {
+                $errors['availability'] = 'Availability is required.';
+            } elseif (mb_strlen($formData['availability']) > 180) {
+                $errors['availability'] = 'Availability cannot exceed 180 characters.';
+            }
+
+            // 7. Experience
+            if ($formData['experience'] === '') {
+                $errors['experience'] = 'Relevant experience is required.';
+            } elseif (mb_strlen($formData['experience']) > 3000) {
+                $errors['experience'] = 'Relevant experience cannot exceed 3000 characters.';
+            }
+
+            // 8. ID type
+            if ($formData['id_type'] === '') {
+                $errors['id_type'] = 'ID type is required.';
+            } elseif (mb_strlen($formData['id_type']) > 100) {
+                $errors['id_type'] = 'ID type cannot exceed 100 characters.';
+            }
+
+            // 9. ID number
+            if ($formData['id_number'] === '') {
+                $errors['id_number'] = 'ID number is required.';
+            } elseif (mb_strlen($formData['id_number']) > 100) {
+                $errors['id_number'] = 'ID number cannot exceed 100 characters.';
+            }
+
+            // 10. ID document
+            if (empty($_FILES['id_document']['name']) || empty($_FILES['id_document']['tmp_name'])) {
+                $errors['id_document'] = 'ID document image or PDF is required.';
+            }
+
+            if (!empty($errors)) {
+                $this->call->view('careers/apply', [
+                    'page_title' => 'Apply to join Dispatch',
+                    'form_data' => $formData,
+                    'errors' => $errors,
+                ]);
                 return;
             }
 
-            $document = null;
             try {
-                $document = $this->JobApplicationDocumentService->store($_FILES['id_document'] ?? []);
-                $data['id_storage_key'] = $document['storage_key'];
-                $data['id_mime_type'] = $document['mime_type'];
-                $data['id_original_name'] = $document['original_name'];
-                $data['id_file_data'] = $document['file_data'] ?? null;
-                $this->Job_application_model->create($data);
-                flash('success', 'Application received. Our team will review it and contact you using the details provided.');
-            } catch (Throwable $e) {
-                if ($document) {
-                    $this->JobApplicationDocumentService->delete($document['storage_key']);
-                }
-                flash('error', $e instanceof InvalidArgumentException ? $e->getMessage() : 'Application could not be submitted. Please try again later.');
+                $uploaded = $this->jobapplicationdocumentservice->storeUpload($_FILES['id_document'] ?? []);
+            } catch (Exception $e) {
+                $errors['id_document'] = $e->getMessage() ?: 'Document upload rejected. Provide a valid JPEG, PNG, WebP, or PDF under 8 MB.';
+                $this->call->view('careers/apply', [
+                    'page_title' => 'Apply to join Dispatch',
+                    'form_data' => $formData,
+                    'errors' => $errors,
+                ]);
+                return;
             }
+
+            $currentUserId = auth_id();
+            $created = $this->Job_application_model->create([
+                'user_id' => $currentUserId ?: null,
+                'full_name' => $formData['full_name'],
+                'email' => $formData['email'],
+                'phone' => $formData['phone'],
+                'role_applied' => $formData['role_applied'],
+                'location' => $formData['location'],
+                'experience' => $formData['experience'],
+                'availability' => $formData['availability'],
+                'id_type' => $formData['id_type'],
+                'id_number' => $formData['id_number'],
+                'id_document_path' => $uploaded['stored_name'],
+                'id_document_original_name' => $uploaded['original_name'],
+                'id_document_mime' => $uploaded['mime'],
+                'id_document_size_bytes' => $uploaded['size_bytes'],
+                'id_document_sha256' => $uploaded['sha256'],
+                'id_document_data' => $uploaded['file_data'] ?? null,
+                'status' => 'pending',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+
+            if (!$created) {
+                if (!empty($uploaded['stored_name'])) {
+                    $this->jobapplicationdocumentservice->deleteFile($uploaded['stored_name']);
+                }
+                flash('error', 'We could not submit your application. Please check your details and try again.');
+                $this->call->view('careers/apply', [
+                    'page_title' => 'Apply to join Dispatch',
+                    'form_data' => $formData,
+                    'errors' => ['form' => 'Unable to save application to database. Please try again.'],
+                ]);
+                return;
+            }
+
+            flash('success', 'Application received. Our recruitment team will review your details.');
             redirect('careers/apply');
             return;
         }
 
-        $this->call->view('careers/apply', ['page_title' => 'Apply to join Dispatch']);
+        $this->call->view('careers/apply', [
+            'page_title' => 'Apply to join Dispatch',
+            'form_data' => $formData,
+            'errors' => $errors,
+        ]);
     }
 }

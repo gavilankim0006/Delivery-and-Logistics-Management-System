@@ -1,6 +1,8 @@
 <?php
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
-$this->call->view('templates/header', ['page_title' => $page_title ?? 'My profile']);
+$authCssFiles = glob(dirname(__DIR__, 3) . '/public/build/assets/auth-*.css');
+$extraCss = !empty($authCssFiles) ? '<link rel="stylesheet" href="' . base_url('build/assets/' . basename($authCssFiles[0])) . '">' : '';
+$this->call->view('templates/header', ['page_title' => $page_title ?? 'My profile', 'extra_css' => $extraCss]);
 $flashError = flash('error');
 $flashSuccess = flash('success');
 $csrfToken = csrf_token();
@@ -11,7 +13,8 @@ $vueUser = [
     'role_name' => (string)($user['role_name'] ?? 'Customer'),
     'sms_opt_in' => (int)($user['sms_opt_in'] ?? 0),
     'delivery_status_sms_opt_in' => (int)($user['delivery_status_sms_opt_in'] ?? 0),
-    'push_opt_in' => (int)($user['push_opt_in'] ?? 0)
+    'push_opt_in' => (int)($user['push_opt_in'] ?? 0),
+    'email_notifications_opt_in' => (int)($user['email_notifications_opt_in'] ?? 1)
 ];
 ?>
 

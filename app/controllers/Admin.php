@@ -19,6 +19,7 @@ class Admin extends Controller
         $this->call->model('Job_application_model');
         $this->call->model('Package_workflow_model');
         $this->call->library('JobApplicationDocumentService');
+        $this->call->library('EmailService');
 
         $this->call->library('CourierProviderFactory');
         $this->call->library('MockCourierDriver');
@@ -58,14 +59,138 @@ class Admin extends Controller
         }
         $status = (string)($_POST['status'] ?? '');
         $note = trim((string)($_POST['admin_note'] ?? ''));
-        if (!in_array($status, ['pending', 'approved', 'rejected'], true) || mb_strlen($note) > 3000
-            || !$this->Job_application_model->find($id)) {
+        if (!in_array($status, ['pending', 'approved', 'rejected'], true) || mb_strlen($note) > 3000) {
             flash('error', 'Application review could not be saved. Check decision and note.');
             redirect('admin/applications');
             return;
         }
-        $this->Job_application_model->update_status($id, $status, (int)auth_id(), $note);
-        flash('success', 'Application review saved.');
+
+        $application = $this->Job_application_model->find($id);
+        if (!$application) {
+            flash('error', 'Job application not found.');
+            redirect('admin/applications');
+            return;
+        }
+
+        if ($status === 'approved') {
+            $roleApplied = strtolower(trim((string)($application['role_applied'] ?? 'rider')));
+            $roleId = ($roleApplied === 'dispatcher') ? 2 : 4;
+            $roleName = ($roleApplied === 'dispatcher') ? 'Dispatcher' : 'Rider';
+            $email = strtolower(trim((string)$application['email']));
+            $name = substr(trim((string)$application['full_name']), 0, 100);
+            $phone = substr(trim((string)$application['phone']), 0, 30);
+
+            $userId = !empty($application['user_id']) ? (int)$application['user_id'] : null;
+            $temporaryPassword = '';
+            $isNewAccount = false;
+
+            // Provision user account and rider profile if not yet linked
+            if (!$userId) {
+                $userByEmail = $this->User_model->find_by_email($email);
+                if ($userByEmail) {
+                    $userId = (int)$userByEmail['id'];
+                    $isNewAccount = false;
+
+                    // If existing user had a customer role (3), upgrade to the approved staff role
+                    if ((int)$userByEmail['role_id'] === 3) {
+                        $this->User_model->update_user($userId, [
+                            'role_id' => $roleId,
+                            'status'  => 'active'
+                        ]);
+                    }
+
+                    // Update name to applicant's legal name if different
+                    if ($userByEmail['name'] !== $name && mb_strlen($name) >= 2) {
+                        $this->User_model->update_user($userId, ['name' => $name]);
+                    }
+
+                    // If applicant is a rider, ensure a rider record exists
+                    if ($roleApplied === 'rider') {
+                        $existingRider = $this->Rider_model->find_for_user($userId);
+                        if (!$existingRider) {
+                            $this->Rider_model->create([
+                                'user_id'      => $userId,
+                                'name'         => $name,
+                                'phone'        => $phone,
+                                'vehicle_type' => 'Motorcycle',
+                                'plate_number' => 'PENDING-' . $userId,
+                                'status'       => 'available'
+                            ]);
+                        } elseif ($existingRider['name'] !== $name) {
+                            $this->Rider_model->update_rider((int)$existingRider['id'], ['name' => $name]);
+                        }
+                    }
+                } else {
+                    // Create new user account with secure temporary password
+                    $temporaryPassword = 'Pass#' . bin2hex(random_bytes(4));
+                    $isNewAccount = true;
+
+                    $staffRes = $this->User_model->create_staff([
+                        'name'     => $name,
+                        'email'    => $email,
+                        'phone'    => $phone,
+                        'role_id'  => $roleId,
+                        'password' => $temporaryPassword,
+                        'status'   => 'active'
+                    ]);
+
+                    if (!$staffRes['success']) {
+                        flash('error', 'Could not provision ' . $roleName . ' account: ' . ($staffRes['error'] ?? 'Unknown error'));
+                        redirect('admin/applications');
+                        return;
+                    }
+
+                    $userId = (int)$staffRes['user_id'];
+                }
+            }
+
+            // Save application decision and associate user ID
+            $this->Job_application_model->update_status($id, 'approved', (int)auth_id(), $note, $userId);
+            $application['admin_note'] = $note;
+            $application['user_id'] = $userId;
+
+            // Send notification email with credentials/next steps
+            $emailResult = $this->EmailService->sendApplicationApproval($application, $temporaryPassword, $isNewAccount);
+
+            if ($isNewAccount) {
+                $msg = "Application approved! Created {$roleName} account for {$application['full_name']} (User #{$userId}). ";
+                if ($emailResult['success']) {
+                    $msg .= "Login credentials were sent to {$application['email']}.";
+                } else {
+                    $msg .= "Temporary password: <strong>{$temporaryPassword}</strong>. (Email note: " . htmlspecialchars($emailResult['error'] ?? 'mail server unavailable') . " — credentials saved to server log).";
+                }
+            } else {
+                $msg = "Application approved! Linked user account #{$userId} for {$application['full_name']}. ";
+                if ($emailResult['success']) {
+                    $msg .= "Confirmation email sent to {$application['email']}.";
+                } else {
+                    $msg .= "(Email notice: " . htmlspecialchars($emailResult['error'] ?? 'mail server unavailable') . ").";
+                }
+            }
+
+            flash('success', $msg);
+            redirect('admin/applications');
+            return;
+        }
+
+        if ($status === 'rejected') {
+            $this->Job_application_model->update_status($id, 'rejected', (int)auth_id(), $note);
+            $application['admin_note'] = $note;
+
+            // Send rejection email notification
+            $emailResult = $this->EmailService->sendApplicationRejection($application, $note);
+            $msg = 'Application marked as rejected.';
+            if ($emailResult['success']) {
+                $msg .= ' Notification email sent to applicant.';
+            }
+            flash('success', $msg);
+            redirect('admin/applications');
+            return;
+        }
+
+        // Pending
+        $this->Job_application_model->update_status($id, 'pending', (int)auth_id(), $note);
+        flash('success', 'Application marked as pending.');
         redirect('admin/applications');
     }
 
@@ -574,16 +699,50 @@ class Admin extends Controller
                 exit;
             }
 
-            foreach ($_POST as $k => $v) {
-                if (in_array($k, ['base_delivery_fee', 'per_km_rate', 'per_kg_rate', 'free_distance_km', 'free_weight_kg', 'support_email', 'support_phone'])) {
-                    $db->table('settings')->where('setting_key', $k)->update([
-                        'setting_value' => trim($v),
-                        'updated_at' => date('Y-m-d H:i:s')
-                    ]);
+            try {
+                // Validate fee settings
+                foreach (['base_delivery_fee', 'per_km_rate', 'per_kg_rate', 'free_distance_km', 'free_weight_kg'] as $numKey) {
+                    if (isset($_POST[$numKey])) {
+                        $val = trim((string)$_POST[$numKey]);
+                        if (!is_numeric($val) || (float)$val < 0 || (float)$val > 100000) {
+                            throw new InvalidArgumentException('Please enter a valid non-negative number for ' . str_replace('_', ' ', $numKey) . '.');
+                        }
+                    }
                 }
-            }
 
-            flash('success', 'Fee settings updated successfully.');
+                // Validate support email
+                if (isset($_POST['support_email'])) {
+                    $email = trim((string)$_POST['support_email']);
+                    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                        throw new InvalidArgumentException('Please provide a valid support email address.');
+                    }
+                }
+
+                // Validate customer support phone (allow Philippine mobile, landline, or hotline: digits, spaces, dashes, parentheses, +)
+                if (isset($_POST['support_phone'])) {
+                    $phone = trim((string)$_POST['support_phone']);
+                    if ($phone !== '') {
+                        $cleaned = preg_replace('/[\s\-\(\)\.]/', '', $phone);
+                        $validHotline = preg_match('/^\+?[0-9]{7,15}$/', $cleaned) && preg_match('/^[0-9+\s\-\(\)\.]+$/', $phone);
+                        if (!$validHotline) {
+                            throw new InvalidArgumentException('Please enter a valid support phone number, landline, or hotline.');
+                        }
+                    }
+                }
+
+                foreach ($_POST as $k => $v) {
+                    if (in_array($k, ['base_delivery_fee', 'per_km_rate', 'per_kg_rate', 'free_distance_km', 'free_weight_kg', 'support_email', 'support_phone'])) {
+                        $db->table('settings')->where('setting_key', $k)->update([
+                            'setting_value' => trim((string)$v),
+                            'updated_at' => date('Y-m-d H:i:s')
+                        ]);
+                    }
+                }
+
+                flash('success', 'Fee settings updated successfully.');
+            } catch (Throwable $e) {
+                flash('error', $e->getMessage());
+            }
             header('Location: ' . base_url('admin/settings'));
             exit;
         }
@@ -625,7 +784,13 @@ class Admin extends Controller
             'semaphore_sender_name' => getenv('SEMAPHORE_SENDER_NAME') ?: 'SEMAPHORE',
             'firebase_enabled' => getenv('FIREBASE_PUSH_ENABLED') === '1',
             'firebase_project_id' => getenv('FIREBASE_PROJECT_ID') ?: '',
-            'firebase_has_key' => !empty(getenv('FIREBASE_PRIVATE_KEY')) || file_exists(dirname(APP_DIR) . DIRECTORY_SEPARATOR . 'delivery-and-logistics-system-firebase-adminsdk-fbsvc-0a9478f6dd.json')
+            'firebase_has_key' => !empty(getenv('FIREBASE_PRIVATE_KEY')) || file_exists(dirname(APP_DIR) . DIRECTORY_SEPARATOR . 'delivery-and-logistics-system-firebase-adminsdk-fbsvc-0a9478f6dd.json'),
+            'mail_mailer' => getenv('MAIL_MAILER') ?: (getenv('MAIL_HOST') || getenv('SMTP_HOST') ? 'smtp' : 'mail'),
+            'mail_host' => getenv('MAIL_HOST') ?: (getenv('SMTP_HOST') ?: ''),
+            'mail_port' => (int)(getenv('MAIL_PORT') ?: (getenv('SMTP_PORT') ?: 587)),
+            'mail_from_address' => getenv('MAIL_FROM_ADDRESS') ?: 'noreply@omniroute.local',
+            'mail_from_name' => getenv('MAIL_FROM_NAME') ?: 'Dispatch Delivery & Logistics',
+            'mail_enabled' => getenv('MAIL_ENABLED') !== '0' && strtolower((string)getenv('MAIL_ENABLED')) !== 'false'
         ]);
     }
 
@@ -683,14 +848,29 @@ class Admin extends Controller
             return;
         }
 
+        $cleanedPhone = preg_replace('/[\s\-\(\)\.]/', '', $phone);
+        if (preg_match('/^(?:09|\+639|639)(\d{9})$/', $cleanedPhone, $matches)) {
+            $normalizedPhone = '09' . $matches[1];
+        } else {
+            flash('error', 'Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX).');
+            redirect('admin/settings');
+            return;
+        }
+
+        if (mb_strlen($message) > 480) {
+            flash('error', 'Message length exceeds maximum allowed limit of 480 characters.');
+            redirect('admin/settings');
+            return;
+        }
+
         try {
             $this->call->library('SemaphoreService');
             $sms = new SemaphoreService();
-            $res = $sms->send($phone, $message);
+            $res = $sms->send($normalizedPhone, $message);
             if (!empty($res['sent'])) {
-                flash('success', "Test SMS successfully sent to {$phone} via Semaphore!");
+                flash('success', "Test SMS successfully sent to {$normalizedPhone} via Semaphore!");
             } elseif (!empty($res['disabled'])) {
-                flash('warning', "Semaphore is currently disabled (SEMAPHORE_ENABLED != 1). Message simulated for {$phone}.");
+                flash('warning', "Semaphore is currently disabled (SEMAPHORE_ENABLED != 1). Message simulated for {$normalizedPhone}.");
             } else {
                 flash('error', 'Semaphore request failed.');
             }
@@ -735,6 +915,40 @@ class Admin extends Controller
             }
         } catch (Throwable $e) {
             flash('error', 'Push failed: ' . $e->getMessage());
+        }
+
+        redirect('admin/settings');
+    }
+
+    /**
+     * Admin tool to send a test Email via EmailService
+     */
+    public function test_email()
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf()) {
+            flash('error', 'Invalid security token.');
+            redirect('admin/settings');
+            return;
+        }
+
+        $email = trim($_POST['email'] ?? '');
+        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            flash('error', 'Valid recipient email address is required.');
+            redirect('admin/settings');
+            return;
+        }
+
+        try {
+            $this->call->library('EmailService');
+            $emailService = new EmailService();
+            $res = $emailService->sendTestNotification($email, 'Admin Test User');
+            if (!empty($res['success'])) {
+                flash('success', "Test email successfully sent to {$email}! (" . ($res['message'] ?? 'OK') . ")");
+            } else {
+                flash('error', 'Email sending failed: ' . ($res['error'] ?? 'Unknown error'));
+            }
+        } catch (Throwable $e) {
+            flash('error', 'Email sending failed: ' . $e->getMessage());
         }
 
         redirect('admin/settings');
@@ -853,8 +1067,8 @@ class Admin extends Controller
         }
         try {
             $name = trim((string)($_POST['name'] ?? ''));
-            if ($name === '' || mb_strlen($name) > 100) {
-                throw new InvalidArgumentException('Area name is required and must be 100 characters or fewer.');
+            if ($name === '' || mb_strlen($name) < 2 || mb_strlen($name) > 100) {
+                throw new InvalidArgumentException('Zone name is required and must be between 2 and 100 characters.');
             }
             $polygon = DeliveryCommandSimulator::normalizePolygon($_POST['polygon'] ?? '');
             $id = !empty($_POST['id']) ? (int)$_POST['id'] : null;

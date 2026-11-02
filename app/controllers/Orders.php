@@ -191,7 +191,7 @@ class Orders extends Controller
             'dropoff_address' => [$dropoffAddress, 500],
             'dropoff_contact_name' => [$dropoffContactName, 100],
             'dropoff_contact_phone' => [$dropoffContactPhone, 30],
-            'parcel_description' => [$parcelDesc, 255]
+            'parcel_description' => [$parcelDesc, 150]
         ] as $field => [$value, $maxLength]) {
             if ($value === '') {
                 $errors[$field] = 'This field is required.';
@@ -200,12 +200,30 @@ class Orders extends Controller
             }
         }
         foreach (['pickup_contact_phone' => $pickupContactPhone, 'dropoff_contact_phone' => $dropoffContactPhone] as $field => $phone) {
-            if ($phone !== '' && !preg_match('/^\\+?[0-9][0-9 ()-]{6,28}$/', $phone)) {
-                $errors[$field] = 'Enter a valid phone number.';
+            $cleanedPhone = preg_replace('/[\s\-\(\)\.]/', '', (string)$phone);
+            if ($cleanedPhone === '' || !preg_match('/^(?:09|\+639|639)\d{9}$/', $cleanedPhone)) {
+                $errors[$field] = 'Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX).';
+            } else {
+                if (preg_match('/^(?:09|\+639|639)(\d{9})$/', $cleanedPhone, $matches)) {
+                    $normalized = '09' . $matches[1];
+                    if ($field === 'pickup_contact_phone') {
+                        $pickupContactPhone = $normalized;
+                        $formData['pickup_contact_phone'] = $normalized;
+                    } else {
+                        $dropoffContactPhone = $normalized;
+                        $formData['dropoff_contact_phone'] = $normalized;
+                    }
+                }
             }
         }
-        if (!is_numeric($weightInput) || $parcelWeight <= 0 || $parcelWeight > 1000) {
-            $errors['parcel_weight'] = 'Enter a weight greater than 0 and no more than 1000 kg.';
+        if (mb_strlen($pickupNotes) > 300) {
+            $errors['pickup_notes'] = 'Please keep pickup notes to 300 characters or fewer.';
+        }
+        if (mb_strlen($dropoffNotes) > 300) {
+            $errors['dropoff_notes'] = 'Please keep drop-off notes to 300 characters or fewer.';
+        }
+        if (!is_numeric($weightInput) || $parcelWeight < 0.1 || $parcelWeight > 1000) {
+            $errors['parcel_weight'] = 'Enter a weight of at least 0.1 kg and no more than 1000 kg.';
         }
         if (!in_array($parcelSize, ['S', 'M', 'L'], true)) {
             $errors['parcel_size'] = 'Choose a parcel size.';
@@ -532,7 +550,7 @@ class Orders extends Controller
             'dropoff_address' => [$dropoffAddress, 500],
             'dropoff_contact_name' => [$dropoffContactName, 100],
             'dropoff_contact_phone' => [$dropoffContactPhone, 30],
-            'parcel_description' => [$parcelDesc, 255]
+            'parcel_description' => [$parcelDesc, 150]
         ] as $field => [$value, $maxLength]) {
             if ($value === '') {
                 $errors[$field] = 'This field is required.';
@@ -540,18 +558,31 @@ class Orders extends Controller
                 $errors[$field] = "Please keep this to {$maxLength} characters or fewer.";
             }
         }
-        foreach (['pickup_notes' => $pickupNotes, 'dropoff_notes' => $dropoffNotes] as $field => $notes) {
-            if (mb_strlen($notes) > 1000) {
-                $errors[$field] = 'Please keep notes to 1000 characters or fewer.';
-            }
-        }
         foreach (['pickup_contact_phone' => $pickupContactPhone, 'dropoff_contact_phone' => $dropoffContactPhone] as $field => $phone) {
-            if ($phone !== '' && !preg_match('/^\\+?[0-9][0-9 ()-]{6,28}$/', $phone)) {
-                $errors[$field] = 'Enter a valid phone number.';
+            $cleanedPhone = preg_replace('/[\s\-\(\)\.]/', '', (string)$phone);
+            if ($cleanedPhone === '' || !preg_match('/^(?:09|\+639|639)\d{9}$/', $cleanedPhone)) {
+                $errors[$field] = 'Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX).';
+            } else {
+                if (preg_match('/^(?:09|\+639|639)(\d{9})$/', $cleanedPhone, $matches)) {
+                    $normalized = '09' . $matches[1];
+                    if ($field === 'pickup_contact_phone') {
+                        $pickupContactPhone = $normalized;
+                        $formData['pickup_contact_phone'] = $normalized;
+                    } else {
+                        $dropoffContactPhone = $normalized;
+                        $formData['dropoff_contact_phone'] = $normalized;
+                    }
+                }
             }
         }
-        if (!is_numeric($weightInput) || $parcelWeight <= 0 || $parcelWeight > 1000) {
-            $errors['parcel_weight'] = 'Enter a weight greater than 0 and no more than 1000 kg.';
+        if (mb_strlen($pickupNotes) > 300) {
+            $errors['pickup_notes'] = 'Please keep pickup notes to 300 characters or fewer.';
+        }
+        if (mb_strlen($dropoffNotes) > 300) {
+            $errors['dropoff_notes'] = 'Please keep drop-off notes to 300 characters or fewer.';
+        }
+        if (!is_numeric($weightInput) || $parcelWeight < 0.1 || $parcelWeight > 1000) {
+            $errors['parcel_weight'] = 'Enter a weight of at least 0.1 kg and no more than 1000 kg.';
         }
         if (!in_array($parcelSize, ['S', 'M', 'L'], true)) {
             $errors['parcel_size'] = 'Choose a parcel size.';
@@ -733,6 +764,35 @@ class Orders extends Controller
                 [$now, $now, (int)$payment['id']]
             );
             $db->commit();
+
+            // Dispatch simulated payment confirmation email if customer email is available
+            try {
+                $userRow = $db->raw(
+                    'SELECT u.name, u.email, o.order_no, p.amount
+                     FROM orders o
+                     INNER JOIN customers c ON c.id = o.customer_id
+                     INNER JOIN users u ON u.id = c.user_id
+                     INNER JOIN payments p ON p.order_id = o.id
+                     WHERE o.id = ? ORDER BY p.id DESC LIMIT 1',
+                    [$id]
+                )->fetch(PDO::FETCH_ASSOC);
+
+                if ($userRow && !empty($userRow['email'])) {
+                    $this->call->library('EmailService');
+                    $emailService = new EmailService();
+                    $emailService->sendPaymentConfirmation(
+                        $userRow['email'],
+                        $userRow['name'] ?? 'Valued Customer',
+                        $userRow['order_no'] ?? ('#' . $id),
+                        (string)($userRow['amount'] ?? '0.00'),
+                        'Demo Simulated Payment',
+                        ['order_id' => $id]
+                    );
+                }
+            } catch (Throwable $mailEx) {
+                error_log('Demo payment email simulation failed: ' . $mailEx->getMessage());
+            }
+
             flash('success', 'Demo payment simulated. No real payment was processed.');
         } catch (Throwable $e) {
             $db->roll_back();
@@ -887,7 +947,13 @@ class Orders extends Controller
             return;
         }
 
-        $reason = trim($_POST['cancel_reason'] ?? 'Customer requested cancellation.');
+        $rawReason = trim($_POST['cancel_reason'] ?? '');
+        if (mb_strlen($rawReason) > 200) {
+            flash('error', 'Cancellation reason cannot exceed 200 characters.');
+            redirect('orders/' . $id);
+            return;
+        }
+        $reason = $rawReason !== '' ? $rawReason : 'Customer requested cancellation.';
         $actorType = $role;
 
         try {

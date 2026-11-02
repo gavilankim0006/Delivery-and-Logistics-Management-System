@@ -1,7 +1,9 @@
 <?php
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
-$extraCss = '<link rel="stylesheet" href="' . e(base_url('css/messenger.css')) . '">';
+$messengerCssPath = dirname(__DIR__, 3) . '/public/css/messenger.css';
+$messengerCssVersion = is_file($messengerCssPath) ? '?v=' . (string)filemtime($messengerCssPath) : '';
+$extraCss = '<link rel="stylesheet" href="' . e(base_url('css/messenger.css')) . e($messengerCssVersion) . '">';
 $this->call->view('templates/header', [
     'page_title' => $page_title ?? 'Package Messenger',
     'extra_css' => $extraCss
@@ -277,9 +279,9 @@ $messengerPropsJson = json_encode($messengerProps, JSON_HEX_TAG | JSON_HEX_AMP |
                             <button type="button" class="quick-chip-btn" data-text="📦 Package received safely, thank you!"><i class="bi bi-box-seam"></i> Received safely</button>
                             <button type="button" class="quick-chip-btn" data-text="👋 Ready for handoff?"><i class="bi bi-hand-thumbs-up"></i> Ready now</button>
                         </div>
-                        <form id="chatForm" class="chat-input-form" data-no-disable="true">
-                            <textarea id="chatInput" class="chat-textarea" placeholder="Type a message... (Press Enter to send)" rows="1" maxlength="4000" required></textarea>
-                            <button type="submit" id="btnSend" class="btn-send-msg" disabled title="Send message">
+                        <form id="chatForm" class="chat-input-form" data-no-disable="true" data-no-validate="true">
+                            <textarea id="chatInput" class="chat-textarea" placeholder="Type a message... (Press Enter to send, Shift+Enter for new line)" rows="1" maxlength="4000" data-no-validate="true"></textarea>
+                            <button type="submit" id="btnSend" class="btn-send-msg" disabled title="Send message" aria-label="Send message">
                                 <i class="bi bi-send-fill"></i>
                             </button>
                         </form>
@@ -310,7 +312,7 @@ $messengerPropsJson = json_encode($messengerProps, JSON_HEX_TAG | JSON_HEX_AMP |
 </div>
 
 <!-- Modal: Start New Handoff -->
-<div class="modal fade" id="newHandoffModal" tabindex="-1" aria-labelledby="newHandoffModalLabel" aria-hidden="true">
+<div class="modal fade" id="newHandoffModal" tabindex="-1" aria-labelledby="newHandoffModalLabel" aria-hidden="true" data-bs-keyboard="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-light">
@@ -325,13 +327,17 @@ $messengerPropsJson = json_encode($messengerProps, JSON_HEX_TAG | JSON_HEX_AMP |
 
                     <div class="mb-3">
                         <label for="newHandoffOrderSelect" class="form-label fw-semibold">Select Eligible Order</label>
-                        <select id="newHandoffOrderSelect" class="form-select" required>
-                            <option value="">-- Choose an active order --</option>
-                            <?php foreach (($eligible_orders ?? []) as $ord): ?>
-                                <option value="<?= (int)$ord['id'] ?>" <?= ($preset_order_id ?? 0) === (int)$ord['id'] ? 'selected' : '' ?>>
-                                    Order <?= e($ord['order_no'] ?: '#' . $ord['id']) ?> (<?= e(ucfirst(str_replace('_', ' ', $ord['status']))) ?>)
-                                </option>
-                            <?php endforeach; ?>
+                        <select id="newHandoffOrderSelect" class="form-select" required <?= empty($eligible_orders) ? 'disabled' : '' ?>>
+                            <?php if (empty($eligible_orders)): ?>
+                                <option value="" disabled selected>No eligible orders</option>
+                            <?php else: ?>
+                                <option value="" disabled selected>-- Choose an active order --</option>
+                                <?php foreach (($eligible_orders ?? []) as $ord): ?>
+                                    <option value="<?= (int)$ord['id'] ?>" <?= ($preset_order_id ?? 0) === (int)$ord['id'] ? 'selected' : '' ?>>
+                                        Order <?= e($ord['order_no'] ?: '#' . $ord['id']) ?> (<?= e(ucfirst(str_replace('_', ' ', $ord['status']))) ?>)
+                                    </option>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </select>
                         <?php if (empty($eligible_orders)): ?>
                             <div class="form-text text-warning">
@@ -344,13 +350,16 @@ $messengerPropsJson = json_encode($messengerProps, JSON_HEX_TAG | JSON_HEX_AMP |
 
                     <div class="mb-3">
                         <label for="handoffCustomerSearch" class="form-label fw-semibold">Search Recipient Customer</label>
-                        <div class="input-group">
+                        <div class="input-group position-relative">
                             <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-                            <input type="text" id="handoffCustomerSearch" class="form-control" placeholder="Search by name, company, or email..." autocomplete="off">
+                            <input type="text" id="handoffCustomerSearch" class="form-control" placeholder="Search recipient by name, company, or email..." autocomplete="off">
+                            <button type="button" class="btn btn-outline-secondary d-none position-absolute end-0 top-50 translate-middle-y me-2 border-0 bg-transparent text-muted p-0 d-flex align-items-center justify-content-center" id="handoffCustomerSearchClear" aria-label="Clear search" style="width: 24px; height: 24px; z-index: 5;">
+                                <i class="bi bi-x-circle-fill"></i>
+                            </button>
                         </div>
                         <input type="hidden" id="newHandoffRecipientId" value="">
                         <div id="newHandoffRecipientDisplay" class="badge bg-primary-subtle text-primary border border-primary-subtle mt-2 p-2 d-none"></div>
-                        <div id="handoffCustomerResults" class="border rounded mt-2 bg-white" style="max-height: 180px; overflow-y: auto;"></div>
+                        <div id="handoffCustomerResults" class="border rounded mt-2 bg-white d-none shadow-sm" style="max-height: 180px; overflow-y: auto;"></div>
                     </div>
 
                     <div class="p-3 bg-light rounded small text-muted">

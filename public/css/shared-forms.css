@@ -1,0 +1,153 @@
+/**
+ * Dispatch Shared Form Styles
+ * Standardizes server-rendered form fields to match Vue shared component design tokens:
+ * 16px mobile font, labels with required indicator, focus rings, error borders, and helpers.
+ */
+
+:root {
+    --field-height: 44px;
+}
+
+input,
+select,
+textarea {
+    font-size: 16px !important; /* Prevents auto-zoom on mobile browsers */
+}
+
+.shared-field-wrap {
+    width: 100%;
+}
+
+.form-label,
+.shared-label {
+    font-weight: 500;
+    color: var(--ink, #172B3A);
+    margin-bottom: var(--s-1, 4px);
+    display: inline-flex;
+    align-items: center;
+    font-size: var(--font-size-14, 14px);
+    letter-spacing: -0.01em;
+}
+
+.form-label .text-danger,
+.shared-label .text-danger {
+    margin-inline-start: 4px;
+}
+
+.form-control,
+.form-select {
+    min-height: var(--field-height);
+    padding: var(--s-2, 8px) var(--s-3, 16px);
+    border: 1px solid var(--line, #D3DDE5);
+    border-radius: var(--r-sm, 6px);
+    background-color: var(--surface, #FFFFFF);
+    color: var(--ink, #172B3A);
+    font-family: var(--font-family, inherit);
+    line-height: 1.5;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.form-control::placeholder,
+.form-select::placeholder {
+    color: var(--ink-3, #617687);
+    opacity: 1;
+}
+
+.form-control:focus,
+.form-select:focus {
+    outline: none;
+    border-color: var(--route, #087F98);
+    background-color: var(--surface, #FFFFFF);
+    color: var(--ink, #172B3A);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--route, #087F98) 35%, transparent);
+}
+
+.form-control.is-invalid,
+.form-select.is-invalid,
+.was-validated .form-control:invalid,
+.was-validated .form-select:invalid {
+    border-color: var(--danger, #A12C2A) !important;
+}
+
+.form-control.is-invalid:focus,
+.form-select.is-invalid:focus,
+.was-validated .form-control:invalid:focus,
+.was-validated .form-select:invalid:focus {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger, #A12C2A) 25%, transparent) !important;
+}
+
+textarea.form-control {
+    resize: vertical;
+    min-height: 88px;
+}
+
+/* Suffix & prefix unit add-ons */
+.input-group-text {
+    min-height: var(--field-height);
+    background-color: var(--paper, #EEF2F5);
+    border-color: var(--line, #D3DDE5);
+    color: var(--ink-2, #4C6070);
+    font-weight: 600;
+    font-size: 14px;
+    padding-inline: 14px;
+}
+
+.input-group .form-control:focus + .input-group-text,
+.input-group-text + .form-control:focus {
+    border-color: var(--route, #087F98);
+}
+
+/* Feedback text & helpers */
+.form-text,
+.shared-helper-text {
+    color: var(--ink-2, #4C6070);
+    font-size: var(--font-size-14, 14px);
+    margin-top: var(--s-1, 4px);
+}
+
+.invalid-feedback,
+.shared-error-text {
+    color: var(--danger, #A12C2A);
+    font-size: var(--font-size-14, 14px);
+    font-weight: 500;
+    margin-top: var(--s-1, 4px);
+}
+
+/* Password eye & clear search buttons */
+.btn-toggle-password,
+.btn-clear-search,
+.btn-field-action {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    padding: 6px;
+    color: var(--ink-3, #617687);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--r-sm, 4px);
+    z-index: 5;
+    line-height: 1;
+}
+
+.btn-toggle-password:hover,
+.btn-toggle-password:focus-visible,
+.btn-clear-search:hover,
+.btn-clear-search:focus-visible,
+.btn-field-action:hover,
+.btn-field-action:focus-visible {
+    color: var(--ink, #172B3A);
+    outline: 2px solid var(--route, #087F98);
+    outline-offset: 1px;
+}
+
+/* Character counters */
+.textarea-char-counter {
+    color: var(--ink-3, #617687);
+    font-size: var(--font-size-14, 14px);
+    font-variant-numeric: tabular-nums;
+}

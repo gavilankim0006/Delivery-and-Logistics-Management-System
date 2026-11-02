@@ -44,6 +44,8 @@ $isHome = ($normalizedCurrent === $normalizedBase) || ($normalizedCurrent === $n
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <?php $appCssPath = dirname(__DIR__, 3) . '/public/css/app.css'; ?>
     <link href="<?= base_url('css/app.css') ?><?= is_file($appCssPath) ? '?v=' . (string)filemtime($appCssPath) : '' ?>" rel="stylesheet">
+    <?php $formsCssPath = dirname(__DIR__, 3) . '/public/css/shared-forms.css'; ?>
+    <link href="<?= base_url('css/shared-forms.css') ?><?= is_file($formsCssPath) ? '?v=' . (string)filemtime($formsCssPath) : '' ?>" rel="stylesheet">
     <link href="<?= base_url('css/ai-assistant.css') ?>" rel="stylesheet">
     <?php if (isset($extra_css)): ?>
         <?= $extra_css ?>

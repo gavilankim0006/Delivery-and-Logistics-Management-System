@@ -4,6 +4,7 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 require_once APP_DIR . 'libraries/PayMongoService.php';
 require_once APP_DIR . 'libraries/PaymentCheckoutService.php';
 require_once APP_DIR . 'libraries/SemaphoreService.php';
+require_once APP_DIR . 'libraries/EmailService.php';
 
 class PayMongoWebhookProcessor
 {
@@ -11,8 +12,9 @@ class PayMongoWebhookProcessor
     private $orderModel;
     private ?PayMongoService $provider;
     private ?SemaphoreService $sms;
+    private ?EmailService $email;
 
-    public function __construct($db = null, $orderModel = null, ?PayMongoService $provider = null, ?SemaphoreService $sms = null)
+    public function __construct($db = null, $orderModel = null, ?PayMongoService $provider = null, ?SemaphoreService $sms = null, ?EmailService $email = null)
     {
         $lava = function_exists('lava_instance') ? lava_instance() : null;
         $this->db = $db ?? ($lava ? $lava->db : null);
@@ -37,6 +39,15 @@ class PayMongoWebhookProcessor
                 $this->sms = new SemaphoreService();
             } catch (Throwable $e) {
                 $this->sms = null;
+            }
+        }
+        if ($email !== null) {
+            $this->email = $email;
+        } else {
+            try {
+                $this->email = new EmailService();
+            } catch (Throwable $e) {
+                $this->email = null;
             }
         }
     }
@@ -88,6 +99,7 @@ class PayMongoWebhookProcessor
         }
 
         $notificationId = null;
+        $emailNotificationId = null;
         $result = 'ignored';
         $this->db->transaction();
         try {
@@ -131,7 +143,7 @@ class PayMongoWebhookProcessor
                 }
                 $payment = $this->db->raw(
                     "SELECT p.id, p.order_id, p.amount, p.status, p.paymongo_payment_id, o.status AS order_status, o.order_no, o.customer_id,
-                            u.id AS user_id, u.phone AS user_phone, u.sms_opt_in
+                            u.id AS user_id, u.name AS user_name, u.email AS user_email, u.phone AS user_phone, u.sms_opt_in, u.email_notifications_opt_in
                      FROM payments p INNER JOIN orders o ON o.id = p.order_id
                      INNER JOIN customers c ON c.id = o.customer_id INNER JOIN users u ON u.id = c.user_id
                      WHERE p.paymongo_session_id = ? LIMIT 1 FOR UPDATE",
@@ -151,13 +163,29 @@ class PayMongoWebhookProcessor
                     if ($payment['order_status'] === 'pending_payment') {
                         $this->orderModel->set_status((int)$payment['order_id'], 'paid', 'PayMongo confirmed payment.', 'system', null);
                         $result = 'paid';
+
+                        $message = 'Payment confirmed for delivery order ' . $payment['order_no'] . '.';
+
+                        // Enqueue SMS if opted in
                         if ((int)$payment['sms_opt_in'] === 1 && trim((string)$payment['user_phone']) !== '' && getenv('SEMAPHORE_ENABLED') === '1') {
-                            $message = 'Payment confirmed for delivery order ' . $payment['order_no'] . '.';
                             $this->db->raw(
                                 "INSERT INTO notifications (user_id, order_id, channel, recipient, message, status, created_at) VALUES (?, ?, 'sms', ?, ?, 'pending', ?)",
                                 [(int)$payment['user_id'], (int)$payment['order_id'], $payment['user_phone'], $message, $now]
                             );
                             $notificationId = (int)$this->db->last_id();
+                        }
+
+                        // Enqueue Email if email is present and opted in (defaults to enabled if SMS opted in or email notifications active)
+                        $emailOptIn = isset($payment['email_notifications_opt_in'])
+                            ? (int)$payment['email_notifications_opt_in'] === 1
+                            : ((int)($payment['sms_opt_in'] ?? 0) === 1);
+
+                        if ($emailOptIn && !empty($payment['user_email']) && filter_var($payment['user_email'], FILTER_VALIDATE_EMAIL)) {
+                            $this->db->raw(
+                                "INSERT INTO notifications (user_id, order_id, channel, recipient, message, status, created_at) VALUES (?, ?, 'email', ?, ?, 'pending', ?)",
+                                [(int)$payment['user_id'], (int)$payment['order_id'], trim($payment['user_email']), $message, $now]
+                            );
+                            $emailNotificationId = (int)$this->db->last_id();
                         }
                     }
                 } elseif ($payment && $payment['status'] === 'pending'
@@ -193,7 +221,48 @@ class PayMongoWebhookProcessor
         } elseif ($notificationId !== null) {
             $this->db->raw("UPDATE notifications SET status = 'failed', provider_response = ?, sent_at = ? WHERE id = ?", ['Semaphore is not configured.', date('Y-m-d H:i:s'), $notificationId]);
         }
+
+        if ($emailNotificationId !== null && $this->email !== null) {
+            $this->dispatchEmail($emailNotificationId, [
+                'order_id' => (int)($payment['order_id'] ?? 0),
+                'order_no' => (string)($payment['order_no'] ?? ''),
+                'customer_name' => (string)($payment['user_name'] ?? 'Valued Customer'),
+                'amount' => (string)($payment['amount'] ?? '0.00'),
+                'payment_method' => (string)($paymentMethod ?? 'PayMongo Online Payment'),
+            ]);
+        } elseif ($emailNotificationId !== null) {
+            $this->db->raw("UPDATE notifications SET status = 'failed', provider_response = ?, sent_at = ? WHERE id = ?", ['Email service is not configured.', date('Y-m-d H:i:s'), $emailNotificationId]);
+        }
+
         return ['duplicate' => false, 'status' => $result];
+    }
+
+    private function dispatchEmail(int $notificationId, array $context = []): void
+    {
+        $row = $this->db->raw('SELECT recipient, message FROM notifications WHERE id = ? LIMIT 1', [$notificationId])->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return;
+        }
+        try {
+            $response = $this->email->sendPaymentConfirmation(
+                (string)$row['recipient'],
+                (string)($context['customer_name'] ?? 'Valued Customer'),
+                (string)($context['order_no'] ?? ''),
+                (string)($context['amount'] ?? '0.00'),
+                (string)($context['payment_method'] ?? 'Online Payment'),
+                ['order_id' => (int)($context['order_id'] ?? 0)]
+            );
+            $status = !empty($response['success']) ? 'sent' : 'failed';
+            $providerResponse = !empty($response['success']) ? ($response['message'] ?? 'Email sent.') : ($response['error'] ?? 'Email failed.');
+        } catch (Throwable $e) {
+            $status = 'failed';
+            $providerResponse = substr($e->getMessage(), 0, 1000);
+            error_log('Payment confirmation email failed: ' . $e->getMessage());
+        }
+        $this->db->raw(
+            'UPDATE notifications SET status = ?, provider_response = ?, sent_at = ? WHERE id = ?',
+            [$status, $providerResponse, date('Y-m-d H:i:s'), $notificationId]
+        );
     }
 
     private function dispatchSms(int $notificationId): void

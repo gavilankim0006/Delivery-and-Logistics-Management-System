@@ -47,12 +47,15 @@ $orderListProps = [
     'baseUrl' => base_url()
 ];
 ?>
-<div id="vue-orders-root" data-page="list" data-props="<?= e(json_encode($orderListProps, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>">
-<noscript><div class="container py-4 page-shell"><div class="alert alert-warning" role="status">Enable JavaScript to view the orders list.</div></div></noscript>
+<div
+    id="vue-order-list-root"
+    data-page="order-list"
+    data-requires-vue="true"
+    data-props="<?= e(json_encode($orderListProps, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>">
 <div class="container py-4 page-shell">
     <header class="page-header">
         <div>
-            <h1 class="page-title"><?= $role === 'customer' ? 'My orders' : 'Orders' ?></h1>
+            <h1 class="page-title"><?= e($page_title ?? 'Orders') ?></h1>
             <p class="text-muted mb-0 page-description">Review delivery details and follow each order's progress.</p>
         </div>
         <?php if ($role === 'customer'): ?>
@@ -61,22 +64,29 @@ $orderListProps = [
     </header>
 
     <form class="row g-3 align-items-end mb-4" method="get" action="<?= base_url('orders') ?>">
-        <div class="col-12 col-md-3">
-            <label class="form-label" for="order-status">Status</label>
-            <select class="form-select" id="order-status" name="status">
+        <div class="col-12 col-md-3 shared-field-wrap">
+            <label class="form-label shared-label" for="order-status">Status</label>
+            <select class="form-select shared-select" id="order-status" name="status">
                 <option value="">All statuses</option>
                 <?php foreach ($statusLabels as $value => $label): ?>
                     <option value="<?= e($value) ?>" <?= ($filters['status'] ?? '') === $value ? 'selected' : '' ?>><?= e($label) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
-        <div class="col-12 col-md-3">
-            <label class="form-label" for="order-date">Date</label>
-            <input class="form-control" id="order-date" type="date" name="date" max="<?= date('Y-m-d') ?>" value="<?= e($filters['date'] ?? '') ?>">
+        <div class="col-12 col-md-3 shared-field-wrap">
+            <label class="form-label shared-label" for="order-date">Date</label>
+            <input class="form-control shared-input" id="order-date" type="date" name="date" max="<?= date('Y-m-d') ?>" value="<?= e($filters['date'] ?? '') ?>">
         </div>
-        <div class="col-12 col-md-4">
-            <label class="form-label" for="order-search">Search</label>
-            <input class="form-control" id="order-search" type="search" name="search" maxlength="100" value="<?= e($filters['search'] ?? '') ?>" placeholder="Order number, customer, or address">
+        <div class="col-12 col-md-4 shared-field-wrap">
+            <label class="form-label shared-label" for="order-search">Search</label>
+            <div class="position-relative">
+                <input class="form-control shared-input pe-5" id="order-search" type="search" name="search" maxlength="100" value="<?= e($filters['search'] ?? '') ?>" placeholder="Search by order number or recipient">
+                <?php if (!empty($filters['search'])): ?>
+                    <button type="button" class="btn-clear-search" aria-label="Clear search" onclick="const input = document.getElementById('order-search'); input.value = ''; input.focus();">
+                        <i class="bi bi-x-circle-fill" aria-hidden="true"></i>
+                    </button>
+                <?php endif; ?>
+            </div>
         </div>
         <div class="col-12 col-md-2 d-flex gap-2">
             <button class="btn btn-outline-primary flex-grow-1" type="submit">Filter</button>
@@ -95,7 +105,14 @@ $orderListProps = [
         <div class="table-responsive surface">
             <table class="table align-middle mb-0 table-responsive-stack table-clean">
                 <thead>
-                    <tr><th scope="col">Order</th><?php if ($role !== 'customer'): ?><th scope="col">Customer</th><?php endif; ?><th scope="col">Route</th><th scope="col">Status</th><th scope="col">Fee</th><th scope="col"><span class="visually-hidden">Details</span></th></tr>
+                    <tr>
+                        <th scope="col">Order</th>
+                        <?php if ($role !== 'customer'): ?><th scope="col">Customer</th><?php endif; ?>
+                        <th scope="col">Route</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Fee</th>
+                        <th scope="col"><span class="visually-hidden">Details</span></th>
+                    </tr>
                 </thead>
                 <tbody>
                 <?php foreach ($orders as $order): ?>
@@ -118,53 +135,52 @@ $orderListProps = [
                                     <span class="compact-route-progress__track" aria-hidden="true">
                                         <?php
                                         $progressIndex = array_search($routeStatusStage[$status] ?? 'placed', $routeStages, true);
-                                        foreach ($order['timeline'] ?? [] as $timelineEntry) {
-                                            $milestone = $timelineStages[$timelineEntry['to_status'] ?? ''] ?? null;
-                                            if ($milestone !== null) {
-                                                $progressIndex = max($progressIndex, array_search($milestone, $routeStages, true));
+                                        foreach ($order['timeline'] ?? [] as $item) {
+                                            $stage = $timelineStages[$item['to_status']] ?? null;
+                                            if ($stage !== null) {
+                                                $matchIndex = array_search($stage, $routeStages, true);
+                                                if ($matchIndex !== false && $matchIndex > $progressIndex) {
+                                                    $progressIndex = $matchIndex;
+                                                }
                                             }
                                         }
+                                        $stageIndex = $progressIndex === false ? 0 : $progressIndex;
                                         ?>
-                                        <span class="compact-route-progress__fill compact-route-progress__fill--<?= (int)$progressIndex ?>"></span>
+                                        <span class="compact-route-progress__fill compact-route-progress__fill--<?= (int)$stageIndex ?>"></span>
                                     </span>
                                 </div>
                             <?php elseif ($role === 'customer'): ?>
-                                <p class="small text-muted mt-2 mb-0">Progress stopped · <?= e($statusLabels[$status] ?? 'Unknown') ?></p>
+                                <p class="small text-muted mt-2 mb-0">Progress stopped · <?= e($statusLabels[$status] ?? $status) ?></p>
                             <?php endif; ?>
                         </td>
-                        <td data-label="Fee" class="text-nowrap money">₱<?= e(number_format((float)$order['delivery_fee'], 2)) ?></td>
+                        <td data-label="Fee" class="text-nowrap money">₱<?= number_format((float)$order['delivery_fee'], 2) ?></td>
                         <td data-label="Details"><a class="btn btn-sm btn-outline-secondary" href="<?= base_url('orders/' . (int)$order['id']) ?>">View</a></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
-        <?php if ($total_pages > 1): ?>
+
+        <?php if (($total_pages ?? 1) > 1): ?>
             <nav class="mt-3" aria-label="Order pages">
                 <ul class="pagination justify-content-end">
-                    <?php if ($page > 1): ?>
-                        <?php $prevQuery = $query; $prevQuery['page'] = $page - 1; ?>
-                        <li class="page-item"><a class="page-link" href="<?= base_url('orders') ?>?<?= e(http_build_query($prevQuery)) ?>" aria-label="Previous page">&laquo; Previous</a></li>
-                    <?php else: ?>
-                        <li class="page-item disabled"><span class="page-link" aria-hidden="true">&laquo; Previous</span></li>
-                    <?php endif; ?>
-                    <?php for ($pageNumber = 1; $pageNumber <= $total_pages; $pageNumber++): ?>
-                        <?php $pageQuery = $query; $pageQuery['page'] = $pageNumber; ?>
-                        <li class="page-item <?= $pageNumber === $page ? 'active' : '' ?>"><a class="page-link" href="<?= base_url('orders') ?>?<?= e(http_build_query($pageQuery)) ?>" <?= $pageNumber === $page ? 'aria-current="page"' : '' ?>><?= $pageNumber ?></a></li>
+                    <li class="page-item <?= ($page ?? 1) <= 1 ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= base_url('orders?' . http_build_query(array_merge($query, ['page' => max(1, ($page ?? 1) - 1)]))) ?>" aria-label="Previous page">« Previous</a>
+                    </li>
+                    <?php for ($number = 1; $number <= (int)$total_pages; $number++): ?>
+                        <li class="page-item <?= $number === (int)($page ?? 1) ? 'active' : '' ?>">
+                            <a class="page-link" href="<?= base_url('orders?' . http_build_query(array_merge($query, ['page' => $number]))) ?>" <?= $number === (int)($page ?? 1) ? 'aria-current="page"' : '' ?>><?= $number ?></a>
+                        </li>
                     <?php endfor; ?>
-                    <?php if ($page < $total_pages): ?>
-                        <?php $nextQuery = $query; $nextQuery['page'] = $page + 1; ?>
-                        <li class="page-item"><a class="page-link" href="<?= base_url('orders') ?>?<?= e(http_build_query($nextQuery)) ?>" aria-label="Next page">Next &raquo;</a></li>
-                    <?php else: ?>
-                        <li class="page-item disabled"><span class="page-link" aria-hidden="true">Next &raquo;</span></li>
-                    <?php endif; ?>
+                    <li class="page-item <?= ($page ?? 1) >= (int)$total_pages ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= base_url('orders?' . http_build_query(array_merge($query, ['page' => min((int)$total_pages, ($page ?? 1) + 1)]))) ?>" aria-label="Next page">Next »</a>
+                    </li>
                 </ul>
             </nav>
         <?php endif; ?>
-        <p class="small text-muted text-end">Showing <?= count($orders) ?> of <?= (int)$total_orders ?> orders</p>
+        <p class="small text-muted text-end">Showing <?= count($orders) ?> of <?= (int)($total_orders ?? count($orders)) ?> orders</p>
     <?php endif; ?>
 </div>
 </div>
-<script nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>">document.querySelector('#vue-orders-root > .container[hidden]')?.removeAttribute('hidden');</script>
 <script type="module" src="<?= e(base_url('build/orders.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
 <?php $this->call->view('templates/footer'); ?>

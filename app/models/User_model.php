@@ -187,6 +187,12 @@ class User_model extends Model
         if (array_key_exists('delivery_status_sms_opt_in', $data)) {
             $fields['delivery_status_sms_opt_in'] = !empty($data['delivery_status_sms_opt_in']) ? 1 : 0;
         }
+        if (array_key_exists('push_opt_in', $data)) {
+            $fields['push_opt_in'] = !empty($data['push_opt_in']) ? 1 : 0;
+        }
+        if (array_key_exists('email_notifications_opt_in', $data)) {
+            $fields['email_notifications_opt_in'] = !empty($data['email_notifications_opt_in']) ? 1 : 0;
+        }
         if (isset($data['email'])) {
             $email = strtolower(trim((string)$data['email']));
             if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $this->email_in_use($email, $id)) {

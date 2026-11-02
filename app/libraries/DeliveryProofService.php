@@ -17,8 +17,8 @@ class DeliveryProofService
     {
         $recipientName = trim($recipientName);
         $note = trim($note);
-        if ($orderId < 1 || $riderUserId < 1 || $recipientName === '' || mb_strlen($recipientName) > 100 || mb_strlen($note) > 500) {
-            throw new InvalidArgumentException('Enter the recipient name and keep the note within 500 characters.');
+        if ($orderId < 1 || $riderUserId < 1 || mb_strlen($recipientName) < 2 || mb_strlen($recipientName) > 100 || mb_strlen($note) > 300) {
+            throw new InvalidArgumentException('Enter the recipient name (at least 2 characters) and keep the note within 300 characters.');
         }
         if (($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || empty($upload['tmp_name']) || !is_uploaded_file($upload['tmp_name'])) {
             throw new InvalidArgumentException('Choose a valid proof-of-delivery photo.');

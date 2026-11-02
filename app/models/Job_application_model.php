@@ -23,6 +23,11 @@ class Job_application_model extends Model
                 $this->db->raw("ALTER TABLE job_applications ADD COLUMN id_file_data LONGBLOB NULL AFTER id_original_name");
                 $this->hasFileDataCol = true;
             }
+
+            $userCol = $this->db->raw("SHOW COLUMNS FROM job_applications LIKE 'user_id'")->fetch(PDO::FETCH_ASSOC);
+            if (!$userCol) {
+                $this->db->raw("ALTER TABLE job_applications ADD COLUMN user_id BIGINT UNSIGNED NULL AFTER reviewed_by");
+            }
         } catch (Throwable $e) {
             // Gracefully ignore if table doesn't exist yet or user lacks ALTER permissions
         }
@@ -30,23 +35,33 @@ class Job_application_model extends Model
 
     public function list_all(?string $status = null): array
     {
-        if ($this->hasFileDataCol) {
-            $sql = 'SELECT id, full_name, email, phone, role_applied, location, experience, availability, id_type, id_number, id_storage_key, id_mime_type, id_original_name, (id_file_data IS NOT NULL) AS has_file_data, status, admin_note, reviewed_by, reviewed_at, created_at FROM job_applications';
-        } else {
-            $sql = 'SELECT *, 0 AS has_file_data FROM job_applications';
-        }
+        $fileExpr = $this->hasFileDataCol ? '(ja.id_file_data IS NOT NULL) AS has_file_data' : '0 AS has_file_data';
+        $sql = "SELECT ja.id, ja.full_name, ja.email, ja.phone, ja.role_applied, ja.location, ja.experience,
+                       ja.availability, ja.id_type, ja.id_number, ja.id_storage_key, ja.id_mime_type,
+                       ja.id_original_name, {$fileExpr}, ja.status, ja.admin_note, ja.reviewed_by,
+                       ja.reviewed_at, ja.created_at, ja.user_id,
+                       u.name AS account_name, u.email AS account_email, u.status AS account_status
+                FROM job_applications ja
+                LEFT JOIN users u ON u.id = ja.user_id";
+
         $params = [];
         if ($status !== null && in_array($status, ['pending', 'approved', 'rejected'], true)) {
-            $sql .= ' WHERE status = ?';
+            $sql .= ' WHERE ja.status = ?';
             $params[] = $status;
         }
-        $sql .= ' ORDER BY created_at DESC, id DESC';
+        $sql .= ' ORDER BY ja.created_at DESC, ja.id DESC';
         return $this->db->raw($sql, $params)->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     public function find(int $id): ?array
     {
-        $row = $this->db->raw('SELECT * FROM job_applications WHERE id = ? LIMIT 1', [$id])->fetch(PDO::FETCH_ASSOC);
+        $row = $this->db->raw(
+            'SELECT ja.*, u.name AS account_name, u.email AS account_email, u.status AS account_status
+             FROM job_applications ja
+             LEFT JOIN users u ON u.id = ja.user_id
+             WHERE ja.id = ? LIMIT 1',
+            [$id]
+        )->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
     }
 
@@ -79,11 +94,23 @@ class Job_application_model extends Model
         return (int)$this->db->last_id();
     }
 
-    public function update_status(int $id, string $status, int $reviewedBy, string $note): void
+    public function update_status(int $id, string $status, int $reviewedBy, string $note, ?int $userId = null): void
     {
-        $this->db->raw(
-            'UPDATE job_applications SET status = ?, admin_note = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?',
-            [$status, $note, $reviewedBy, $id]
-        );
+        if ($userId !== null && $userId > 0) {
+            $this->db->raw(
+                'UPDATE job_applications SET status = ?, admin_note = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, user_id = ? WHERE id = ?',
+                [$status, $note, $reviewedBy, $userId, $id]
+            );
+        } else {
+            $this->db->raw(
+                'UPDATE job_applications SET status = ?, admin_note = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?',
+                [$status, $note, $reviewedBy, $id]
+            );
+        }
+    }
+
+    public function link_user(int $id, int $userId): void
+    {
+        $this->db->raw('UPDATE job_applications SET user_id = ? WHERE id = ?', [$userId, $id]);
     }
 }

@@ -85,9 +85,9 @@ class DeliveryCommandSimulator
         $volume = self::boundedNumber($input['projected_orders'] ?? null, 'Projected orders', 1, 5000, true);
         $distance = self::boundedNumber($input['average_distance_km'] ?? null, 'Average distance', 0.1, 1000);
         $weight = self::boundedNumber($input['average_weight_kg'] ?? null, 'Average parcel weight', 0.1, 1000);
-        $hours = self::boundedNumber($input['scenario_hours'] ?? null, 'Scenario duration', 1, 24);
+        $hours = self::boundedNumber($input['scenario_hours'] ?? null, 'Scenario duration', 1, 24, true);
         $perRider = self::boundedNumber($input['deliveries_per_rider_hour'] ?? null, 'Rider throughput', 0.1, 20);
-        $riderCount = self::boundedNumber($input['riders'] ?? $availableRiders, 'Rider count', 0, 500, true);
+        $riderCount = self::boundedNumber($input['riders'] ?? $availableRiders, 'Rider count', 1, 500, true);
 
         $proposedRates = [];
         foreach (['base_delivery_fee', 'free_distance_km', 'per_km_rate', 'free_weight_kg', 'per_kg_rate'] as $key) {

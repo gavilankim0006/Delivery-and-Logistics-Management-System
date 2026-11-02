@@ -85,21 +85,25 @@
     </div>
 
     <!-- Input form -->
-    <form class="ai-panel-input-wrap" @submit.prevent="sendMessage">
-      <input
-        type="text"
+    <form class="ai-panel-input-wrap" data-no-validate="true" @submit.prevent="sendMessage">
+      <textarea
         class="ai-panel-input"
         v-model="inputQuery"
-        placeholder="Ask Dispatch AI anything..."
+        placeholder="Ask Dispatch AI anything... (Enter to send, Shift+Enter for new line)"
         :disabled="isThinking"
         autocomplete="off"
         ref="inputEl"
-      />
+        rows="1"
+        data-no-validate="true"
+        @keydown="handleKeydown"
+        @input="handleInput"
+      ></textarea>
       <button
         type="submit"
         class="ai-panel-send-btn"
         :disabled="!inputQuery.trim() || isThinking"
         title="Send query"
+        aria-label="Send query"
       >
         <i class="bi bi-send-fill"></i>
       </button>
@@ -151,6 +155,19 @@ function scrollToBottom() {
   });
 }
 
+function handleKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function handleInput() {
+  if (!inputEl.value) return;
+  inputEl.value.style.height = '38px';
+  inputEl.value.style.height = Math.min(inputEl.value.scrollHeight, 120) + 'px';
+}
+
 async function loadHistory() {
   if (historyLoaded) return;
   try {
@@ -180,6 +197,9 @@ async function sendMessage() {
   });
 
   inputQuery.value = '';
+  if (inputEl.value) {
+    inputEl.value.style.height = '38px';
+  }
   isThinking.value = true;
   scrollToBottom();
 
@@ -247,7 +267,7 @@ function resetConversation() {
   messages.value = [
     {
       sender: 'assistant',
-      content: 'Conversation reset! How can I assist you with your package or deliveries today?',
+      content: 'Conversation reset. How else can I assist your logistics today?',
     },
   ];
   scrollToBottom();
@@ -255,12 +275,12 @@ function resetConversation() {
 
 watch(
   () => props.isOpen,
-  (open) => {
-    if (open) {
+  (val) => {
+    if (val) {
       loadHistory();
-      scrollToBottom();
       nextTick(() => {
         inputEl.value?.focus();
+        scrollToBottom();
       });
     }
   }
@@ -271,10 +291,4 @@ onMounted(() => {
     loadHistory();
   }
 });
-
-defineExpose({
-  resetConversation,
-  loadHistory,
-});
 </script>
-

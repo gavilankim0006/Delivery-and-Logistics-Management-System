@@ -1,4 +1,15 @@
 /* AI Floating 3D Assistant Widget Styles */
+body:has(#messenger-vue-root) #ai-assistant-widget,
+body:has(#messenger-vue-root) #ai-chat-window,
+body:has(.messenger-wrapper) #ai-assistant-widget,
+body:has(.messenger-wrapper) #ai-chat-window,
+.messenger-wrapper ~ #ai-assistant-widget,
+.messenger-wrapper ~ #ai-chat-window {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
 #ai-assistant-widget {
     position: fixed;
     bottom: 24px;

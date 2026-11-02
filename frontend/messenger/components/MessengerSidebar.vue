@@ -20,29 +20,31 @@
 
       <!-- Search Box -->
       <div class="messenger-search-wrap">
-        <i class="bi bi-search messenger-search-icon"></i>
+        <label for="sidebarSearchInput" class="visually-hidden">Search chats or orders</label>
+        <i class="bi bi-search messenger-search-icon" aria-hidden="true"></i>
         <input
+          id="sidebarSearchInput"
           type="text"
           class="messenger-search-input"
-          :value="searchQuery"
-          @input="$emit('update:searchQuery', $event.target.value)"
+          :value="localSearchQuery"
+          @input="onSearchInput"
           placeholder="Search chats or orders..."
           autocomplete="off"
         />
         <button
-          v-if="searchQuery"
+          v-if="localSearchQuery"
           type="button"
           class="messenger-search-clear"
           style="display: block;"
           aria-label="Clear search"
-          @click="$emit('update:searchQuery', '')"
+          @click="onClearSearch"
         >
-          <i class="bi bi-x-circle-fill"></i>
+          <i class="bi bi-x-circle-fill" aria-hidden="true"></i>
         </button>
       </div>
 
       <!-- Filter Tabs -->
-      <div class="messenger-filter-tabs" role="tablist">
+      <div class="messenger-filter-tabs" role="tablist" aria-label="Filter conversations by status">
         <button
           type="button"
           class="messenger-tab-btn"
@@ -169,7 +171,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { ref, computed, watch, onUnmounted } from 'vue';
 import { getAvatarGradient, getInitials } from '../utils.js';
 
 const props = defineProps({
@@ -205,6 +207,37 @@ defineEmits([
   'update:searchQuery',
   'update:statusFilter',
 ]);
+
+const localSearchQuery = ref(props.searchQuery);
+let searchDebounceTimer = null;
+
+watch(
+  () => props.searchQuery,
+  (newVal) => {
+    localSearchQuery.value = newVal || '';
+  }
+);
+
+function onSearchInput(event) {
+  const val = event.target.value;
+  localSearchQuery.value = val;
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    emit('update:searchQuery', val);
+  }, 300);
+}
+
+function onClearSearch() {
+  localSearchQuery.value = '';
+  clearTimeout(searchDebounceTimer);
+  emit('update:searchQuery', '');
+  const searchInput = document.getElementById('sidebarSearchInput');
+  searchInput?.focus();
+}
+
+onUnmounted(() => {
+  clearTimeout(searchDebounceTimer);
+});
 
 function getPartnerName(conv) {
   const isRecipient = Number(conv.recipient_customer_id) === props.myId;

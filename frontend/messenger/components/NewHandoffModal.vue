@@ -5,7 +5,9 @@
     tabindex="-1"
     aria-labelledby="newHandoffModalLabel"
     aria-hidden="true"
+    data-bs-keyboard="true"
     ref="modalEl"
+    @keydown="handleKeydown"
   >
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content border-0 shadow">
@@ -34,11 +36,18 @@
               </label>
               <select
                 id="newHandoffOrderSelect"
+                ref="orderSelectRef"
                 v-model="selectedOrderId"
                 class="form-select"
                 required
+                :disabled="eligibleOrders.length === 0"
               >
-                <option value="">-- Choose an active order --</option>
+                <option v-if="eligibleOrders.length === 0" value="" disabled selected>
+                  No eligible orders
+                </option>
+                <option v-else value="" disabled selected>
+                  -- Choose an active order --
+                </option>
                 <option
                   v-for="ord in eligibleOrders"
                   :key="ord.id"
@@ -62,19 +71,31 @@
               <label for="handoffCustomerSearch" class="form-label fw-semibold">
                 Search Recipient Customer
               </label>
-              <div class="input-group">
+              <div class="input-group position-relative">
                 <span class="input-group-text bg-white">
                   <i class="bi bi-search text-muted"></i>
                 </span>
                 <input
                   type="text"
                   id="handoffCustomerSearch"
+                  ref="customerSearchRef"
                   class="form-control"
+                  :class="{ 'pe-5': Boolean(searchQuery) }"
                   v-model="searchQuery"
-                  placeholder="Search by name, company, or email..."
+                  placeholder="Search recipient by name, company, or email..."
                   autocomplete="off"
                   @input="onSearchInput"
                 />
+                <button
+                  v-if="searchQuery"
+                  type="button"
+                  class="btn-clear-search position-absolute end-0 top-50 translate-middle-y me-2 border-0 bg-transparent text-muted p-0 d-flex align-items-center justify-content-center"
+                  style="width: 24px; height: 24px; cursor: pointer; z-index: 5;"
+                  aria-label="Clear search"
+                  @click="clearCustomer"
+                >
+                  <i class="bi bi-x-circle-fill"></i>
+                </button>
               </div>
 
               <!-- Selected recipient badge -->
@@ -88,7 +109,7 @@
                 </span>
                 <button
                   type="button"
-                  class="btn-close btn-close-white ms-2"
+                  class="btn-close ms-2"
                   style="font-size: 0.65rem;"
                   @click="clearCustomer"
                   aria-label="Remove recipient"
@@ -97,12 +118,15 @@
 
               <!-- Customer search results list -->
               <div
-                v-if="searchResults.length > 0 || isSearching"
+                v-if="searchQuery.trim().length >= 2 && (searchResults.length > 0 || isSearching || hasSearched)"
                 class="border rounded mt-2 bg-white shadow-sm"
                 style="max-height: 180px; overflow-y: auto;"
               >
                 <div v-if="isSearching" class="p-2 text-muted small">
                   <span class="spinner-border spinner-border-sm me-1"></span> Searching...
+                </div>
+                <div v-else-if="searchResults.length === 0" class="p-3 text-muted small text-center">
+                  No customers found
                 </div>
                 <div v-else class="list-group list-group-flush">
                   <button
@@ -161,7 +185,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { getAvatarGradient, getInitials } from '../utils.js';
 
 const props = defineProps({
@@ -186,10 +210,13 @@ const props = defineProps({
 const emit = defineEmits(['handoff-created']);
 
 const modalEl = ref(null);
+const orderSelectRef = ref(null);
+const customerSearchRef = ref(null);
 const selectedOrderId = ref('');
 const searchQuery = ref('');
 const searchResults = ref([]);
 const isSearching = ref(false);
+const hasSearched = ref(false);
 const selectedCustomer = ref(null);
 const isSubmitting = ref(false);
 const alertMessage = ref('');
@@ -209,10 +236,12 @@ function onSearchInput() {
   if (q.length < 2) {
     searchResults.value = [];
     isSearching.value = false;
+    hasSearched.value = false;
     return;
   }
 
   isSearching.value = true;
+  hasSearched.value = false;
   searchTimer = setTimeout(async () => {
     try {
       const res = await fetch(`${props.baseUrl}package-workflow/api/customers?q=${encodeURIComponent(q)}`);
@@ -222,19 +251,44 @@ function onSearchInput() {
       searchResults.value = [];
     } finally {
       isSearching.value = false;
+      hasSearched.value = true;
     }
-  }, 250);
+  }, 300); // 300ms debounce
 }
 
 function selectCustomer(cust) {
   selectedCustomer.value = cust;
   searchQuery.value = cust.name;
   searchResults.value = [];
+  hasSearched.value = false;
 }
 
 function clearCustomer() {
   selectedCustomer.value = null;
   searchQuery.value = '';
+  searchResults.value = [];
+  isSearching.value = false;
+  hasSearched.value = false;
+  clearTimeout(searchTimer);
+  customerSearchRef.value?.focus();
+}
+
+function handleKeydown(event) {
+  if (event.key === 'Escape') {
+    closeModal();
+  }
+}
+
+function closeModal() {
+  if (bsModalInstance) {
+    bsModalInstance.hide();
+  }
+}
+
+function onModalShown() {
+  const firstField = modalEl.value?.querySelector('select:not([disabled]), input:not([disabled])')
+    || modalEl.value?.querySelector('select, input');
+  firstField?.focus();
 }
 
 async function submitForm() {
@@ -285,7 +339,9 @@ async function submitForm() {
 
 function showModal() {
   if (!bsModalInstance && modalEl.value && window.bootstrap) {
-    bsModalInstance = new window.bootstrap.Modal(modalEl.value);
+    bsModalInstance = new window.bootstrap.Modal(modalEl.value, {
+      keyboard: true
+    });
   }
   if (bsModalInstance) {
     bsModalInstance.show();
@@ -307,12 +363,23 @@ watch(
 );
 
 onMounted(() => {
-  if (modalEl.value && window.bootstrap) {
-    bsModalInstance = new window.bootstrap.Modal(modalEl.value);
+  if (modalEl.value) {
+    modalEl.value.addEventListener('shown.bs.modal', onModalShown);
+    if (window.bootstrap) {
+      bsModalInstance = new window.bootstrap.Modal(modalEl.value, {
+        keyboard: true
+      });
+    }
   }
   if (props.presetOrderId) {
     showModal();
   }
 });
-</script>
 
+onUnmounted(() => {
+  clearTimeout(searchTimer);
+  if (modalEl.value) {
+    modalEl.value.removeEventListener('shown.bs.modal', onModalShown);
+  }
+});
+</script>

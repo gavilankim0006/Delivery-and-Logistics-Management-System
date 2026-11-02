@@ -22,12 +22,22 @@ if (root) {
         } catch {
             user = {};
         }
+
+        let oldRegister = {};
+        try {
+            oldRegister = JSON.parse(root.dataset.oldRegister || '{}');
+        } catch {
+            oldRegister = {};
+        }
+
         createApp(page, {
             baseUrl: root.dataset.baseUrl,
             csrfToken: root.dataset.csrfToken,
             errorMessage: root.dataset.errorMessage || '',
             successMessage: root.dataset.successMessage || '',
             vapidKey: root.dataset.vapidKey || '',
+            oldEmail: root.dataset.oldEmail || '',
+            oldRegister,
             user
         }).mount(root);
     }

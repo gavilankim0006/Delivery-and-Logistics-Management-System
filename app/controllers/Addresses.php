@@ -54,16 +54,25 @@ class Addresses extends Controller
                 $errors[$field] = "Please keep this to {$maxLength} characters or fewer.";
             }
         }
-        if ($data['contact_phone'] !== '' && !preg_match('/^\\+?[0-9][0-9 ()-]{6,28}$/', $data['contact_phone'])) {
-            $errors['contact_phone'] = 'Enter a valid phone number.';
+
+        // Philippine phone validation with normalization to 09XXXXXXXXX
+        $cleanedPhone = preg_replace('/[\s\-\(\)\.]/', '', (string)$data['contact_phone']);
+        if ($cleanedPhone === '' || !preg_match('/^(?:09|\+639|639)\d{9}$/', $cleanedPhone)) {
+            $errors['contact_phone'] = 'Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX).';
+        } else {
+            if (preg_match('/^(?:09|\+639|639)(\d{9})$/', $cleanedPhone, $matches)) {
+                $data['contact_phone'] = '09' . $matches[1];
+            }
         }
-        if (mb_strlen($data['notes']) > 1000) {
-            $errors['notes'] = 'Please keep notes to 1000 characters or fewer.';
+
+        if (mb_strlen($data['notes']) > 300) {
+            $errors['notes'] = 'Please keep notes to 300 characters or fewer.';
         }
+
         return [$data, $errors];
     }
 
-    public function new_address()
+    public function new()
     {
         $this->render_form('new', []);
     }
@@ -71,7 +80,7 @@ class Addresses extends Controller
     public function create()
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            redirect('addresses/new');
+            redirect('addresses');
             return;
         }
         if (!verify_csrf()) {
@@ -89,8 +98,11 @@ class Addresses extends Controller
             return;
         }
         try {
-            $this->Address_model->create_for_customer($customerId, $data);
-            flash('success', 'Saved address created.');
+            $id = $this->Address_model->create(array_merge($data, ['customer_id' => $customerId]));
+            if (!$id) {
+                throw new \RuntimeException('Failed to save address record.');
+            }
+            flash('success', 'Saved address added.');
             redirect('addresses');
         } catch (\Throwable $e) {
             error_log('Saved address creation failed: ' . $e->getMessage());

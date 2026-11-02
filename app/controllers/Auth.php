@@ -36,12 +36,14 @@ class Auth extends Controller
             $throttle = login_throttle_check($throttleKey, 5, 300);
             if (!$throttle['allowed']) {
                 $retryAfter = $throttle['retry_after'];
+                flash('old_email', $email);
                 flash('error', "Too many failed login attempts. Please wait {$retryAfter} seconds before trying again.");
                 header('Location: ' . base_url('login'));
                 exit;
             }
 
             if (empty($email) || empty($password)) {
+                flash('old_email', $email);
                 flash('error', 'Please provide both email address and password.');
                 header('Location: ' . base_url('login'));
                 exit;
@@ -57,6 +59,7 @@ class Auth extends Controller
                 return;
             } else {
                 login_throttle_record($throttleKey);
+                flash('old_email', $email);
                 flash('error', 'Invalid credentials or inactive account.');
                 header('Location: ' . base_url('login'));
                 exit;
@@ -69,7 +72,7 @@ class Auth extends Controller
     }
 
     /**
-     * Show customer registration form and handle signup
+     * Show registration form and process customer sign-up
      */
     public function register()
     {
@@ -92,32 +95,56 @@ class Auth extends Controller
             $password = $_POST['password'] ?? '';
             $passwordConfirm = $_POST['password_confirm'] ?? '';
 
-            // Server-side validations
-            if (empty($name) || strlen($name) < 2) {
-                flash('error', 'Please enter your full name.');
+            $oldRegister = [
+                'name' => $name,
+                'email' => $email,
+                'phone' => $phone,
+                'company_name' => $companyName,
+            ];
+
+            // Server-side validations matching front-end rules
+            if (empty($name) || mb_strlen($name) < 2) {
+                flash('old_register', $oldRegister);
+                flash('error', 'Please enter your full name (at least 2 characters).');
                 header('Location: ' . base_url('register'));
                 exit;
             }
 
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                flash('old_register', $oldRegister);
                 flash('error', 'Please enter a valid email address.');
                 header('Location: ' . base_url('register'));
                 exit;
             }
 
-            if (empty($phone)) {
-                flash('error', 'Please enter a valid contact phone number.');
+            $cleanedPhone = preg_replace('/[\s\-\(\)\.]/', '', $phone);
+            if (empty($phone) || !preg_match('/^(09|\+639|639)\d{9}$/', $cleanedPhone)) {
+                flash('old_register', $oldRegister);
+                flash('error', 'Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX).');
                 header('Location: ' . base_url('register'));
                 exit;
+            } else {
+                if (preg_match('/^(?:09|\+639|639)(\d{9})$/', $cleanedPhone, $m)) {
+                    $phone = '09' . $m[1];
+                }
             }
 
             if (strlen($password) < 8) {
+                flash('old_register', $oldRegister);
                 flash('error', 'Password must be at least 8 characters long.');
                 header('Location: ' . base_url('register'));
                 exit;
             }
 
+            if (!preg_match('/[a-zA-Z]/', $password) || !preg_match('/\d/', $password)) {
+                flash('old_register', $oldRegister);
+                flash('error', 'Password must contain at least one letter and one number.');
+                header('Location: ' . base_url('register'));
+                exit;
+            }
+
             if ($password !== $passwordConfirm) {
+                flash('old_register', $oldRegister);
                 flash('error', 'Password confirmation does not match.');
                 header('Location: ' . base_url('register'));
                 exit;
@@ -138,6 +165,7 @@ class Auth extends Controller
                 header('Location: ' . base_url('orders/new'));
                 exit;
             } else {
+                flash('old_register', $oldRegister);
                 flash('error', $res['error'] ?? 'Registration failed. Please try again.');
                 header('Location: ' . base_url('register'));
                 exit;
@@ -169,10 +197,23 @@ class Auth extends Controller
             $password = $_POST['password'] ?? '';
             $passwordConfirm = $_POST['password_confirm'] ?? '';
 
-            if (empty($name)) {
-                flash('error', 'Name cannot be empty.');
+            if (empty($name) || mb_strlen($name) < 2) {
+                flash('error', 'Name cannot be empty and must be at least 2 characters.');
                 header('Location: ' . base_url('profile'));
                 exit;
+            }
+
+            if (!empty($phone)) {
+                $cleanedPhone = preg_replace('/[\s\-\(\)\.]/', '', $phone);
+                if (!preg_match('/^(09|\+639|639)\d{9}$/', $cleanedPhone)) {
+                    flash('error', 'Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX).');
+                    header('Location: ' . base_url('profile'));
+                    exit;
+                } else {
+                    if (preg_match('/^(?:09|\+639|639)(\d{9})$/', $cleanedPhone, $m)) {
+                        $phone = '09' . $m[1];
+                    }
+                }
             }
 
             $updateData = [
@@ -183,11 +224,17 @@ class Auth extends Controller
                 $updateData['sms_opt_in'] = !empty($_POST['sms_opt_in']) ? 1 : 0;
                 $updateData['delivery_status_sms_opt_in'] = !empty($_POST['delivery_status_sms_opt_in']) ? 1 : 0;
                 $updateData['push_opt_in'] = !empty($_POST['push_opt_in']) ? 1 : 0;
+                $updateData['email_notifications_opt_in'] = !empty($_POST['email_notifications_opt_in']) ? 1 : 0;
             }
 
             if (!empty($password)) {
                 if (strlen($password) < 8) {
                     flash('error', 'New password must be at least 8 characters.');
+                    header('Location: ' . base_url('profile'));
+                    exit;
+                }
+                if (!preg_match('/[a-zA-Z]/', $password) || !preg_match('/\d/', $password)) {
+                    flash('error', 'New password must contain at least one letter and one number.');
                     header('Location: ' . base_url('profile'));
                     exit;
                 }
@@ -204,7 +251,9 @@ class Auth extends Controller
                 || (auth_role() === 'customer' && (!empty($_POST['sms_opt_in']) ? 1 : 0) !== (int)($user['sms_opt_in'] ?? 0))
                 || (auth_role() === 'customer' && (!empty($_POST['delivery_status_sms_opt_in']) ? 1 : 0) !== (int)($user['delivery_status_sms_opt_in'] ?? 0))
                 || (auth_role() === 'customer' && (!empty($_POST['push_opt_in']) ? 1 : 0) !== (int)($user['push_opt_in'] ?? 0))
-                || $password !== '';
+                || (auth_role() === 'customer' && (!empty($_POST['email_notifications_opt_in']) ? 1 : 0) !== (int)($user['email_notifications_opt_in'] ?? 1))
+                || !empty($password);
+
             if ($profileChanged && !$this->User_model->update_user(auth_id(), $updateData)) {
                 flash('error', 'Profile changes could not be saved. Please try again.');
                 header('Location: ' . base_url('profile'));
@@ -263,13 +312,13 @@ class Auth extends Controller
             exit;
         }
 
-        $this->User_model->save_fcm_token(auth_id(), $token);
-        echo json_encode(['success' => true]);
+        $saved = $this->User_model->save_fcm_token(auth_id(), $token);
+        echo json_encode(['success' => (bool)$saved]);
         exit;
     }
 
     /**
-     * AJAX endpoint to test client push notification
+     * AJAX endpoint to send a test push notification
      */
     public function test_push()
     {
@@ -289,33 +338,32 @@ class Auth extends Controller
             exit;
         }
 
-        $user = $this->User_model->find_by_id(auth_id());
-        $token = trim($user['fcm_token'] ?? '');
-        if (empty($token)) {
-            http_response_code(400);
-            echo json_encode(['error' => 'No push device token found for your account. Please enable browser notifications first.']);
+        $token = $this->User_model->get_fcm_token(auth_id());
+        if (!$token) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'No active device registered. Click "Enable browser notifications" first.']);
             exit;
         }
 
-        try {
-            $this->call->library('FirebasePushService');
-            $firebase = new FirebasePushService();
-            $result = $firebase->sendToToken($token, 'Dispatch Notification Test', 'Live push notification verified successfully!');
-            if (!empty($result['sent'])) {
-                echo json_encode(['success' => true, 'message' => 'Push notification delivered to your browser via FCM!']);
-            } elseif (!empty($result['disabled'])) {
-                echo json_encode(['success' => true, 'message' => 'Firebase Push is in local test mode (simulated notification).']);
-            } else {
-                echo json_encode(['success' => false, 'error' => $result['error'] ?? 'Could not deliver push notification.']);
-            }
-        } catch (Throwable $e) {
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        $this->call->library('FirebaseService');
+        $sent = $this->firebaseservice->sendToDevice(
+            $token,
+            'Dispatch Test Notification',
+            'Browser notifications are working correctly for your account.',
+            ['type' => 'test', 'url' => base_url('profile')]
+        );
+
+        if ($sent) {
+            echo json_encode(['success' => true, 'message' => 'Test notification delivered successfully.']);
+        } else {
+            http_response_code(502);
+            echo json_encode(['success' => false, 'error' => 'Firebase delivery failed. Check server logs or re-enable notifications.']);
         }
         exit;
     }
 
     /**
-     * AJAX endpoint to test customer SMS notification
+     * AJAX endpoint to send a test SMS via Semaphore
      */
     public function test_sms()
     {
@@ -336,34 +384,79 @@ class Auth extends Controller
         }
 
         $user = $this->User_model->find_by_id(auth_id());
-        $phone = trim($user['phone'] ?? '');
-        if (empty($phone)) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Please enter and save a mobile phone number in your profile first.']);
+        $phone = $user['phone'] ?? null;
+        if (!$phone) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'error' => 'Save your mobile number in your profile before requesting a test SMS.']);
             exit;
         }
 
-        try {
-            $this->call->library('SemaphoreService');
-            $sms = new SemaphoreService();
-            $res = $sms->send($phone, 'Dispatch SMS Test: Your phone number is verified and ready for delivery updates.');
-            if (!empty($res['sent'])) {
-                echo json_encode(['success' => true, 'message' => "Test SMS sent to {$phone}!"]);
-            } elseif (!empty($res['disabled'])) {
-                echo json_encode(['success' => true, 'message' => "Semaphore is disabled in configuration. SMS was simulated for {$phone}."]);
-            } else {
-                echo json_encode(['success' => false, 'error' => 'Failed to send test SMS.']);
-            }
-        } catch (Throwable $e) {
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        $this->call->library('SemaphoreService');
+        $msg = 'Dispatch: Semaphore test message. Notifications are active for your account.';
+        $sent = $this->semaphoreservice->send($phone, $msg);
+
+        if ($sent) {
+            echo json_encode(['success' => true, 'message' => "Test SMS sent to {$phone}."]);
+        } else {
+            http_response_code(502);
+            echo json_encode(['success' => false, 'error' => 'Semaphore SMS failed. Verify your API key and sender name in settings.']);
         }
         exit;
     }
 
     /**
-     * Helper to redirect authenticated user to their role landing page
+     * AJAX endpoint to send a test email notification
      */
-    protected function redirect_by_role(?string $role): void
+    public function test_email()
+    {
+        require_auth();
+        header('Content-Type: application/json');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode(['error' => 'Method Not Allowed']);
+            exit;
+        }
+
+        $payload = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        if (!verify_csrf($payload['csrf_token'] ?? '')) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Invalid security token.']);
+            exit;
+        }
+
+        $user = $this->User_model->find_by_id(auth_id());
+        $email = $user['email'] ?? null;
+        if (!$email) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'error' => 'No email address found for this account.']);
+            exit;
+        }
+
+        $this->call->library('EmailService');
+        $subject = 'Dispatch Test Email Notification';
+        $body = "
+            <p>Hello " . e($user['name'] ?? 'User') . ",</p>
+            <p>This is a test notification confirming that email alerts are configured and delivering properly for your Dispatch account.</p>
+            <p>You can manage your notification preferences anytime from your <a href=\"" . e(base_url('profile')) . "\">account profile</a>.</p>
+            <p>Best regards,<br>The Dispatch Team</p>
+        ";
+
+        $sent = $this->emailservice->send($email, $subject, $body);
+
+        if ($sent) {
+            echo json_encode(['success' => true, 'message' => "Test email sent to {$email}."]);
+        } else {
+            http_response_code(502);
+            echo json_encode(['success' => false, 'error' => 'Failed to send test email. Please verify SMTP settings.']);
+        }
+        exit;
+    }
+
+    /**
+     * Internal role-based redirect helper
+     */
+    private function redirect_by_role(string $role): void
     {
         switch ($role) {
             case 'admin':
@@ -375,10 +468,8 @@ class Auth extends Controller
             case 'rider':
                 header('Location: ' . base_url('rider'));
                 break;
-            case 'customer':
             default:
                 header('Location: ' . base_url('orders'));
-                break;
         }
         exit;
     }

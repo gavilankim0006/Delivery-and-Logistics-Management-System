@@ -15,6 +15,16 @@
     let widgetContainer, botTrigger, chatWindow, chatMessages, chatInput, sendBtn, closeBtn, typingIndicator;
 
     function init() {
+        // If on dedicated Package Messenger page, do not mount floating bot widget
+        // as the messenger includes its own integrated Dispatch AI Assistant chat & panel
+        if (
+            document.getElementById('messenger-vue-root') ||
+            document.querySelector('.messenger-wrapper') ||
+            window.location.pathname.includes('package-workflow')
+        ) {
+            return;
+        }
+
         createDOM();
         init3D();
         restorePosition();

@@ -1533,3 +1533,44 @@ a:hover { color: var(--route-dark); }
     .home-cta { flex-direction: column; align-items: flex-start; }
     .home-cta-actions { flex-wrap: wrap; }
 }
+
+/* User-Friendly Form System */
+input, select, textarea {
+    font-size: 16px !important; /* Prevents auto-zoom on mobile safari/chrome */
+}
+
+.btn-toggle-password,
+.btn-clear-search {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    padding: 6px;
+    color: var(--ink-3);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--r-sm);
+    z-index: 5;
+    line-height: 1;
+}
+
+.btn-toggle-password:hover,
+.btn-toggle-password:focus-visible,
+.btn-clear-search:hover,
+.btn-clear-search:focus-visible {
+    color: var(--ink);
+    outline: 2px solid var(--route);
+    outline-offset: 1px;
+}
+
+.invalid-feedback.auto-feedback {
+    display: block;
+    color: var(--danger);
+    font-size: var(--font-size-14);
+    font-weight: 500;
+}
+

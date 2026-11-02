@@ -15,6 +15,16 @@
     let widgetContainer, botTrigger, chatWindow, chatMessages, chatInput, sendBtn, closeBtn, typingIndicator;
 
     function init() {
+        // If on dedicated Package Messenger page, do not mount floating bot widget
+        // as the messenger includes its own integrated Dispatch AI Assistant chat & panel
+        if (
+            document.getElementById('messenger-vue-root') ||
+            document.querySelector('.messenger-wrapper') ||
+            window.location.pathname.includes('package-workflow')
+        ) {
+            return;
+        }
+
         createDOM();
         init3D();
         restorePosition();
@@ -62,9 +72,9 @@
                         <span class="ai-typing-dot"></span>
                     </div>
                 </div>
-                <form class="ai-chat-input-area" id="ai-chat-form">
-                    <input type="text" class="ai-chat-input" id="ai-chat-input" placeholder="Ask about orders, rates, tasks..." autocomplete="off">
-                    <button type="submit" class="ai-chat-send-btn" id="ai-chat-send" aria-label="Send message">
+                <form class="ai-chat-input-area" id="ai-chat-form" data-no-validate="true">
+                    <textarea class="ai-chat-input" id="ai-chat-input" placeholder="Ask about orders, rates, tasks... (Enter to send, Shift+Enter for new line)" autocomplete="off" rows="1" data-no-validate="true"></textarea>
+                    <button type="submit" class="ai-chat-send-btn" id="ai-chat-send" aria-label="Send message" disabled>
                         <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                     </button>
                 </form>
@@ -370,6 +380,24 @@
             e.preventDefault();
             sendMessage();
         });
+
+        // Chat input events: auto-grow, Enter sends, Shift+Enter new line, disable send when empty
+        if (chatInput) {
+            chatInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            chatInput.addEventListener('input', () => {
+                chatInput.style.height = '36px';
+                chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+                if (sendBtn) {
+                    sendBtn.disabled = chatInput.value.trim().length === 0 || isThinking;
+                }
+            });
+        }
     }
 
     function escapeHtml(text) {
@@ -408,10 +436,11 @@
 
     async function sendMessage() {
         const text = chatInput.value.trim();
-        if (!text) return;
+        if (!text || isThinking) return;
 
         appendMessage('user', text);
         chatInput.value = '';
+        chatInput.style.height = '36px';
         chatInput.disabled = true;
         sendBtn.disabled = true;
 
@@ -460,7 +489,7 @@
             isThinking = false;
             typingIndicator.classList.remove('active');
             chatInput.disabled = false;
-            sendBtn.disabled = false;
+            sendBtn.disabled = chatInput.value.trim().length === 0;
             chatInput.focus();
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }

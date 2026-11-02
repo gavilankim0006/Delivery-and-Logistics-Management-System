@@ -1,4 +1,16 @@
 /* AI Floating 3D Assistant Widget Styles */
+/* Hide floating 3D assistant on dedicated Package Messenger page where AI is built directly into the UI */
+body:has(#messenger-vue-root) #ai-assistant-widget,
+body:has(#messenger-vue-root) #ai-chat-window,
+body:has(.messenger-wrapper) #ai-assistant-widget,
+body:has(.messenger-wrapper) #ai-chat-window,
+.messenger-wrapper ~ #ai-assistant-widget,
+.messenger-wrapper ~ #ai-chat-window {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
 #ai-assistant-widget {
     width: 80px;
     height: 80px;
@@ -267,10 +279,15 @@
 .ai-chat-input {
     flex: 1;
     border: 1px solid #cbd5e1;
-    border-radius: 20px;
+    border-radius: 12px;
     padding: 8px 14px;
-    font-size: 13px;
+    font-size: 16px !important;
     outline: none;
+    resize: none;
+    height: 38px;
+    max-height: 120px;
+    line-height: 1.4;
+    font-family: inherit;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -292,6 +309,13 @@
     cursor: pointer;
     transition: background 0.15s ease, transform 0.1s ease;
     flex-shrink: 0;
+}
+
+.ai-chat-send-btn:disabled {
+    background: #cbd5e1 !important;
+    cursor: not-allowed;
+    opacity: 0.6;
+    transform: none !important;
 }
 
 .ai-chat-send-btn:hover {

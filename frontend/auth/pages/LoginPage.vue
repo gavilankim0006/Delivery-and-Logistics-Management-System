@@ -1,16 +1,57 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { TextInput, required, email as emailValidator } from '../../shared/index.js';
 
 const props = defineProps({
     baseUrl: { type: String, required: true },
     csrfToken: { type: String, required: true },
     errorMessage: { type: String, default: '' },
-    successMessage: { type: String, default: '' }
+    successMessage: { type: String, default: '' },
+    oldEmail: { type: String, default: '' }
 });
+
 const email = ref('');
+const password = ref('');
 const submitting = ref(false);
 
-function submit() {
+const emailInputRef = ref(null);
+const passwordInputRef = ref(null);
+
+onMounted(() => {
+    if (props.oldEmail) {
+        email.value = props.oldEmail;
+    } else {
+        try {
+            const saved = sessionStorage.getItem('dispatch_auth_email');
+            if (saved) email.value = saved;
+        } catch {
+            // Ignore storage access error
+        }
+    }
+});
+
+function handleSubmit(event) {
+    const isEmailValid = emailInputRef.value ? emailInputRef.value.validate() : true;
+    const isPasswordValid = passwordInputRef.value ? passwordInputRef.value.validate() : true;
+
+    if (!isEmailValid) {
+        event.preventDefault();
+        emailInputRef.value?.focus();
+        return;
+    }
+
+    if (!isPasswordValid) {
+        event.preventDefault();
+        passwordInputRef.value?.focus();
+        return;
+    }
+
+    try {
+        sessionStorage.setItem('dispatch_auth_email', email.value);
+    } catch {
+        // Ignore storage access error
+    }
+
     submitting.value = true;
 }
 </script>
@@ -18,7 +59,9 @@ function submit() {
 <template>
     <section class="auth-page" aria-labelledby="auth-title">
         <header class="auth-page__header">
-            <a :href="baseUrl" class="auth-page__brand text-decoration-none" title="Back to home page"><i class="bi bi-box-seam" aria-hidden="true"></i>Dispatch</a>
+            <a :href="baseUrl" class="auth-page__brand text-decoration-none" title="Back to home page">
+                <i class="bi bi-box-seam" aria-hidden="true"></i>Dispatch
+            </a>
             <svg class="auth-page__route" viewBox="0 0 112 24" aria-hidden="true" focusable="false">
                 <path d="M12 12h88" fill="none" stroke="currentColor" stroke-width="2" />
                 <circle cx="12" cy="12" r="5" fill="var(--paper)" stroke="currentColor" stroke-width="2" />
@@ -32,21 +75,43 @@ function submit() {
         <div v-if="successMessage" class="alert alert-success" role="status">{{ successMessage }}</div>
         <div v-if="errorMessage" class="alert alert-danger" role="alert">{{ errorMessage }}</div>
 
-        <form class="auth-form" :action="`${baseUrl}login`" method="POST" @submit="submit">
+        <form class="auth-form" :action="`${baseUrl}login`" method="POST" novalidate @submit="handleSubmit">
             <input type="hidden" name="csrf_token" :value="csrfToken">
-            <div class="mb-3">
-                <label for="login-email" class="form-label">Email address</label>
-                <input id="login-email" v-model="email" type="email" class="form-control" name="email" placeholder="name@example.com" required autofocus autocomplete="email">
-            </div>
-            <div class="mb-4">
-                <label for="login-password" class="form-label">Password</label>
-                <input id="login-password" type="password" class="form-control" name="password" placeholder="Enter your password" required autocomplete="current-password">
-            </div>
+
+            <TextInput
+                id="login-email"
+                ref="emailInputRef"
+                v-model="email"
+                name="email"
+                type="email"
+                label="Email address"
+                placeholder="name@example.com"
+                autocomplete="username"
+                :required="true"
+                :rules="[required, emailValidator]"
+            />
+
+            <TextInput
+                id="login-password"
+                ref="passwordInputRef"
+                v-model="password"
+                name="password"
+                type="password"
+                label="Password"
+                placeholder="Enter your password"
+                autocomplete="current-password"
+                :required="true"
+                :show-password-toggle="true"
+                :rules="[required]"
+            />
+
             <div class="d-grid mb-4">
                 <button type="submit" class="btn btn-primary py-2 fw-medium" :disabled="submitting">
-                    {{ submitting ? 'Signing in…' : 'Sign in' }}
+                    <span v-if="submitting" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    <span>{{ submitting ? 'Submitting...' : 'Sign in' }}</span>
                 </button>
             </div>
+
             <p class="text-center text-muted mb-0">
                 New here?
                 <a :href="`${baseUrl}register`" class="fw-semibold text-decoration-none">Create an account</a>

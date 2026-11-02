@@ -274,16 +274,16 @@ onUnmounted(() => {
                     <td data-label="Action" class="text-end align-middle">
                         <div v-if="canChooseFulfillment(order) || canReassignInternal(order) || canRetryInternalAssignment(order)" class="dispatch-fulfillment-actions text-start mb-2">
                             <span class="form-label d-block">{{ canReassignInternal(order) ? 'Change internal rider' : (canRetryInternalAssignment(order) ? 'Reassign internal rider' : 'Choose fulfillment') }}<button v-if="fulfillmentHint(order)" type="button" class="dispatch-fulfillment-hint small text-muted" tabindex="0" :title="fulfillmentHint(order)" :aria-label="fulfillmentHint(order)"><i class="bi bi-info-circle" aria-hidden="true"></i><span class="visually-hidden">Fulfillment details</span></button></span>
-                            <form v-if="availableRiders.length" method="post" :action="assignInternalUrl(order.id)" class="dispatch-fulfillment-form">
+                            <form method="post" :action="assignInternalUrl(order.id)" class="dispatch-fulfillment-form">
                                 <input type="hidden" name="csrf_token" :value="csrfToken">
                                 <label class="visually-hidden" :for="`rider-${order.id}`">Select an internal rider for order {{ order.order_no }}</label>
-                                <select :id="`rider-${order.id}`" name="rider_id" class="form-select form-select-sm" required>
+                                <select :id="`rider-${order.id}`" name="rider_id" class="form-select form-select-sm" required :disabled="!availableRiders.length">
                                     <option value="" disabled selected>Select rider</option>
+                                    <option v-if="!availableRiders.length" value="" disabled>No riders available</option>
                                     <option v-for="rider in availableRiders" :key="rider.id" :value="rider.id">{{ rider.name }} · {{ rider.vehicle_type }}<template v-if="rider.plate_number"> · {{ rider.plate_number }}</template></option>
                                 </select>
-                                <button type="submit" class="btn btn-sm btn-primary">{{ canReassignInternal(order) || canRetryInternalAssignment(order) ? 'Assign rider again' : 'Assign rider' }}</button>
+                                <button type="submit" class="btn btn-sm btn-primary" :disabled="!availableRiders.length">{{ canReassignInternal(order) || canRetryInternalAssignment(order) ? 'Assign rider again' : 'Assign rider' }}</button>
                             </form>
-                            <p v-else class="small text-muted mb-2">No portal-linked riders are available right now.</p>
                             <form v-if="canChooseFulfillment(order)" method="post" :action="selectLalamoveUrl(order.id)" class="dispatch-lalamove-form">
                                 <input type="hidden" name="csrf_token" :value="csrfToken">
                                 <button type="submit" class="btn btn-sm btn-outline-primary lalamove-action">Book Lalamove</button>

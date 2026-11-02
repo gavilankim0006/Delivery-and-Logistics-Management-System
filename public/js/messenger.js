@@ -222,14 +222,56 @@
 
       // New Handoff live customer search
       const customerSearchInput = document.getElementById('handoffCustomerSearch');
+      const customerSearchClear = document.getElementById('handoffCustomerSearchClear');
       if (customerSearchInput) {
         let debounceTimer = null;
         customerSearchInput.addEventListener('input', function () {
           clearTimeout(debounceTimer);
           const q = this.value.trim();
+          if (customerSearchClear) {
+            customerSearchClear.classList.toggle('d-none', !q);
+          }
+          if (q.length < 2) {
+            const resultsWrap = document.getElementById('handoffCustomerResults');
+            if (resultsWrap) {
+              resultsWrap.innerHTML = '';
+              resultsWrap.classList.add('d-none');
+            }
+            return;
+          }
           debounceTimer = setTimeout(function () {
             self.searchCustomers(q);
-          }, 250);
+          }, 300);
+        });
+
+        if (customerSearchClear) {
+          customerSearchClear.addEventListener('click', function () {
+            customerSearchInput.value = '';
+            customerSearchClear.classList.add('d-none');
+            const resultsWrap = document.getElementById('handoffCustomerResults');
+            if (resultsWrap) {
+              resultsWrap.innerHTML = '';
+              resultsWrap.classList.add('d-none');
+            }
+            const inputId = document.getElementById('newHandoffRecipientId');
+            const inputDisplay = document.getElementById('newHandoffRecipientDisplay');
+            if (inputId) inputId.value = '';
+            if (inputDisplay) {
+              inputDisplay.textContent = '';
+              inputDisplay.classList.add('d-none');
+            }
+            customerSearchInput.focus();
+          });
+        }
+      }
+
+      // Modal focus on first field and Esc close
+      const handoffModalEl = document.getElementById('newHandoffModal');
+      if (handoffModalEl) {
+        handoffModalEl.addEventListener('shown.bs.modal', function () {
+          const firstField = handoffModalEl.querySelector('select:not([disabled]), input:not([disabled])')
+            || handoffModalEl.querySelector('select, input');
+          firstField?.focus();
         });
       }
 
@@ -690,10 +732,12 @@
       if (!resultsWrap) return;
 
       if (!query || query.length < 2) {
-        resultsWrap.innerHTML = '<p class="text-muted small p-2 m-0">Type at least 2 characters to search...</p>';
+        resultsWrap.innerHTML = '';
+        resultsWrap.classList.add('d-none');
         return;
       }
 
+      resultsWrap.classList.remove('d-none');
       resultsWrap.innerHTML = '<p class="text-muted small p-2 m-0"><span class="spinner-border spinner-border-sm me-1"></span> Searching...</p>';
 
       fetch(this.config.baseUrl + 'package-workflow/api/customers?q=' + encodeURIComponent(query))
@@ -701,7 +745,7 @@
         .then(function (data) {
           const list = (data && data.customers) || [];
           if (list.length === 0) {
-            resultsWrap.innerHTML = '<p class="text-muted small p-2 m-0">No matching customers found.</p>';
+            resultsWrap.innerHTML = '<p class="text-muted small p-2 m-0 text-center">No customers found</p>';
             return;
           }
 
@@ -737,6 +781,7 @@
                 inputDisplay.classList.remove('d-none');
               }
               resultsWrap.innerHTML = '';
+              resultsWrap.classList.add('d-none');
               const searchInput = document.getElementById('handoffCustomerSearch');
               if (searchInput) searchInput.value = cname;
             });

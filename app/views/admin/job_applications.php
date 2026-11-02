@@ -7,7 +7,7 @@ $this->call->view('templates/header', ['page_title' => $page_title ?? 'Job appli
         <div><h1 class="page-title">Job applications</h1><p class="page-description">Review rider and dispatcher applications. ID files are sensitive; access only when needed for verification.</p></div>
     </header>
     <?php foreach (['success', 'error'] as $type): ?>
-        <?php if ($message = flash($type)): ?><div class="alert alert-<?= $type === 'error' ? 'danger' : 'success' ?>" role="status"><?= e($message) ?></div><?php endif; ?>
+        <?php if ($message = flash($type)): ?><div class="alert alert-<?= $type === 'error' ? 'danger' : 'success' ?>" role="status"><?= $message ?></div><?php endif; ?>
     <?php endforeach; ?>
     <section class="surface surface-section mb-4" aria-label="Filter applications">
         <form action="<?= e(base_url('admin/applications')) ?>" method="GET" class="row g-3 align-items-end">
@@ -35,7 +35,21 @@ $this->call->view('templates/header', ['page_title' => $page_title ?? 'Job appli
                         <div class="col-12 col-md-3"><label class="form-label" for="status-<?= (int)$application['id'] ?>">Decision</label><select class="form-select" id="status-<?= (int)$application['id'] ?>" name="status" required><option value="pending" <?= $application['status'] === 'pending' ? 'selected' : '' ?>>Pending</option><option value="approved" <?= $application['status'] === 'approved' ? 'selected' : '' ?>>Approved</option><option value="rejected" <?= $application['status'] === 'rejected' ? 'selected' : '' ?>>Rejected</option></select></div>
                         <div class="col-12 col-md-7"><label class="form-label" for="note-<?= (int)$application['id'] ?>">Internal note</label><input class="form-control" id="note-<?= (int)$application['id'] ?>" name="admin_note" maxlength="3000" value="<?= e($application['admin_note'] ?? '') ?>"></div>
                         <div class="col-12 col-md-2"><button class="btn btn-primary w-100" type="submit">Save review</button></div>
+                        <div class="col-12"><small class="text-muted"><i class="bi bi-info-circle me-1"></i>Approving creates the login account, registers rider profile (if Rider), and emails login credentials to the applicant.</small></div>
                     </form>
+                    <?php if (!empty($application['user_id'])): ?>
+                        <div class="mt-3 pt-2 border-top d-flex flex-wrap align-items-center gap-2 small">
+                            <span class="text-success fw-medium"><i class="bi bi-person-check-fill me-1"></i>Account active: User #<?= (int)$application['user_id'] ?> (<?= e($application['account_email'] ?? $application['email']) ?>)</span>
+                            <a href="<?= e(base_url('admin/users/' . (int)$application['user_id'])) ?>" class="badge text-bg-primary text-decoration-none">View user</a>
+                            <?php if ($application['role_applied'] === 'rider'): ?>
+                                <a href="<?= e(base_url('admin/riders')) ?>" class="badge text-bg-info text-decoration-none">Manage rider fleet</a>
+                            <?php endif; ?>
+                        </div>
+                    <?php elseif ($application['status'] === 'approved'): ?>
+                        <div class="mt-3 pt-2 border-top small text-warning-emphasis">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i>Account pending provisioning. Click <strong>Save review</strong> with "Approved" to generate their account and send the notification email.
+                        </div>
+                    <?php endif; ?>
                 </article>
             <?php endforeach; ?>
         </div>
