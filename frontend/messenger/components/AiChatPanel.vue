@@ -271,5 +271,10 @@ onMounted(() => {
     loadHistory();
   }
 });
+
+defineExpose({
+  resetConversation,
+  loadHistory,
+});
 </script>
 

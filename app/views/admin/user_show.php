@@ -1,7 +1,7 @@
 <?php
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 $this->call->view('templates/header', ['page_title' => $page_title ?? 'User details']);
-$roles = $this->User_model->get_roles();
+$roles = $roles ?? [];
 $isCurrentUser = ((int)$user['id'] === (int)auth_id());
 ?>
 <div class="container page-shell py-4">

@@ -52,10 +52,22 @@
                 </div>
               </div>
             </div>
+            <div class="messenger-header-actions">
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
+                title="Clear AI Conversation"
+                @click="aiPanelRef?.resetConversation()"
+              >
+                <i class="bi bi-arrow-counterclockwise"></i>
+                <span class="d-none d-sm-inline">Clear</span>
+              </button>
+            </div>
           </div>
 
           <!-- Embedded AI panel content stretched as main chat -->
           <AiChatPanel
+            ref="aiPanelRef"
             :is-open="true"
             :base-url="baseUrl"
             :order-context="null"
@@ -186,6 +198,7 @@ const statusFilter = ref('all');
 const isSending = ref(false);
 
 const newHandoffModalRef = ref(null);
+const aiPanelRef = ref(null);
 const renderedMessageIds = new Set(props.messages.map((m) => Number(m.id)));
 let pollingTimer = null;
 
@@ -203,6 +216,7 @@ async function onSelectConversation(id, updateUrl = true) {
   if (id === 'ai') {
     activeHandoffId.value = 'ai';
     isChatOpen.value = true;
+    isAiPanelOpen.value = true;
     stopPolling();
     return;
   }
@@ -412,11 +426,9 @@ function setup3dBotIntegration() {
     const botTrigger = document.getElementById('ai-bot-trigger');
     if (botTrigger) {
       clearInterval(checkBot);
-      botTrigger.addEventListener('click', (e) => {
-        // Toggle or open the AI panel inside messenger
-        isAiPanelOpen.value = true;
-        // If in mobile, open chat area
-        isChatOpen.value = true;
+      botTrigger.addEventListener('click', () => {
+        // Switch to the dedicated AI assistant conversation in messenger
+        onSelectConversation('ai');
       });
     }
   }, 300);

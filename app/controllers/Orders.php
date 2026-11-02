@@ -152,6 +152,25 @@ class Orders extends Controller
         $pickupLngInput = trim($formData['pickup_lng'] ?? '');
         $dropoffLatInput = trim($formData['dropoff_lat'] ?? '');
         $dropoffLngInput = trim($formData['dropoff_lng'] ?? '');
+
+        if (($pickupLatInput === '' || $pickupLngInput === '') && !empty($formData['pickup_coords'])) {
+            $coords = explode(',', (string)$formData['pickup_coords']);
+            if (count($coords) === 2 && is_numeric(trim($coords[0])) && is_numeric(trim($coords[1]))) {
+                $pickupLatInput = trim($coords[0]);
+                $pickupLngInput = trim($coords[1]);
+                $formData['pickup_lat'] = $pickupLatInput;
+                $formData['pickup_lng'] = $pickupLngInput;
+            }
+        }
+        if (($dropoffLatInput === '' || $dropoffLngInput === '') && !empty($formData['dropoff_coords'])) {
+            $coords = explode(',', (string)$formData['dropoff_coords']);
+            if (count($coords) === 2 && is_numeric(trim($coords[0])) && is_numeric(trim($coords[1]))) {
+                $dropoffLatInput = trim($coords[0]);
+                $dropoffLngInput = trim($coords[1]);
+                $formData['dropoff_lat'] = $dropoffLatInput;
+                $formData['dropoff_lng'] = $dropoffLngInput;
+            }
+        }
         $pickupLat = $pickupLatInput !== '' && is_numeric($pickupLatInput) ? (float)$pickupLatInput : null;
         $pickupLng = $pickupLngInput !== '' && is_numeric($pickupLngInput) ? (float)$pickupLngInput : null;
         $dropoffLat = $dropoffLatInput !== '' && is_numeric($dropoffLatInput) ? (float)$dropoffLatInput : null;
@@ -334,12 +353,25 @@ class Orders extends Controller
             return;
         }
 
+        $pickupCoords = ($order['pickup_lat'] !== null && $order['pickup_lng'] !== null)
+            ? number_format((float)$order['pickup_lat'], 6, '.', '') . ', ' . number_format((float)$order['pickup_lng'], 6, '.', '')
+            : '';
+        $dropoffCoords = ($order['dropoff_lat'] !== null && $order['dropoff_lng'] !== null)
+            ? number_format((float)$order['dropoff_lat'], 6, '.', '') . ', ' . number_format((float)$order['dropoff_lng'], 6, '.', '')
+            : '';
+
         $this->render_edit_order($id, [
             'pickup_address' => $order['pickup_address'],
+            'pickup_lat' => $order['pickup_lat'],
+            'pickup_lng' => $order['pickup_lng'],
+            'pickup_coords' => $pickupCoords,
             'pickup_contact_name' => $order['pickup_contact_name'],
             'pickup_contact_phone' => $order['pickup_phone'],
             'pickup_notes' => $order['pickup_notes'],
             'dropoff_address' => $order['dropoff_address'],
+            'dropoff_lat' => $order['dropoff_lat'],
+            'dropoff_lng' => $order['dropoff_lng'],
+            'dropoff_coords' => $dropoffCoords,
             'dropoff_contact_name' => $order['dropoff_contact_name'],
             'dropoff_contact_phone' => $order['dropoff_phone'],
             'dropoff_notes' => $order['dropoff_notes'],
@@ -467,6 +499,25 @@ class Orders extends Controller
         $pickupLngInput = trim($formData['pickup_lng'] ?? '');
         $dropoffLatInput = trim($formData['dropoff_lat'] ?? '');
         $dropoffLngInput = trim($formData['dropoff_lng'] ?? '');
+
+        if (($pickupLatInput === '' || $pickupLngInput === '') && !empty($formData['pickup_coords'])) {
+            $coords = explode(',', (string)$formData['pickup_coords']);
+            if (count($coords) === 2 && is_numeric(trim($coords[0])) && is_numeric(trim($coords[1]))) {
+                $pickupLatInput = trim($coords[0]);
+                $pickupLngInput = trim($coords[1]);
+                $formData['pickup_lat'] = $pickupLatInput;
+                $formData['pickup_lng'] = $pickupLngInput;
+            }
+        }
+        if (($dropoffLatInput === '' || $dropoffLngInput === '') && !empty($formData['dropoff_coords'])) {
+            $coords = explode(',', (string)$formData['dropoff_coords']);
+            if (count($coords) === 2 && is_numeric(trim($coords[0])) && is_numeric(trim($coords[1]))) {
+                $dropoffLatInput = trim($coords[0]);
+                $dropoffLngInput = trim($coords[1]);
+                $formData['dropoff_lat'] = $dropoffLatInput;
+                $formData['dropoff_lng'] = $dropoffLngInput;
+            }
+        }
         $pickupLat = $pickupLatInput !== '' && is_numeric($pickupLatInput) ? (float)$pickupLatInput : null;
         $pickupLng = $pickupLngInput !== '' && is_numeric($pickupLngInput) ? (float)$pickupLngInput : null;
         $dropoffLat = $dropoffLatInput !== '' && is_numeric($dropoffLatInput) ? (float)$dropoffLatInput : null;

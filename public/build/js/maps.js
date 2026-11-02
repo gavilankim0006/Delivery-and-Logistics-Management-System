@@ -1,7 +1,8 @@
 /**
  * Google Maps & Route Preview Component
  * Implements Places Autocomplete (country: PH), Interactive Polyline Map,
- * Dynamic Fee Estimation, and Keyboard-Accessible Typed Address Fallback.
+ * Dynamic Fee Estimation, Separate Coordinate Address Input via Pinpoints,
+ * Priority Coordinate Rendering, and Keyboard-Accessible Fallbacks.
  */
 
 class DeliveryMapManager {
@@ -9,6 +10,8 @@ class DeliveryMapManager {
         this.mapElementId = config.mapElementId || 'delivery-map';
         this.pickupInputId = config.pickupInputId || 'pickup_address';
         this.dropoffInputId = config.dropoffInputId || 'dropoff_address';
+        this.pickupCoordsId = config.pickupCoordsId || 'pickup_coords';
+        this.dropoffCoordsId = config.dropoffCoordsId || 'dropoff_coords';
         this.weightInputId = config.weightInputId || 'parcel_weight';
         this.distanceDisplayId = config.distanceDisplayId || 'summary-distance';
         this.durationDisplayId = config.durationDisplayId || 'summary-duration';
@@ -27,6 +30,9 @@ class DeliveryMapManager {
         this.dropoffMarker = null;
         this.polyline = null;
 
+        // Pinpoint coordinates have strict priority over typed address text
+        this.pickupPinCoords = null;
+        this.dropoffPinCoords = null;
         this.pickupCoords = null;
         this.dropoffCoords = null;
         this.debounceTimer = null;
@@ -54,6 +60,8 @@ class DeliveryMapManager {
         this.mapEl = document.getElementById(this.mapElementId);
         this.pickupInput = document.getElementById(this.pickupInputId);
         this.dropoffInput = document.getElementById(this.dropoffInputId);
+        this.pickupCoordsInput = document.getElementById(this.pickupCoordsId);
+        this.dropoffCoordsInput = document.getElementById(this.dropoffCoordsId);
         this.weightInput = document.getElementById(this.weightInputId);
         this.distanceDisplay = document.getElementById(this.distanceDisplayId);
         this.durationDisplay = document.getElementById(this.durationDisplayId);
@@ -92,7 +100,7 @@ class DeliveryMapManager {
             this.initAutocomplete();
             this.initMapInteractions();
         } else {
-            // Leaflet or fallback map rendering if Google Maps JS script not present
+            // Mock map rendering if Google Maps JS script not present
             this.renderMockMapPreview(defaultCenter);
         }
     }
@@ -100,12 +108,13 @@ class DeliveryMapManager {
     initMapInteractions() {
         if (!this.map || !window.google || !google.maps) return;
 
+        // Clicking on the map places a pinpoint for the active stop
         this.map.addListener('click', (event) => {
             const coords = { lat: event.latLng.lat(), lng: event.latLng.lng() };
-            const address = `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`;
-            this.setStopLocation(this.activeStop, coords, address);
+            this.setStopPinpoint(this.activeStop, coords);
         });
 
+        // Pin mode buttons: "Place pickup pin" vs "Place drop-off pin"
         document.querySelectorAll('[data-map-select]').forEach((button) => {
             button.addEventListener('click', () => {
                 this.activeStop = button.dataset.mapSelect === 'dropoff' ? 'dropoff' : 'pickup';
@@ -114,6 +123,14 @@ class DeliveryMapManager {
                     option.classList.toggle('active', active);
                     option.setAttribute('aria-pressed', String(active));
                 });
+            });
+        });
+
+        // "Clear pin" buttons in coordinate address input groups
+        document.querySelectorAll('[data-clear-stop]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const stop = button.dataset.clearStop === 'dropoff' ? 'dropoff' : 'pickup';
+                this.clearStopPinpoint(stop);
             });
         });
     }
@@ -131,10 +148,23 @@ class DeliveryMapManager {
             this.pickupAutocomplete.addListener('place_changed', () => {
                 const place = this.pickupAutocomplete.getPlace();
                 if (place.geometry && place.geometry.location) {
-                    this.setStopLocation('pickup', {
+                    const loc = {
                         lat: place.geometry.location.lat(),
                         lng: place.geometry.location.lng()
-                    }, place.formatted_address || place.name || this.pickupInput.value);
+                    };
+                    // Populate Address text box with selected place
+                    this.pickupInput.value = place.formatted_address || place.name || this.pickupInput.value;
+
+                    // Coordinate address is readonly and inputed ONLY by pinpoints.
+                    // If no pinpoint has been placed, pan map to help user pinpoint
+                    if (!this.pickupPinCoords) {
+                        if (this.map) {
+                            this.map.panTo(loc);
+                            this.map.setZoom(15);
+                        }
+                    }
+                    // Pinpoint coordinates take priority if they already exist
+                    this.triggerRouteCalculation();
                 }
             });
         }
@@ -144,10 +174,19 @@ class DeliveryMapManager {
             this.dropoffAutocomplete.addListener('place_changed', () => {
                 const place = this.dropoffAutocomplete.getPlace();
                 if (place.geometry && place.geometry.location) {
-                    this.setStopLocation('dropoff', {
+                    const loc = {
                         lat: place.geometry.location.lat(),
                         lng: place.geometry.location.lng()
-                    }, place.formatted_address || place.name || this.dropoffInput.value);
+                    };
+                    this.dropoffInput.value = place.formatted_address || place.name || this.dropoffInput.value;
+
+                    if (!this.dropoffPinCoords) {
+                        if (this.map) {
+                            this.map.panTo(loc);
+                            this.map.setZoom(15);
+                        }
+                    }
+                    this.triggerRouteCalculation();
                 }
             });
         }
@@ -175,21 +214,33 @@ class DeliveryMapManager {
 
         if (this.pickupInput) {
             this.pickupInput.addEventListener('input', () => {
-                this.clearStopLocation('pickup');
-                this.clearRouteEstimate();
-                this.clearError();
-                debouncedCalc();
+                // If coordinates are set by pinpoint, coordinates have priority!
+                // Do NOT wipe out the pinpoint marker or coordinates when typing address notes.
+                if (!this.pickupPinCoords) {
+                    this.clearRouteEstimate();
+                    this.clearError();
+                    debouncedCalc();
+                }
             });
-            this.pickupInput.addEventListener('blur', () => this.triggerRouteCalculation(true));
+            this.pickupInput.addEventListener('blur', () => {
+                if (!this.pickupPinCoords) {
+                    this.triggerRouteCalculation(true);
+                }
+            });
         }
         if (this.dropoffInput) {
             this.dropoffInput.addEventListener('input', () => {
-                this.clearStopLocation('dropoff');
-                this.clearRouteEstimate();
-                this.clearError();
-                debouncedCalc();
+                if (!this.dropoffPinCoords) {
+                    this.clearRouteEstimate();
+                    this.clearError();
+                    debouncedCalc();
+                }
             });
-            this.dropoffInput.addEventListener('blur', () => this.triggerRouteCalculation(true));
+            this.dropoffInput.addEventListener('blur', () => {
+                if (!this.dropoffPinCoords) {
+                    this.triggerRouteCalculation(true);
+                }
+            });
         }
         if (this.weightInput) {
             this.weightInput.addEventListener('change', () => this.triggerRouteCalculation());
@@ -198,34 +249,44 @@ class DeliveryMapManager {
     }
 
     async triggerRouteCalculation(showGeoErrors = false) {
-        const pickup = this.pickupInput ? this.pickupInput.value.trim() : '';
-        const dropoff = this.dropoffInput ? this.dropoffInput.value.trim() : '';
+        const pickupText = this.pickupInput ? this.pickupInput.value.trim() : '';
+        const dropoffText = this.dropoffInput ? this.dropoffInput.value.trim() : '';
         const weight = this.weightInput ? parseFloat(this.weightInput.value) || 1.0 : 1.0;
         if (this.weightInput && (!Number.isFinite(parseFloat(this.weightInput.value)) || parseFloat(this.weightInput.value) <= 0)) return;
 
-        if (!pickup || !dropoff) {
+        // Pinpoint coordinates take priority over typed address text
+        const pickupOrigin = this.pickupPinCoords || pickupText;
+        const dropoffDestination = this.dropoffPinCoords || dropoffText;
+
+        if (!pickupOrigin || !dropoffDestination) {
             return;
         }
 
-        // Try client-side geocoding first for fast interactive feedback
+        // Try client-side geocoding only for stops that do NOT have pinpoint coordinates
         if (window.google && window.google.maps) {
-            try {
-                if (!this.pickupCoords && pickup.length >= 3) {
+            if (!this.pickupPinCoords && pickupText.length >= 3) {
+                try {
                     await this.geocodeStopIfNeeded('pickup');
+                } catch (err) {
+                    // Fall back to server-side calculation
                 }
-            } catch (err) {
-                // If client geocoder fails, proceed to server-side calculation
             }
-            try {
-                if (!this.dropoffCoords && dropoff.length >= 3) {
+            if (!this.dropoffPinCoords && dropoffText.length >= 3) {
+                try {
                     await this.geocodeStopIfNeeded('dropoff');
+                } catch (err) {
+                    // Fall back to server-side calculation
                 }
-            } catch (err) {
-                // If client geocoder fails, proceed to server-side calculation
             }
         }
 
-        if (pickup.toLowerCase() === dropoff.toLowerCase()) {
+        if (this.pickupPinCoords && this.dropoffPinCoords) {
+            if (Math.abs(this.pickupPinCoords.lat - this.dropoffPinCoords.lat) < 0.000001 &&
+                Math.abs(this.pickupPinCoords.lng - this.dropoffPinCoords.lng) < 0.000001) {
+                this.showError('Pickup and drop-off pinpoint locations cannot be identical.');
+                return;
+            }
+        } else if (pickupText && dropoffText && pickupText.toLowerCase() === dropoffText.toLowerCase()) {
             this.showError('Pickup and drop-off locations cannot be identical.');
             return;
         }
@@ -238,8 +299,8 @@ class DeliveryMapManager {
         this.clearError();
 
         const payload = {
-            origin: this.pickupCoords || pickup,
-            destination: this.dropoffCoords || dropoff,
+            origin: this.pickupPinCoords || this.pickupCoords || pickupText,
+            destination: this.dropoffPinCoords || this.dropoffCoords || dropoffText,
             weight_kg: weight
         };
 
@@ -305,24 +366,27 @@ class DeliveryMapManager {
         this.setHiddenField('hidden_delivery_fee', data.fee);
 
         if (data.start_location) {
-            this.setHiddenField('pickup_lat', data.start_location.lat);
-            this.setHiddenField('pickup_lng', data.start_location.lng);
-            this.setHiddenField('hidden_pickup_lat', data.start_location.lat);
-            this.setHiddenField('hidden_pickup_lng', data.start_location.lng);
-            if (!this.pickupCoords) {
-                this.pickupCoords = data.start_location;
+            // Pinpoint coordinates have priority! Only overwrite hidden fields if not pinpointed
+            if (!this.pickupPinCoords) {
+                this.setHiddenField('pickup_lat', data.start_location.lat);
+                this.setHiddenField('pickup_lng', data.start_location.lng);
+                this.setHiddenField('hidden_pickup_lat', data.start_location.lat);
+                this.setHiddenField('hidden_pickup_lng', data.start_location.lng);
+                this.updateMarker('pickup', data.start_location);
+            } else {
+                this.updateMarker('pickup', this.pickupPinCoords);
             }
-            this.updateMarker('pickup', data.start_location);
         }
         if (data.end_location) {
-            this.setHiddenField('dropoff_lat', data.end_location.lat);
-            this.setHiddenField('dropoff_lng', data.end_location.lng);
-            this.setHiddenField('hidden_dropoff_lat', data.end_location.lat);
-            this.setHiddenField('hidden_dropoff_lng', data.end_location.lng);
-            if (!this.dropoffCoords) {
-                this.dropoffCoords = data.end_location;
+            if (!this.dropoffPinCoords) {
+                this.setHiddenField('dropoff_lat', data.end_location.lat);
+                this.setHiddenField('dropoff_lng', data.end_location.lng);
+                this.setHiddenField('hidden_dropoff_lat', data.end_location.lat);
+                this.setHiddenField('hidden_dropoff_lng', data.end_location.lng);
+                this.updateMarker('dropoff', data.end_location);
+            } else {
+                this.updateMarker('dropoff', this.dropoffPinCoords);
             }
-            this.updateMarker('dropoff', data.end_location);
         }
 
         const mockStatus = document.getElementById('mock-map-status');
@@ -335,38 +399,63 @@ class DeliveryMapManager {
         }
     }
 
+    /**
+     * Updates or creates a marker on the map.
+     * Priority rule: If a stop has pinpoint coordinates, the marker MUST display at the pinpoint coordinates.
+     * @param {'pickup'|'dropoff'} stop
+     * @param {{lat: number, lng: number}} coords
+     */
     updateMarker(stop, coords) {
         if (!this.map || !window.google || !google.maps) return;
         const isPickup = stop === 'pickup';
         const markerKey = isPickup ? 'pickupMarker' : 'dropoffMarker';
+
+        // Pinpoint coordinates have strict priority in displaying the icons on the map
+        const pinCoords = isPickup ? this.pickupPinCoords : this.dropoffPinCoords;
+        const targetCoords = pinCoords || coords;
+        if (!targetCoords) return;
+
         if (this[markerKey]) {
-            this[markerKey].setPosition(coords);
+            this[markerKey].setPosition(targetCoords);
             return;
         }
+
         this[markerKey] = new google.maps.Marker({
             map: this.map,
-            position: coords,
+            position: targetCoords,
             label: isPickup ? 'P' : 'D',
             title: isPickup ? 'Pickup location' : 'Drop-off location',
             draggable: true
         });
+
         this[markerKey].addListener('dragend', (event) => {
             const moved = { lat: event.latLng.lat(), lng: event.latLng.lng() };
-            this.setStopLocation(stop, moved, `${moved.lat.toFixed(6)}, ${moved.lng.toFixed(6)}`);
+            // Dragging marker is a pinpoint action: updates coordinate address, NOT typed address
+            this.setStopPinpoint(stop, moved);
         });
     }
 
     drawRouteOnMap(data) {
         if (!this.map || !window.google) return;
 
-        if (data.start_location && data.end_location) {
+        // Ensure markers are displayed at priority pinpoint coordinates if set
+        const pickupLoc = this.pickupPinCoords || data.start_location;
+        const dropoffLoc = this.dropoffPinCoords || data.end_location;
+
+        if (pickupLoc) {
+            this.updateMarker('pickup', pickupLoc);
+        }
+        if (dropoffLoc) {
+            this.updateMarker('dropoff', dropoffLoc);
+        }
+
+        if (pickupLoc && dropoffLoc) {
             const bounds = new google.maps.LatLngBounds();
-            const p1 = new google.maps.LatLng(data.start_location.lat, data.start_location.lng);
-            const p2 = new google.maps.LatLng(data.end_location.lat, data.end_location.lng);
+            const p1 = new google.maps.LatLng(pickupLoc.lat, pickupLoc.lng);
+            const p2 = new google.maps.LatLng(dropoffLoc.lat, dropoffLoc.lng);
 
             bounds.extend(p1);
             bounds.extend(p2);
-            this.map.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
 
             // If overview_polyline is present and geometry library exists
             if (data.overview_polyline && google.maps.geometry && google.maps.geometry.encoding) {
@@ -381,7 +470,10 @@ class DeliveryMapManager {
                     strokeWeight: 5,
                     map: this.map
                 });
+                path.forEach((pt) => bounds.extend(pt));
             }
+
+            this.map.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
         }
     }
 
@@ -432,36 +524,83 @@ class DeliveryMapManager {
         if (el) el.value = val;
     }
 
-    setStopLocation(stop, coords, address) {
+    /**
+     * Sets a stop's location from a pinpoint action (click on map or drag marker).
+     * Populates the readonly coordinate address textbox and hidden fields.
+     * Does NOT overwrite the separate typed Address textbox.
+     * Pinpoint coordinates have PRIORITY in displaying icons on the map.
+     * @param {'pickup'|'dropoff'} stop
+     * @param {{lat: number, lng: number}} coords
+     * @param {boolean} recalculate
+     */
+    setStopPinpoint(stop, coords, recalculate = true) {
         const isPickup = stop === 'pickup';
-        const input = isPickup ? this.pickupInput : this.dropoffInput;
-        const latField = document.getElementById(`${stop}_lat`);
-        const lngField = document.getElementById(`${stop}_lng`);
+        if (isPickup) {
+            this.pickupPinCoords = coords;
+            this.pickupCoords = coords;
+        } else {
+            this.dropoffPinCoords = coords;
+            this.dropoffCoords = coords;
+        }
 
-        if (isPickup) this.pickupCoords = coords;
-        else this.dropoffCoords = coords;
+        const coordStr = `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`;
+        const coordsInput = isPickup ? this.pickupCoordsInput : this.dropoffCoordsInput;
+        if (coordsInput) {
+            coordsInput.value = coordStr;
+            coordsInput.dispatchEvent(new Event('input', { bubbles: true }));
+            coordsInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
 
-        if (input && address) input.value = address;
-        if (latField) latField.value = coords.lat;
-        if (lngField) lngField.value = coords.lng;
+        this.setHiddenField(`${stop}_lat`, coords.lat);
+        this.setHiddenField(`${stop}_lng`, coords.lng);
+        this.setHiddenField(`hidden_${stop}_lat`, coords.lat);
+        this.setHiddenField(`hidden_${stop}_lng`, coords.lng);
+
         const distanceField = document.getElementById('distance_km');
         if (distanceField) distanceField.value = '';
 
+        // PRIORITY: Display the icon on the map at the pinpoint coordinates
+        this.updateMarker(stop, coords);
+
+        // NOTE: The separate Address textbox is preserved and NOT overwritten.
+
+        this.clearRouteEstimate();
+        this.clearError();
+        if (recalculate) {
+            this.triggerRouteCalculation();
+        }
+    }
+
+    /**
+     * Clears a stop's pinpoint coordinates.
+     * @param {'pickup'|'dropoff'} stop
+     */
+    clearStopPinpoint(stop) {
+        const isPickup = stop === 'pickup';
+        if (isPickup) {
+            this.pickupPinCoords = null;
+            this.pickupCoords = null;
+        } else {
+            this.dropoffPinCoords = null;
+            this.dropoffCoords = null;
+        }
+
+        const coordsInput = isPickup ? this.pickupCoordsInput : this.dropoffCoordsInput;
+        if (coordsInput) {
+            coordsInput.value = '';
+            coordsInput.dispatchEvent(new Event('input', { bubbles: true }));
+            coordsInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        this.setHiddenField(`${stop}_lat`, '');
+        this.setHiddenField(`${stop}_lng`, '');
+        this.setHiddenField(`hidden_${stop}_lat`, '');
+        this.setHiddenField(`hidden_${stop}_lng`, '');
+
         const markerKey = isPickup ? 'pickupMarker' : 'dropoffMarker';
-        if (this[markerKey]) this[markerKey].setMap(null);
-        if (this.map && window.google && google.maps) {
-            this[markerKey] = new google.maps.Marker({
-                map: this.map,
-                position: coords,
-                label: isPickup ? 'P' : 'D',
-                title: isPickup ? 'Pickup location' : 'Drop-off location',
-                draggable: true
-            });
-            this[markerKey].addListener('dragend', (event) => {
-                const moved = { lat: event.latLng.lat(), lng: event.latLng.lng() };
-                const movedAddress = `${moved.lat.toFixed(6)}, ${moved.lng.toFixed(6)}`;
-                this.setStopLocation(stop, moved, movedAddress);
-            });
+        if (this[markerKey]) {
+            this[markerKey].setMap(null);
+            this[markerKey] = null;
         }
 
         this.clearRouteEstimate();
@@ -469,51 +608,69 @@ class DeliveryMapManager {
         this.triggerRouteCalculation();
     }
 
-    clearStopLocation(stop) {
-        const isPickup = stop === 'pickup';
-        if (isPickup) this.pickupCoords = null;
-        else this.dropoffCoords = null;
-        this.setHiddenField(`${stop}_lat`, '');
-        this.setHiddenField(`${stop}_lng`, '');
-        const markerKey = isPickup ? 'pickupMarker' : 'dropoffMarker';
-        if (this[markerKey]) {
-            this[markerKey].setMap(null);
-            this[markerKey] = null;
+    /**
+     * Backward-compatible alias for setStopPinpoint.
+     * Updates pinpoint coordinates and only sets address if address input is currently empty.
+     */
+    setStopLocation(stop, coords, address) {
+        this.setStopPinpoint(stop, coords, true);
+        const input = stop === 'pickup' ? this.pickupInput : this.dropoffInput;
+        if (input && address && !input.value.trim()) {
+            input.value = address;
         }
+    }
+
+    clearStopLocation(stop) {
+        this.clearStopPinpoint(stop);
     }
 
     restoreSavedLocations() {
+        let hasPickup = false;
+        let hasDropoff = false;
+
         for (const stop of ['pickup', 'dropoff']) {
-            const lat = parseFloat(document.getElementById(`${stop}_lat`)?.value);
-            const lng = parseFloat(document.getElementById(`${stop}_lng`)?.value);
-            const input = stop === 'pickup' ? this.pickupInput : this.dropoffInput;
-            if (Number.isFinite(lat) && Number.isFinite(lng) && input?.value) {
-                if (stop === 'pickup') this.pickupCoords = { lat, lng };
-                else this.dropoffCoords = { lat, lng };
-                if (this.map && window.google && google.maps) {
-                    const markerKey = stop === 'pickup' ? 'pickupMarker' : 'dropoffMarker';
-                    this[markerKey] = new google.maps.Marker({
-                        map: this.map,
-                        position: { lat, lng },
-                        label: stop === 'pickup' ? 'P' : 'D',
-                        title: stop === 'pickup' ? 'Pickup location' : 'Drop-off location',
-                        draggable: true
-                    });
-                    this[markerKey].addListener('dragend', (event) => {
-                        const moved = { lat: event.latLng.lat(), lng: event.latLng.lng() };
-                        this.setStopLocation(stop, moved, `${moved.lat.toFixed(6)}, ${moved.lng.toFixed(6)}`);
-                    });
-                }
+            const latVal = document.getElementById(`${stop}_lat`)?.value;
+            const lngVal = document.getElementById(`${stop}_lng`)?.value;
+            const lat = parseFloat(latVal);
+            const lng = parseFloat(lngVal);
+
+            if (Number.isFinite(lat) && Number.isFinite(lng) && latVal !== '' && lngVal !== '') {
+                const coords = { lat, lng };
+                this.setStopPinpoint(stop, coords, false);
+                if (stop === 'pickup') hasPickup = true;
+                if (stop === 'dropoff') hasDropoff = true;
             }
         }
-        if (this.pickupCoords && this.dropoffCoords) this.triggerRouteCalculation();
+
+        if (hasPickup || hasDropoff) {
+            if (hasPickup && hasDropoff) {
+                const bounds = new google.maps.LatLngBounds();
+                if (this.pickupPinCoords) bounds.extend(this.pickupPinCoords);
+                if (this.dropoffPinCoords) bounds.extend(this.dropoffPinCoords);
+                this.map?.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
+                this.triggerRouteCalculation();
+            } else if (hasPickup && this.pickupPinCoords) {
+                this.map?.setCenter(this.pickupPinCoords);
+                this.map?.setZoom(15);
+            } else if (hasDropoff && this.dropoffPinCoords) {
+                this.map?.setCenter(this.dropoffPinCoords);
+                this.map?.setZoom(15);
+            }
+        } else {
+            const pickup = this.pickupInput ? this.pickupInput.value.trim() : '';
+            const dropoff = this.dropoffInput ? this.dropoffInput.value.trim() : '';
+            if (pickup && dropoff) {
+                this.triggerRouteCalculation();
+            }
+        }
     }
 
     clearRouteEstimate() {
-        this.routeReady = false;
-        this.requestId++;
-        this.setLoading(false);
-        this.setHiddenField('distance_km', '');
+        const distanceField = document.getElementById('distance_km');
+        if (distanceField) {
+            distanceField.value = '';
+            distanceField.dispatchEvent(new Event('input', { bubbles: true }));
+        }
         if (this.distanceDisplay) this.distanceDisplay.textContent = 'Not calculated';
         if (this.durationDisplay) this.durationDisplay.textContent = '—';
         if (this.feeDisplay) this.feeDisplay.textContent = '—';
@@ -564,18 +721,20 @@ class DeliveryMapManager {
     }
 
     /**
-     * Geocode a stop's typed address into coordinates if not already resolved.
+     * Geocode a stop's typed address into coordinates if not already resolved by a pinpoint.
      * Sets coords, hidden lat/lng fields, and places a draggable marker on the map.
-     * Does NOT call triggerRouteCalculation to avoid recursion.
+     * Pinpoint coordinates have PRIORITY: if pinpoint coordinates already exist, this does nothing.
      * @param {'pickup'|'dropoff'} stop
      */
     async geocodeStopIfNeeded(stop) {
         const isPickup = stop === 'pickup';
-        const coords = isPickup ? this.pickupCoords : this.dropoffCoords;
+        const pinCoords = isPickup ? this.pickupPinCoords : this.dropoffPinCoords;
+        if (pinCoords) return; // Priority: Pinpoint coordinates already exist
+
         const input = isPickup ? this.pickupInput : this.dropoffInput;
         const address = input ? input.value.trim() : '';
 
-        if (coords || address.length < 3) return;
+        if (address.length < 3) return;
 
         let result;
         try {
@@ -595,7 +754,7 @@ class DeliveryMapManager {
         if (latField) latField.value = newCoords.lat;
         if (lngField) lngField.value = newCoords.lng;
 
-        // Place a draggable marker so the user can fine-tune the geocoded location
+        // Place marker for geocoded address. User dragging it converts it to an exact pinpoint.
         const markerKey = isPickup ? 'pickupMarker' : 'dropoffMarker';
         if (this[markerKey]) this[markerKey].setMap(null);
         if (this.map && window.google && google.maps) {
@@ -608,7 +767,7 @@ class DeliveryMapManager {
             });
             this[markerKey].addListener('dragend', (event) => {
                 const moved = { lat: event.latLng.lat(), lng: event.latLng.lng() };
-                this.setStopLocation(stop, moved, `${moved.lat.toFixed(6)}, ${moved.lng.toFixed(6)}`);
+                this.setStopPinpoint(stop, moved);
             });
         }
     }

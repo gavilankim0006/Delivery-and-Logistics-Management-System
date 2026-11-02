@@ -27,7 +27,7 @@ class User_model extends Model
     public function find_by_id(int $id): ?array
     {
         $row = $this->getDb()->table('users')
-            ->select('users.id, users.role_id, users.name, users.email, users.phone, users.password, users.status, roles.name AS role_name, customers.id AS customer_id, customers.company_name')
+            ->select('users.id, users.role_id, users.name, users.email, users.phone, users.password, users.status, users.created_at, roles.name AS role_name, customers.id AS customer_id, customers.company_name')
             ->inner_join('roles', 'users.role_id = roles.id')
             ->left_join('customers', 'customers.user_id = users.id')
             ->where('users.id', $id)

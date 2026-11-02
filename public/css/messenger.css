@@ -881,7 +881,8 @@
   z-index: 3;
 }
 
-.messenger-shell.ai-panel-open .ai-panel {
+.messenger-shell.ai-panel-open .ai-panel,
+.ai-panel.is-open {
   width: 340px;
   min-width: 300px;
   opacity: 1;
@@ -1062,6 +1063,25 @@
 .messenger-ai-main {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.messenger-ai-main .ai-panel {
+  width: 100% !important;
+  max-width: 100% !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  border-left: none !important;
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  transition: none;
+}
+
+.messenger-ai-main .ai-panel .ai-panel-header {
+  display: none;
 }
 
 /* Keep 3D floating robot outside, but hide the popup window on messenger page because AI is inside messenger */

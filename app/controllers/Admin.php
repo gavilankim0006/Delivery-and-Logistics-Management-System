@@ -243,7 +243,12 @@ class Admin extends Controller
             $this->call->view('errors/error_404');
             return;
         }
-        $this->call->view('admin/user_show', ['page_title' => 'User details', 'user' => $user]);
+        $roles = $this->User_model->get_roles();
+        $this->call->view('admin/user_show', [
+            'page_title' => 'User details',
+            'user' => $user,
+            'roles' => $roles
+        ]);
     }
 
     /**
