@@ -40,6 +40,7 @@ class JobApplicationDocumentService
         }
         @chmod($this->storageDir, 0700);
         $key = bin2hex(random_bytes(32)) . '.' . $allowed[$mime];
+        $fileData = file_get_contents($upload['tmp_name']);
         if (!move_uploaded_file($upload['tmp_name'], $this->storageDir . DIRECTORY_SEPARATOR . $key)) {
             throw new RuntimeException('Could not securely store ID file.');
         }
@@ -49,7 +50,24 @@ class JobApplicationDocumentService
             'storage_key' => $key,
             'mime_type' => $mime,
             'original_name' => preg_replace('/[^A-Za-z0-9._-]/', '_', basename((string)($upload['name'] ?? 'id-document'))),
+            'file_data' => $fileData,
         ];
+    }
+
+    public function restoreFromData(string $storageKey, string $fileData): ?string
+    {
+        if (!preg_match('/\A[a-f0-9]{64}\.(jpg|png|webp|pdf)\z/', $storageKey)) {
+            return null;
+        }
+        if (!is_dir($this->storageDir) && !@mkdir($this->storageDir, 0700, true) && !is_dir($this->storageDir)) {
+            return null;
+        }
+        $path = $this->storageDir . DIRECTORY_SEPARATOR . $storageKey;
+        if (file_put_contents($path, $fileData) !== false) {
+            @chmod($path, 0600);
+            return $path;
+        }
+        return null;
     }
 
     public function readPath(string $storageKey): ?string

@@ -51,6 +51,7 @@ class Careers extends Controller
                 $data['id_storage_key'] = $document['storage_key'];
                 $data['id_mime_type'] = $document['mime_type'];
                 $data['id_original_name'] = $document['original_name'];
+                $data['id_file_data'] = $document['file_data'] ?? null;
                 $this->Job_application_model->create($data);
                 flash('success', 'Application received. Our team will review it and contact you using the details provided.');
             } catch (Throwable $e) {

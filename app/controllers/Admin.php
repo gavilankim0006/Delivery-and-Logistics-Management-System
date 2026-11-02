@@ -72,17 +72,43 @@ class Admin extends Controller
     public function application_id_document(int $id): void
     {
         $application = $this->Job_application_model->find($id);
-        $path = $application ? $this->JobApplicationDocumentService->readPath((string)$application['id_storage_key']) : null;
-        if (!$application || !$path || !in_array($application['id_mime_type'], ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'], true)) {
-            http_response_code(404);
+        if (!$application) {
+            flash('error', 'Job application not found.');
+            redirect('admin/applications');
             return;
         }
+
+        // 1. Try reading existing file from disk cache
+        $path = $this->JobApplicationDocumentService->readPath((string)$application['id_storage_key']);
+
+        // 2. If missing on disk (e.g. Render container restart), restore from database backup
+        if ((!$path || !is_file($path)) && !empty($application['id_file_data'])) {
+            $path = $this->JobApplicationDocumentService->restoreFromData(
+                (string)$application['id_storage_key'],
+                $application['id_file_data']
+            );
+        }
+
+        // 3. If file is completely unavailable (e.g. uploaded prior to fix and cleared by restart)
+        if (!$path || !is_file($path)) {
+            flash('error', 'The ID document for ' . ($application['full_name'] ?? 'this applicant') . ' is not available in server storage (it was removed during a server restart). Please ask the applicant to re-upload their ID.');
+            redirect('admin/applications');
+            return;
+        }
+
+        if (!in_array($application['id_mime_type'], ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'], true)) {
+            flash('error', 'Unsupported document format.');
+            redirect('admin/applications');
+            return;
+        }
+
         header('Content-Type: ' . $application['id_mime_type']);
         header('Content-Length: ' . (string)filesize($path));
         header('Content-Disposition: inline; filename="' . rawurlencode((string)$application['id_original_name']) . '"');
         header('X-Content-Type-Options: nosniff');
         header('Cache-Control: private, no-store, max-age=0');
         readfile($path);
+        exit;
     }
 
     /**
