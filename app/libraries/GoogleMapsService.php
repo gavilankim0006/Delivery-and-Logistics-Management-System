@@ -12,24 +12,36 @@ class GoogleMapsService extends ApiClient
     protected string $apiKey;
     protected bool $mockMode = false;
 
-    // Known Metro Manila reference hubs for mock geocoding
+    // Known reference hubs for mock/offline geocoding
     protected static array $knownHubs = [
-        'makati'     => ['lat' => 14.5547, 'lng' => 121.0244, 'address' => 'Makati CBD, Ayala Avenue, Makati City'],
-        'ayala'      => ['lat' => 14.5547, 'lng' => 121.0244, 'address' => 'Ayala Avenue, Makati City'],
-        'bgc'        => ['lat' => 14.5176, 'lng' => 121.0509, 'address' => 'BGC High Street, 5th Avenue, Taguig City'],
-        'taguig'     => ['lat' => 14.5176, 'lng' => 121.0509, 'address' => 'Bonifacio Global City, Taguig City'],
-        'ortigas'    => ['lat' => 14.5869, 'lng' => 121.0614, 'address' => 'Ortigas Center, San Miguel Ave, Pasig City'],
-        'pasig'      => ['lat' => 14.5869, 'lng' => 121.0614, 'address' => 'San Antonio, Pasig City'],
-        'eastwood'   => ['lat' => 14.6105, 'lng' => 121.0805, 'address' => 'Eastwood City Cyberpark, Libis, Quezon City'],
-        'greenhills' => ['lat' => 14.6025, 'lng' => 121.0503, 'address' => 'Greenhills Shopping Center, San Juan City'],
-        'san juan'   => ['lat' => 14.6025, 'lng' => 121.0503, 'address' => 'Greenhills, San Juan City'],
-        'alabang'    => ['lat' => 14.4253, 'lng' => 121.0315, 'address' => 'Alabang Town Center, Muntinlupa City'],
-        'muntinlupa' => ['lat' => 14.4253, 'lng' => 121.0315, 'address' => 'Muntinlupa City, Metro Manila'],
-        'manila'     => ['lat' => 14.5895, 'lng' => 120.9815, 'address' => 'Padre Burgos Ave, Ermita, Manila'],
-        'naia'       => ['lat' => 14.5086, 'lng' => 121.0194, 'address' => 'Ninoy Aquino International Airport, Pasay City'],
-        'pasay'      => ['lat' => 14.5378, 'lng' => 120.9993, 'address' => 'Mall of Asia Complex, Pasay City'],
-        'quezon city'=> ['lat' => 14.6515, 'lng' => 121.0494, 'address' => 'Diliman, Quezon City, Metro Manila'],
-        'cubao'      => ['lat' => 14.6200, 'lng' => 121.0530, 'address' => 'Araneta City, Cubao, Quezon City']
+        // Metro Manila hubs
+        'makati'           => ['lat' => 14.5547, 'lng' => 121.0244, 'address' => 'Makati CBD, Ayala Avenue, Makati City'],
+        'ayala'            => ['lat' => 14.5547, 'lng' => 121.0244, 'address' => 'Ayala Avenue, Makati City'],
+        'bgc'              => ['lat' => 14.5176, 'lng' => 121.0509, 'address' => 'BGC High Street, 5th Avenue, Taguig City'],
+        'taguig'           => ['lat' => 14.5176, 'lng' => 121.0509, 'address' => 'Bonifacio Global City, Taguig City'],
+        'ortigas'          => ['lat' => 14.5869, 'lng' => 121.0614, 'address' => 'Ortigas Center, San Miguel Ave, Pasig City'],
+        'pasig'            => ['lat' => 14.5869, 'lng' => 121.0614, 'address' => 'San Antonio, Pasig City'],
+        'eastwood'         => ['lat' => 14.6105, 'lng' => 121.0805, 'address' => 'Eastwood City Cyberpark, Libis, Quezon City'],
+        'greenhills'       => ['lat' => 14.6025, 'lng' => 121.0503, 'address' => 'Greenhills Shopping Center, San Juan City'],
+        'san juan'         => ['lat' => 14.6025, 'lng' => 121.0503, 'address' => 'Greenhills, San Juan City'],
+        'alabang'          => ['lat' => 14.4253, 'lng' => 121.0315, 'address' => 'Alabang Town Center, Muntinlupa City'],
+        'muntinlupa'       => ['lat' => 14.4253, 'lng' => 121.0315, 'address' => 'Muntinlupa City, Metro Manila'],
+        'manila'           => ['lat' => 14.5895, 'lng' => 120.9815, 'address' => 'Padre Burgos Ave, Ermita, Manila'],
+        'naia'             => ['lat' => 14.5086, 'lng' => 121.0194, 'address' => 'Ninoy Aquino International Airport, Pasay City'],
+        'pasay'            => ['lat' => 14.5378, 'lng' => 120.9993, 'address' => 'Mall of Asia Complex, Pasay City'],
+        'quezon city'      => ['lat' => 14.6515, 'lng' => 121.0494, 'address' => 'Diliman, Quezon City, Metro Manila'],
+        'cubao'            => ['lat' => 14.6200, 'lng' => 121.0530, 'address' => 'Araneta City, Cubao, Quezon City'],
+
+        // Oriental Mindoro reference hubs
+        'pinagsabangan'    => ['lat' => 13.2754, 'lng' => 121.2654, 'address' => 'Pinagsabangan 1, Naujan, Oriental Mindoro'],
+        'barcenaga'        => ['lat' => 13.2625, 'lng' => 121.2415, 'address' => 'Barcenaga, Naujan, Oriental Mindoro'],
+        'naujan'           => ['lat' => 13.3236, 'lng' => 121.3032, 'address' => 'Naujan, Oriental Mindoro'],
+        'calapan'          => ['lat' => 13.4115, 'lng' => 121.1803, 'address' => 'Calapan City, Oriental Mindoro'],
+        'victoria'         => ['lat' => 13.1764, 'lng' => 121.2789, 'address' => 'Victoria, Oriental Mindoro'],
+        'pinamalayan'      => ['lat' => 13.0450, 'lng' => 121.4925, 'address' => 'Pinamalayan, Oriental Mindoro'],
+        'puerto galera'    => ['lat' => 13.5019, 'lng' => 120.9542, 'address' => 'Puerto Galera, Oriental Mindoro'],
+        'oriental mindoro' => ['lat' => 13.3236, 'lng' => 121.3032, 'address' => 'Naujan, Oriental Mindoro'],
+        'mindoro'          => ['lat' => 13.3236, 'lng' => 121.3032, 'address' => 'Oriental Mindoro']
     ];
 
     public function __construct(?string $apiKey = null)
@@ -314,14 +326,18 @@ class GoogleMapsService extends ApiClient
             }
         }
 
-        // Hash-based deterministic coordinate within Metro Manila
+        // Hash-based deterministic coordinate (checks province/region hint)
+        $isMindoro = str_contains($lower, 'mindoro') || str_contains($lower, 'naujan') || str_contains($lower, 'calapan');
+        $baseLat = $isMindoro ? 13.3236 : 14.5547;
+        $baseLng = $isMindoro ? 121.3032 : 121.0244;
+
         $hash = crc32($str);
         $offsetLat = (($hash % 1000) / 10000.0) - 0.05;
         $offsetLng = ((($hash >> 8) % 1000) / 10000.0) - 0.05;
 
         return [
-            'lat' => round(14.5547 + $offsetLat, 6),
-            'lng' => round(121.0244 + $offsetLng, 6),
+            'lat' => round($baseLat + $offsetLat, 6),
+            'lng' => round($baseLng + $offsetLng, 6),
             'address' => $str
         ];
     }

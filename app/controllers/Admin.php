@@ -17,11 +17,25 @@ class Admin extends Controller
         $this->call->model('Service_area_model');
         $this->call->model('Report_model');
         $this->call->model('Job_application_model');
+        $this->call->model('Package_workflow_model');
         $this->call->library('JobApplicationDocumentService');
 
         $this->call->library('CourierProviderFactory');
         $this->call->library('MockCourierDriver');
         $this->call->library('DeliveryCommandSimulator');
+    }
+
+    public function package_reports(): void
+    {
+        $this->call->view('admin/package_reports', ['page_title'=>'Missing-package reports','reports'=>$this->Package_workflow_model->list_reports()]);
+    }
+
+    public function review_package_report(int $id): void
+    {
+        $status=(string)($_POST['status']??''); $note=trim((string)($_POST['admin_note']??''));
+        if ($_SERVER['REQUEST_METHOD']!=='POST'||!verify_csrf()||!in_array($status,['open','investigating','resolved','rejected'],true)||mb_strlen($note)>3000||!$this->Package_workflow_model->update_report($id,$status,$note,(int)(auth_user()['id']??0))) flash('error','Invalid report update.');
+        else flash('success','Missing-package report updated.');
+        redirect('admin/package-reports');
     }
 
     public function applications(): void

@@ -21,7 +21,7 @@ $dispatchProps = [
     ], $pending_requests ?? []),
 ];
 ?>
-<div class="container page-shell">
+<div class="container-fluid page-shell dispatch-page-shell">
     <div id="dispatch-controls-vue-root"
         data-props="<?= e(json_encode($dispatchProps, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?: '{}') ?>"
         data-base-url="<?= e(base_url()) ?>"
@@ -41,7 +41,7 @@ $dispatchProps = [
     </div>
 
     <p class="small text-muted mb-3">Live updates <span id="dispatch-live-status" role="status" aria-live="polite">Connecting…</span></p>
-    <section class="surface" aria-label="Dispatch orders" data-dispatch-vue-board>
+    <section class="surface dispatch-board-card" aria-label="Dispatch orders" data-dispatch-vue-board>
         <div id="dispatch-vue-root"
             data-data-url="<?= e($dispatch_data_url) ?>"
             data-base-url="<?= e($dispatch_base_url) ?>"
@@ -53,6 +53,8 @@ $dispatchProps = [
     </section>
 </div>
 <?php
-$extra_js = '<script type="module" nonce="' . e(defined('CSP_NONCE') ? CSP_NONCE : '') . '" src="' . e(base_url('build/dispatch.js')) . '"></script>';
+$dispatchBundlePath = dirname(__DIR__, 3) . '/public/build/dispatch.js';
+$dispatchBundleVersion = is_file($dispatchBundlePath) ? '?v=' . (string)filemtime($dispatchBundlePath) : '';
+$extra_js = '<script type="module" nonce="' . e(defined('CSP_NONCE') ? CSP_NONCE : '') . '" src="' . e(base_url('public/build/dispatch.js')) . e($dispatchBundleVersion) . '"></script>';
 $this->call->view('templates/footer', ['extra_js' => $extra_js]);
 ?>

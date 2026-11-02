@@ -42,9 +42,7 @@ class DeliveryMapManager {
         const form = this.mapEl?.closest('form');
         if (form) {
             form.addEventListener('submit', (event) => {
-                const hasAnyMapLocation = ['pickup_lat', 'pickup_lng', 'dropoff_lat', 'dropoff_lng']
-                    .some((id) => document.getElementById(id)?.value !== '');
-                if (this.map && hasAnyMapLocation && !this.routeReady) {
+                if (!this.routeReady) {
                     event.preventDefault();
                     this.showError('Select both locations and wait for a verified Google route before saving.');
                 }
@@ -182,7 +180,7 @@ class DeliveryMapManager {
                 this.clearError();
                 debouncedCalc();
             });
-            this.pickupInput.addEventListener('blur', () => this.triggerRouteCalculation());
+            this.pickupInput.addEventListener('blur', () => this.triggerRouteCalculation(true));
         }
         if (this.dropoffInput) {
             this.dropoffInput.addEventListener('input', () => {
@@ -191,7 +189,7 @@ class DeliveryMapManager {
                 this.clearError();
                 debouncedCalc();
             });
-            this.dropoffInput.addEventListener('blur', () => this.triggerRouteCalculation());
+            this.dropoffInput.addEventListener('blur', () => this.triggerRouteCalculation(true));
         }
         if (this.weightInput) {
             this.weightInput.addEventListener('change', () => this.triggerRouteCalculation());
@@ -199,7 +197,7 @@ class DeliveryMapManager {
         }
     }
 
-    triggerRouteCalculation() {
+    async triggerRouteCalculation(showGeoErrors = false) {
         const pickup = this.pickupInput ? this.pickupInput.value.trim() : '';
         const dropoff = this.dropoffInput ? this.dropoffInput.value.trim() : '';
         const weight = this.weightInput ? parseFloat(this.weightInput.value) || 1.0 : 1.0;
@@ -209,8 +207,22 @@ class DeliveryMapManager {
             return;
         }
 
-        if (window.google && window.google.maps && (!this.pickupCoords || !this.dropoffCoords)) {
-            return;
+        // Try client-side geocoding first for fast interactive feedback
+        if (window.google && window.google.maps) {
+            try {
+                if (!this.pickupCoords && pickup.length >= 3) {
+                    await this.geocodeStopIfNeeded('pickup');
+                }
+            } catch (err) {
+                // If client geocoder fails, proceed to server-side calculation
+            }
+            try {
+                if (!this.dropoffCoords && dropoff.length >= 3) {
+                    await this.geocodeStopIfNeeded('dropoff');
+                }
+            } catch (err) {
+                // If client geocoder fails, proceed to server-side calculation
+            }
         }
 
         if (pickup.toLowerCase() === dropoff.toLowerCase()) {
@@ -219,6 +231,9 @@ class DeliveryMapManager {
         }
 
         const requestId = ++this.requestId;
+        this.routeReady = false;
+        const distanceField = document.getElementById('distance_km');
+        if (distanceField) distanceField.value = '';
         this.setLoading(true);
         this.clearError();
 
@@ -246,6 +261,7 @@ class DeliveryMapManager {
         .then((res) => {
             if (requestId !== this.requestId) return;
             if (res.success && res.data) {
+                this.routeReady = true;
                 this.updateSummaryUI(res.data);
                 this.drawRouteOnMap(res.data);
                 this.routeReady = true;
@@ -266,7 +282,10 @@ class DeliveryMapManager {
             this.distanceDisplay.textContent = `${data.distance_km} km`;
         }
         const distanceInput = document.getElementById('distance_km');
-        if (distanceInput) distanceInput.value = data.distance_km;
+        if (distanceInput) {
+            distanceInput.value = data.distance_km;
+            distanceInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
         if (this.durationDisplay) {
             this.durationDisplay.textContent = `~${data.duration_min} min`;
         }
@@ -279,17 +298,31 @@ class DeliveryMapManager {
                 : 'Route estimate is approximate (offline fallback); verify the road distance before saving.';
         }
 
-        // Store hidden fields in order form if present
+        // Store form fields (both standard and hidden)
+        this.setHiddenField('distance_km', data.distance_km);
         this.setHiddenField('hidden_distance_km', data.distance_km);
         this.setHiddenField('hidden_estimated_duration_min', data.duration_min);
         this.setHiddenField('hidden_delivery_fee', data.fee);
+
         if (data.start_location) {
+            this.setHiddenField('pickup_lat', data.start_location.lat);
+            this.setHiddenField('pickup_lng', data.start_location.lng);
             this.setHiddenField('hidden_pickup_lat', data.start_location.lat);
             this.setHiddenField('hidden_pickup_lng', data.start_location.lng);
+            if (!this.pickupCoords) {
+                this.pickupCoords = data.start_location;
+            }
+            this.updateMarker('pickup', data.start_location);
         }
         if (data.end_location) {
+            this.setHiddenField('dropoff_lat', data.end_location.lat);
+            this.setHiddenField('dropoff_lng', data.end_location.lng);
             this.setHiddenField('hidden_dropoff_lat', data.end_location.lat);
             this.setHiddenField('hidden_dropoff_lng', data.end_location.lng);
+            if (!this.dropoffCoords) {
+                this.dropoffCoords = data.end_location;
+            }
+            this.updateMarker('dropoff', data.end_location);
         }
 
         const mockStatus = document.getElementById('mock-map-status');
@@ -300,6 +333,27 @@ class DeliveryMapManager {
             mockTag.textContent = `${data.distance_km} km • ~${data.duration_min} min • PHP ${data.fee}`;
             mockSummary.classList.remove('d-none');
         }
+    }
+
+    updateMarker(stop, coords) {
+        if (!this.map || !window.google || !google.maps) return;
+        const isPickup = stop === 'pickup';
+        const markerKey = isPickup ? 'pickupMarker' : 'dropoffMarker';
+        if (this[markerKey]) {
+            this[markerKey].setPosition(coords);
+            return;
+        }
+        this[markerKey] = new google.maps.Marker({
+            map: this.map,
+            position: coords,
+            label: isPickup ? 'P' : 'D',
+            title: isPickup ? 'Pickup location' : 'Drop-off location',
+            draggable: true
+        });
+        this[markerKey].addListener('dragend', (event) => {
+            const moved = { lat: event.latLng.lat(), lng: event.latLng.lng() };
+            this.setStopLocation(stop, moved, `${moved.lat.toFixed(6)}, ${moved.lng.toFixed(6)}`);
+        });
     }
 
     drawRouteOnMap(data) {
@@ -390,6 +444,8 @@ class DeliveryMapManager {
         if (input && address) input.value = address;
         if (latField) latField.value = coords.lat;
         if (lngField) lngField.value = coords.lng;
+        const distanceField = document.getElementById('distance_km');
+        if (distanceField) distanceField.value = '';
 
         const markerKey = isPickup ? 'pickupMarker' : 'dropoffMarker';
         if (this[markerKey]) this[markerKey].setMap(null);
@@ -454,6 +510,7 @@ class DeliveryMapManager {
     }
 
     clearRouteEstimate() {
+        this.routeReady = false;
         this.requestId++;
         this.setLoading(false);
         this.setHiddenField('distance_km', '');
@@ -467,6 +524,92 @@ class DeliveryMapManager {
         if (this.polyline) {
             this.polyline.setMap(null);
             this.polyline = null;
+        }
+    }
+
+    /**
+     * Geocode an address string to coordinates using Google Maps Geocoder.
+     * Restricted to the Philippines (country: PH).
+     * @param {string} address
+     * @returns {Promise<{lat: number, lng: number, formatted: string}>}
+     */
+    geocodeAddress(address) {
+        if (!window.google || !google.maps) {
+            return Promise.reject(new Error('Google Maps not available'));
+        }
+        if (!this._geocoder) {
+            this._geocoder = new google.maps.Geocoder();
+        }
+        return new Promise((resolve, reject) => {
+            this._geocoder.geocode(
+                { address, componentRestrictions: { country: 'PH' } },
+                (results, status) => {
+                    if (status === 'OK' && results && results.length > 0) {
+                        const loc = results[0].geometry.location;
+                        resolve({
+                            lat: loc.lat(),
+                            lng: loc.lng(),
+                            formatted: results[0].formatted_address
+                        });
+                    } else {
+                        reject(new Error(
+                            status === 'ZERO_RESULTS'
+                                ? 'No location found for this address. Try a more specific address or select from suggestions.'
+                                : 'Could not look up this address. Please select from suggestions or place a pin on the map.'
+                        ));
+                    }
+                }
+            );
+        });
+    }
+
+    /**
+     * Geocode a stop's typed address into coordinates if not already resolved.
+     * Sets coords, hidden lat/lng fields, and places a draggable marker on the map.
+     * Does NOT call triggerRouteCalculation to avoid recursion.
+     * @param {'pickup'|'dropoff'} stop
+     */
+    async geocodeStopIfNeeded(stop) {
+        const isPickup = stop === 'pickup';
+        const coords = isPickup ? this.pickupCoords : this.dropoffCoords;
+        const input = isPickup ? this.pickupInput : this.dropoffInput;
+        const address = input ? input.value.trim() : '';
+
+        if (coords || address.length < 3) return;
+
+        let result;
+        try {
+            result = await this.geocodeAddress(address);
+        } catch (err) {
+            const label = isPickup ? 'Pickup' : 'Drop-off';
+            throw new Error(`${label}: ${err.message}`);
+        }
+
+        const newCoords = { lat: result.lat, lng: result.lng };
+
+        if (isPickup) this.pickupCoords = newCoords;
+        else this.dropoffCoords = newCoords;
+
+        const latField = document.getElementById(`${stop}_lat`);
+        const lngField = document.getElementById(`${stop}_lng`);
+        if (latField) latField.value = newCoords.lat;
+        if (lngField) lngField.value = newCoords.lng;
+
+        // Place a draggable marker so the user can fine-tune the geocoded location
+        const markerKey = isPickup ? 'pickupMarker' : 'dropoffMarker';
+        if (this[markerKey]) this[markerKey].setMap(null);
+        if (this.map && window.google && google.maps) {
+            this[markerKey] = new google.maps.Marker({
+                map: this.map,
+                position: newCoords,
+                label: isPickup ? 'P' : 'D',
+                title: isPickup ? 'Pickup location' : 'Drop-off location',
+                draggable: true
+            });
+            this[markerKey].addListener('dragend', (event) => {
+                const moved = { lat: event.latLng.lat(), lng: event.latLng.lng() };
+                this.setStopLocation(stop, moved, `${moved.lat.toFixed(6)}, ${moved.lng.toFixed(6)}`);
+            });
         }
     }
 }

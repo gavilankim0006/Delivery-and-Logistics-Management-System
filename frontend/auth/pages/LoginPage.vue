@@ -18,7 +18,7 @@ function submit() {
 <template>
     <section class="auth-page" aria-labelledby="auth-title">
         <header class="auth-page__header">
-            <p class="auth-page__brand"><i class="bi bi-box-seam" aria-hidden="true"></i>Dispatch</p>
+            <a :href="baseUrl" class="auth-page__brand text-decoration-none" title="Back to home page"><i class="bi bi-box-seam" aria-hidden="true"></i>Dispatch</a>
             <svg class="auth-page__route" viewBox="0 0 112 24" aria-hidden="true" focusable="false">
                 <path d="M12 12h88" fill="none" stroke="currentColor" stroke-width="2" />
                 <circle cx="12" cy="12" r="5" fill="var(--paper)" stroke="currentColor" stroke-width="2" />

@@ -1,8 +1,5 @@
 /* AI Floating 3D Assistant Widget Styles */
 #ai-assistant-widget {
-    position: fixed;
-    top: 0;
-    left: 0;
     width: 80px;
     height: 80px;
     z-index: 1050;
@@ -10,6 +7,9 @@
     touch-action: none;
     will-change: transform;
 }
+
+/* The assistant's position is managed by its drag controller. */
+#ai-assistant-widget.dispatch-assistant-pinned { z-index: 1020; }
 
 /* 3D Bot Button Container */
 .ai-bot-trigger {

@@ -7,10 +7,23 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 $router->get('/', 'Welcome::index');
 $router->get('/health', 'Health::index');
 $router->match('/careers/apply', 'Careers::apply', 'GET|POST');
+$router->get('/admin/package-reports', 'Admin::package_reports');
+$router->post('/admin/package-reports/{id}', 'Admin::review_package_report');
 $router->get('/admin/applications', 'Admin::applications');
 $router->post('/admin/applications/{id}/review', 'Admin::review_application');
 $router->get('/admin/applications/{id}/id', 'Admin::application_id_document');
 
+// Customer package reports and recipient-bound handoffs
+$router->get('/package-workflow', 'Package_workflow::index');
+$router->get('/package-workflow/conversation/{handoffId}', 'Package_workflow::conversation');
+$router->get('/package-workflow/conversation/{handoffId}/messages', 'Package_workflow::messages');
+$router->post('/package-workflow/conversation/{handoffId}/send', 'Package_workflow::send_message');
+$router->post('/package-workflow/conversation/{handoffId}/confirm', 'Package_workflow::confirm_handoff');
+$router->get('/package-workflow/api/customers', 'Package_workflow::api_customers');
+$router->get('/package-workflow/api/conversations', 'Package_workflow::api_conversations');
+$router->post('/package-workflow/report', 'Package_workflow::report');
+$router->post('/package-workflow/handoff', 'Package_workflow::handoff');
+$router->post('/package-workflow/confirm', 'Package_workflow::confirm');
 // Authentication routes
 $router->match('/login', 'Auth::login', 'GET|POST');
 $router->match('/register', 'Auth::register', 'GET|POST');

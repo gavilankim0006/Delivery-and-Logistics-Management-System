@@ -86,6 +86,29 @@ function statusLabel(status) {
     return String(status || 'draft').replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function formatStateAge(value) {
+    const minutes = Math.max(0, Number(value || 0));
+    const days = Math.floor(minutes / 1440);
+    const hours = Math.floor((minutes % 1440) / 60);
+    const remainder = Math.floor(minutes % 60);
+    if (days) return `${days}d ${hours}h`;
+    if (hours) return `${hours}h ${remainder}m`;
+    return `${remainder}m`;
+}
+
+function fulfillmentHint(order) {
+    const parts = [];
+    if (order.fulfillment_message) {
+        parts.push(String(order.fulfillment_message)
+            .replace(/A provider quotation exists without an explicit fulfillment selection; review before booking\.?/i, 'Quote received, no fulfillment chosen.')
+            .replace(/A recovery attempt is in progress or provider state needs review; do not retry automatically\.?/i, 'Courier status needs review before retrying.'));
+    }
+    if (order.fulfillment_state_age_minutes !== null && order.fulfillment_state_age_minutes !== undefined && order.fulfillment_state_age_minutes !== '') {
+        parts.push(`In this state for ${formatStateAge(order.fulfillment_state_age_minutes)}`);
+    }
+    return parts.join(' ');
+}
+
 function statusClass(status) {
     return ({
         draft: 'draft', pending_payment: 'pending', paid: 'paid', booking: 'booking',
@@ -187,7 +210,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="table-responsive">
+    <div class="table-responsive dispatch-table-scroll">
         <table class="table table-clean table-responsive-stack dispatch-orders-table align-middle mb-0">
             <thead>
                 <tr>
@@ -214,7 +237,7 @@ onUnmounted(() => {
                     <td colspan="7" class="text-center py-4 text-muted">No orders match these filters.</td>
                 </tr>
                 <tr v-for="order in orders" :key="order.id">
-                    <td data-label="Order" class="fw-semibold">
+                    <td data-label="Order" class="fw-semibold text-nowrap">
                         {{ order.order_no }}
                         <div class="text-muted small">{{ formatDate(order.created_at) }}</div>
                     </td>
@@ -222,13 +245,17 @@ onUnmounted(() => {
                         <div class="fw-medium">{{ order.customer_name }}</div>
                         <div v-if="order.company_name" class="text-muted small">{{ order.company_name }}</div>
                     </td>
-                    <td data-label="Pickup to drop-off" class="route-summary route-cell">
+                    <td data-label="Pickup to drop-off" class="route-summary route-cell align-middle">
                         <div class="route-summary__address"><i class="bi bi-geo-alt me-1" aria-hidden="true"></i><span class="visually-hidden">Pickup: </span>{{ order.pickup_address }}</div>
                         <div class="route-summary__address"><i class="bi bi-geo-alt me-1" aria-hidden="true"></i><span class="visually-hidden">Drop-off: </span>{{ order.dropoff_address }}</div>
                         <span class="text-muted small">{{ order.distance_km }} km · about {{ order.estimated_duration_min }} min</span>
                     </td>
                     <td data-label="Status">
                         <span class="status-chip" :class="`status-chip--${statusClass(order.status)}`">{{ statusLabel(order.status) }}</span>
+                        <span class="dispatch-status-extra small text-muted">
+                            <span class="dispatch-status-rider">{{ order.courier_driver_name || order.rider_name || 'Not assigned' }}</span>
+                            <span class="dispatch-status-fee">₱{{ money(order.delivery_fee) }}</span>
+                        </span>
                     </td>
                     <td data-label="Rider">
                         <template v-if="order.courier_driver_name || order.rider_name">
@@ -241,40 +268,34 @@ onUnmounted(() => {
                                 Live tracking <span class="visually-hidden">(opens in a new tab)</span><i class="bi bi-box-arrow-up-right ms-1" aria-hidden="true"></i>
                             </a>
                         </template>
-                        <span v-else class="text-muted">Not assigned</span>
+                        <span v-else class="text-muted text-nowrap">Not assigned</span>
                     </td>
-                    <td data-label="Fee" class="fw-semibold text-nowrap">₱{{ money(order.delivery_fee) }}</td>
-                    <td data-label="Action" class="text-end">
+                    <td data-label="Fee" class="fw-semibold text-nowrap text-end">₱{{ money(order.delivery_fee) }}</td>
+                    <td data-label="Action" class="text-end align-middle">
                         <div v-if="canChooseFulfillment(order) || canReassignInternal(order) || canRetryInternalAssignment(order)" class="dispatch-fulfillment-actions text-start mb-2">
-                            <span class="form-label d-block">{{ canReassignInternal(order) ? 'Change internal rider' : (canRetryInternalAssignment(order) ? 'Reassign internal rider' : 'Choose fulfillment') }}</span>
+                            <span class="form-label d-block">{{ canReassignInternal(order) ? 'Change internal rider' : (canRetryInternalAssignment(order) ? 'Reassign internal rider' : 'Choose fulfillment') }}<button v-if="fulfillmentHint(order)" type="button" class="dispatch-fulfillment-hint small text-muted" tabindex="0" :title="fulfillmentHint(order)" :aria-label="fulfillmentHint(order)"><i class="bi bi-info-circle" aria-hidden="true"></i><span class="visually-hidden">Fulfillment details</span></button></span>
                             <form v-if="availableRiders.length" method="post" :action="assignInternalUrl(order.id)" class="dispatch-fulfillment-form">
                                 <input type="hidden" name="csrf_token" :value="csrfToken">
                                 <label class="visually-hidden" :for="`rider-${order.id}`">Select an internal rider for order {{ order.order_no }}</label>
                                 <select :id="`rider-${order.id}`" name="rider_id" class="form-select form-select-sm" required>
-                                    <option value="" disabled selected>Select available rider</option>
+                                    <option value="" disabled selected>Select rider</option>
                                     <option v-for="rider in availableRiders" :key="rider.id" :value="rider.id">{{ rider.name }} · {{ rider.vehicle_type }}<template v-if="rider.plate_number"> · {{ rider.plate_number }}</template></option>
                                 </select>
                                 <button type="submit" class="btn btn-sm btn-primary">{{ canReassignInternal(order) || canRetryInternalAssignment(order) ? 'Assign rider again' : 'Assign rider' }}</button>
                             </form>
                             <p v-else class="small text-muted mb-2">No portal-linked riders are available right now.</p>
-                            <form v-if="canChooseFulfillment(order)" method="post" :action="selectLalamoveUrl(order.id)">
+                            <form v-if="canChooseFulfillment(order)" method="post" :action="selectLalamoveUrl(order.id)" class="dispatch-lalamove-form">
                                 <input type="hidden" name="csrf_token" :value="csrfToken">
-                                <button type="submit" class="btn btn-sm btn-outline-primary">Select &amp; book Lalamove</button>
+                                <button type="submit" class="btn btn-sm btn-outline-primary lalamove-action">Book Lalamove</button>
                             </form>
                         </div>
                         <template v-if="order.recovery">
-                            <div class="small text-start mb-2">
-                                <span class="badge" :class="recoveryClass(order.recovery.priority)">{{ statusLabel(order.recovery.priority) }}</span>
-                                <div class="mt-1">
-                                    {{ order.recovery.message }}
-                                    <span v-if="order.recovery.age_minutes !== null" class="text-muted">({{ order.recovery.age_minutes }} min in state)</span>
-                                </div>
-                            </div>
+                            <button type="button" class="dispatch-fulfillment-hint small text-muted" tabindex="0" :title="`${order.recovery.message} (${formatStateAge(order.recovery.age_minutes)})`" :aria-label="`${order.recovery.message} (${formatStateAge(order.recovery.age_minutes)})`"><span class="visually-hidden">{{ statusLabel(order.recovery.priority) }}: </span><i class="bi bi-info-circle" aria-hidden="true"></i><span class="visually-hidden">Fulfillment details</span></button>
                             <form v-if="['book', 'retry'].includes(order.recovery.kind)" method="post" :action="recoveryUrl(order.id)" class="mb-2">
                                 <input type="hidden" name="csrf_token" :value="csrfToken">
                                 <button type="submit" class="btn btn-sm btn-primary">{{ order.recovery.label }}</button>
                             </form>
-                            <a v-else-if="order.recovery.kind === 'escalate' && order.pickup_phone" class="btn btn-sm btn-outline-primary mb-2" :href="phoneUrl(order.pickup_phone)">Call customer</a>
+                            <a v-else-if="order.recovery.kind === 'escalate' && order.pickup_phone" class="btn btn-sm btn-outline-primary mb-2 ms-2" :href="phoneUrl(order.pickup_phone)">Call customer</a>
                         </template>
                         <a :href="orderUrl(order.id)" class="dispatch-row-action">View order</a>
                     </td>

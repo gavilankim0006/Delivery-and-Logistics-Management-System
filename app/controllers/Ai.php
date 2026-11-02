@@ -82,8 +82,8 @@ class Ai extends Controller
 
             // Save user message to database
             $this->db->raw(
-                'INSERT INTO ai_messages (conversation_id, sender, content, created_at) VALUES (?, "user", ?, NOW())',
-                [$convId, $message]
+                'INSERT INTO ai_messages (conversation_id, sender, content, created_at) VALUES (?, ?, ?, NOW())',
+                [$convId, 'user', $message]
             );
 
             // Initialize Tool Registry for this user/role
@@ -142,8 +142,8 @@ class Ai extends Controller
             if (!empty($choice['tool_calls'])) {
                 // Record assistant tool-intent message
                 $this->db->raw(
-                    'INSERT INTO ai_messages (conversation_id, sender, content, tool_calls, created_at) VALUES (?, "assistant", ?, ?, NOW())',
-                    [$convId, (string)($choice['content'] ?? ''), json_encode($choice['tool_calls'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)]
+                    'INSERT INTO ai_messages (conversation_id, sender, content, tool_calls, created_at) VALUES (?, ?, ?, ?, NOW())',
+                    [$convId, 'assistant', (string)($choice['content'] ?? ''), json_encode($choice['tool_calls'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)]
                 );
 
                 $formattedMessages[] = $choice;
@@ -157,8 +157,8 @@ class Ai extends Controller
                     $outputStr = json_encode($toolOutput, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
                     $this->db->raw(
-                        'INSERT INTO ai_messages (conversation_id, sender, content, tool_call_id, tool_name, created_at) VALUES (?, "tool", ?, ?, ?, NOW())',
-                        [$convId, $outputStr, $tCall['id'], $fnName]
+                        'INSERT INTO ai_messages (conversation_id, sender, content, tool_call_id, tool_name, created_at) VALUES (?, ?, ?, ?, ?, NOW())',
+                        [$convId, 'tool', $outputStr, $tCall['id'], $fnName]
                     );
 
                     $formattedMessages[] = [
@@ -181,8 +181,8 @@ class Ai extends Controller
 
             // Save final assistant message
             $this->db->raw(
-                'INSERT INTO ai_messages (conversation_id, sender, content, created_at) VALUES (?, "assistant", ?, NOW())',
-                [$convId, $assistantReply]
+                'INSERT INTO ai_messages (conversation_id, sender, content, created_at) VALUES (?, ?, ?, NOW())',
+                [$convId, 'assistant', $assistantReply]
             );
 
             echo json_encode([
@@ -236,9 +236,9 @@ class Ai extends Controller
         }
 
         $stmt = $this->db->raw(
-            'SELECT sender, content, created_at FROM ai_messages
-             WHERE conversation_id = ? AND sender IN ("user", "assistant")
-             ORDER BY id ASC LIMIT 50',
+            "SELECT sender, content, created_at FROM ai_messages
+             WHERE conversation_id = ? AND sender IN ('user', 'assistant')
+             ORDER BY id ASC LIMIT 50",
             [$convId]
         );
         $messages = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];

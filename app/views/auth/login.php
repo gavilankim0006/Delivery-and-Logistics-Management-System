@@ -14,7 +14,7 @@ $csrfToken = csrf_token();
     data-error-message="<?= e($flashError ?: '') ?>"
     data-success-message="<?= e($flashSuccess ?: '') ?>">
     <section class="auth-page" aria-labelledby="auth-title">
-        <header class="auth-page__header"><p class="auth-page__brand"><i class="bi bi-box-seam" aria-hidden="true"></i>Dispatch</p><h1 id="auth-title" class="page-title">Sign in</h1><p class="page-description">Manage your deliveries and saved addresses.</p></header>
+        <header class="auth-page__header"><a href="<?= e(base_url()) ?>" class="auth-page__brand text-decoration-none" title="Back to home page"><i class="bi bi-box-seam" aria-hidden="true"></i>Dispatch</a><h1 id="auth-title" class="page-title">Sign in</h1><p class="page-description">Manage your deliveries and saved addresses.</p></header>
         <form class="auth-form" action="<?= e(base_url('login')) ?>" method="POST">
             <?= csrf_field() ?>
             <div class="mb-3"><label for="email" class="form-label">Email address</label><input type="email" class="form-control" id="email" name="email" required autocomplete="email"></div>

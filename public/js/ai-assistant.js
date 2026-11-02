@@ -26,6 +26,9 @@
     function createDOM() {
         widgetContainer = document.createElement('div');
         widgetContainer.id = 'ai-assistant-widget';
+        if (document.querySelector('.dispatch-page-shell')) {
+            widgetContainer.classList.add('dispatch-assistant-pinned');
+        }
 
         widgetContainer.innerHTML = `
             <div class="ai-bot-trigger" id="ai-bot-trigger" title="Chat with AI Assistant">
@@ -206,29 +209,37 @@
     let botLeft = 0;
     let botTop = 0;
 
+    function clampBotPosition(left, top) {
+        return {
+            left: Math.max(24, Math.min(Math.max(24, window.innerWidth - 104), left)),
+            top: Math.max(24, Math.min(Math.max(24, window.innerHeight - 104), top))
+        };
+    }
+
     function setBotPosition(left, top) {
-        botLeft = left;
-        botTop = top;
-        widgetContainer.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+        const position = clampBotPosition(left, top);
+        botLeft = position.left;
+        botTop = position.top;
+        widgetContainer.style.position = 'fixed';
+        widgetContainer.style.left = `${botLeft}px`;
+        widgetContainer.style.top = `${botTop}px`;
+        widgetContainer.style.right = 'auto';
+        widgetContainer.style.bottom = 'auto';
+        widgetContainer.style.transform = 'none';
     }
 
     function restorePosition() {
-        let left = window.innerWidth - 104;
-        let top = window.innerHeight - 104;
+        let position = { left: window.innerWidth - 104, top: window.innerHeight - 104 };
         try {
             const saved = localStorage.getItem('dispatch_ai_bot_pos');
             if (saved) {
-                const pos = JSON.parse(saved);
-                if (Number.isFinite(pos.left) && Number.isFinite(pos.top)) {
-                    left = pos.left;
-                    top = pos.top;
+                const candidate = JSON.parse(saved);
+                if (Number.isFinite(candidate.left) && Number.isFinite(candidate.top)) {
+                    position = candidate;
                 }
             }
         } catch (e) {}
-        setBotPosition(
-            Math.max(10, Math.min(window.innerWidth - 90, left)),
-            Math.max(10, Math.min(window.innerHeight - 90, top))
-        );
+        setBotPosition(position.left, position.top);
     }
 
     function updateChatWindowPosition() {
@@ -282,10 +293,7 @@
             if (!isDragging || !hasMoved) return;
             const dx = pointerX - startX;
             const dy = pointerY - startY;
-            setBotPosition(
-                Math.max(10, Math.min(window.innerWidth - 90, initialLeft + dx)),
-                Math.max(10, Math.min(window.innerHeight - 90, initialTop + dy))
-            );
+            setBotPosition(initialLeft + dx, initialTop + dy);
             if (chatWindow.classList.contains('open')) updateChatWindowPosition();
         }
 
@@ -321,10 +329,7 @@
             if (hasMoved) {
                 const dx = pointerX - startX;
                 const dy = pointerY - startY;
-                setBotPosition(
-                    Math.max(10, Math.min(window.innerWidth - 90, initialLeft + dx)),
-                    Math.max(10, Math.min(window.innerHeight - 90, initialTop + dy))
-                );
+                setBotPosition(initialLeft + dx, initialTop + dy);
             }
             botTrigger.classList.remove('is-dragging');
             if (hasMoved) {
@@ -341,10 +346,7 @@
         botTrigger.addEventListener('pointercancel', stopDrag);
 
         window.addEventListener('resize', () => {
-            setBotPosition(
-                Math.max(10, Math.min(window.innerWidth - 90, botLeft)),
-                Math.max(10, Math.min(window.innerHeight - 90, botTop))
-            );
+            setBotPosition(botLeft, botTop);
             updateChatWindowPosition();
         });
     }

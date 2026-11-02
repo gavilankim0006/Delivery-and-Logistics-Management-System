@@ -12,12 +12,21 @@ $showCourierSimulator = $role === 'admin'
     && config_item('environment') === 'development'
     && in_array(strtolower(getenv('COURIER_DRIVER') ?: 'mock'), ['mock', ''], true);
 $adminMoreActive = $navIsActive('admin/settings')
-    || $navIsActive('admin/applications')
     || $navIsActive('admin/service-areas')
     || $navIsActive('admin/command-simulator')
     || $navIsActive('admin/reports')
+    || $navIsActive('admin/package-reports')
     || $navIsActive('admin/logs')
     || ($showCourierSimulator && $navIsActive('admin/courier-simulator'));
+$adminDashboardActive = $navIsActive('admin')
+    && !$navIsActive('admin/users')
+    && !$navIsActive('admin/riders')
+    && !$navIsActive('admin/applications')
+    && !$adminMoreActive;
+$basePath = parse_url(base_url(), PHP_URL_PATH) ?: '/';
+$normalizedCurrent = rtrim($currentUri, '/') ?: '/';
+$normalizedBase = rtrim($basePath, '/') ?: '/';
+$isHome = ($normalizedCurrent === $normalizedBase) || ($normalizedCurrent === $normalizedBase . '/index.php');
 ?>
 <!doctype html>
 <html lang="en">
@@ -44,7 +53,7 @@ $adminMoreActive = $navIsActive('admin/settings')
     <a class="skip-link" href="#main-content">Skip to content</a>
     <nav class="navbar navbar-expand-lg navbar-custom sticky-top" aria-label="Main navigation">
         <div class="container">
-            <a class="navbar-brand navbar-brand-custom" href="<?= base_url($role === 'admin' ? 'admin' : ($role === 'dispatcher' ? 'dispatch' : ($role === 'rider' ? 'rider' : ($role === 'customer' ? 'orders' : 'login')))) ?>" aria-label="Dispatch home">
+            <a class="navbar-brand navbar-brand-custom" href="<?= base_url($role === 'admin' ? 'admin' : ($role === 'dispatcher' ? 'dispatch' : ($role === 'rider' ? 'rider' : ($role === 'customer' ? 'orders' : '')))) ?>" aria-label="Dispatch home">
                 <i class="bi bi-box-seam" aria-hidden="true"></i>
                 <span>Dispatch</span>
                 <?php if ($role === 'admin' || $role === 'dispatcher'): ?>
@@ -59,18 +68,19 @@ $adminMoreActive = $navIsActive('admin/settings')
             <div class="collapse navbar-collapse" id="mainNavbar">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     <?php if ($role === 'customer'): ?>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('package-workflow') ? ' active' : '' ?>" href="<?= base_url('package-workflow') ?>"<?= $navIsActive('package-workflow') ? ' aria-current="page"' : '' ?>><i class="bi bi-chat-dots" aria-hidden="true"></i><span>Package messenger</span></a></li>
                         <li class="nav-item"><a class="nav-link<?= $navIsActive('orders/new') ? ' active' : '' ?>" href="<?= base_url('orders/new') ?>"<?= $navIsActive('orders/new') ? ' aria-current="page"' : '' ?>><i class="bi bi-plus-circle" aria-hidden="true"></i><span>New order</span></a></li>
                         <li class="nav-item"><a class="nav-link<?= $navIsActive('orders') && !$navIsActive('orders/new') ? ' active' : '' ?>" href="<?= base_url('orders') ?>"<?= $navIsActive('orders') && !$navIsActive('orders/new') ? ' aria-current="page"' : '' ?>><i class="bi bi-clock-history" aria-hidden="true"></i><span>My Orders</span></a></li>
                         <li class="nav-item"><a class="nav-link<?= $navIsActive('addresses') ? ' active' : '' ?>" href="<?= base_url('addresses') ?>"<?= $navIsActive('addresses') ? ' aria-current="page"' : '' ?>><i class="bi bi-geo-alt" aria-hidden="true"></i><span>Saved addresses</span></a></li>
                     <?php elseif ($role === 'rider'): ?>
                         <li class="nav-item"><a class="nav-link<?= $navIsActive('rider') ? ' active' : '' ?>" href="<?= base_url('rider') ?>"<?= $navIsActive('rider') ? ' aria-current="page"' : '' ?>><i class="bi bi-bicycle" aria-hidden="true"></i><span>My deliveries</span></a></li>
                     <?php elseif ($role === 'dispatcher'): ?>
-                        <li class="nav-item"><a class="nav-link<?= $navIsActive('dispatch') ? ' active' : '' ?>" href="<?= base_url('dispatch') ?>"<?= $navIsActive('dispatch') ? ' aria-current="page"' : '' ?>><i class="bi bi-kanban" aria-hidden="true"></i><span>Dispatch board</span></a></li>
-                        <li class="nav-item"><a class="nav-link<?= $navIsActive('orders') ? ' active' : '' ?>" href="<?= base_url('orders') ?>"<?= $navIsActive('orders') ? ' aria-current="page"' : '' ?>><i class="bi bi-box-seam" aria-hidden="true"></i><span>Orders</span></a></li>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('dispatch') ? ' active' : '' ?>" href="<?= base_url('dispatch') ?>"<?= $navIsActive('dispatch') ? ' aria-current="page"' : '' ?>><i class="bi bi-kanban me-1" aria-hidden="true"></i><span>Dispatch board</span></a></li>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('orders') ? ' active' : '' ?>" href="<?= base_url('orders') ?>"<?= $navIsActive('orders') ? ' aria-current="page"' : '' ?>><i class="bi bi-box-seam me-1" aria-hidden="true"></i><span>Orders</span></a></li>
                     <?php elseif ($role === 'admin'): ?>
-                        <li class="nav-item"><a class="nav-link<?= $navIsActive('admin') && !$navIsActive('admin/users') && !$navIsActive('admin/riders') && !$navIsActive('admin/service-areas') && !$navIsActive('admin/command-simulator') && !$navIsActive('admin/settings') && !$navIsActive('admin/reports') && !$navIsActive('admin/logs') && !$navIsActive('admin/courier-simulator') && !$navIsActive('admin/service-areas') && !$navIsActive('admin/command-simulator') ? ' active' : '' ?>" href="<?= base_url('admin') ?>"<?= $navIsActive('admin') && !$navIsActive('admin/users') && !$navIsActive('admin/riders') && !$navIsActive('admin/service-areas') && !$navIsActive('admin/command-simulator') && !$navIsActive('admin/settings') && !$navIsActive('admin/reports') && !$navIsActive('admin/logs') && !$navIsActive('admin/courier-simulator') ? ' aria-current="page"' : '' ?>><i class="bi bi-speedometer2" aria-hidden="true"></i><span>Dashboard</span></a></li>
+                        <li class="nav-item"><a class="nav-link<?= $adminDashboardActive ? ' active' : '' ?>" href="<?= base_url('admin') ?>"<?= $adminDashboardActive ? ' aria-current="page"' : '' ?>><i class="bi bi-speedometer2" aria-hidden="true"></i><span>Dashboard</span></a></li>
                         <li class="nav-item"><a class="nav-link<?= $navIsActive('dispatch') ? ' active' : '' ?>" href="<?= base_url('dispatch') ?>"<?= $navIsActive('dispatch') ? ' aria-current="page"' : '' ?>><i class="bi bi-kanban" aria-hidden="true"></i><span>Dispatch</span></a></li>
-                        <li class="nav-item"><a class="nav-link<?= $navIsActive('orders') ? ' active' : '' ?>" href="<?= base_url('orders') ?>"<?= $navIsActive('orders') ? ' aria-current="page"' : '' ?>><i class="bi bi-box-seam" aria-hidden="true"></i><span>Orders</span></a></li>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('orders') ? ' active' : '' ?>" href="<?= base_url('orders') ?>"<?= $navIsActive('orders') ? ' aria-current="page"' : '' ?>><i class="bi bi-box-seam me-1" aria-hidden="true"></i><span>Orders</span></a></li>
                         <li class="nav-item"><a class="nav-link<?= $navIsActive('admin/users') ? ' active' : '' ?>" href="<?= base_url('admin/users') ?>"<?= $navIsActive('admin/users') ? ' aria-current="page"' : '' ?>><i class="bi bi-people" aria-hidden="true"></i><span>Users</span></a></li>
                         <li class="nav-item"><a class="nav-link<?= $navIsActive('admin/riders') ? ' active' : '' ?>" href="<?= base_url('admin/riders') ?>"<?= $navIsActive('admin/riders') ? ' aria-current="page"' : '' ?>><i class="bi bi-bicycle" aria-hidden="true"></i><span>Riders</span></a></li>
                         <li class="nav-item"><a class="nav-link<?= $navIsActive('admin/applications') ? ' active' : '' ?>" href="<?= base_url('admin/applications') ?>"<?= $navIsActive('admin/applications') ? ' aria-current="page"' : '' ?>><i class="bi bi-person-vcard" aria-hidden="true"></i><span>Applications</span></a></li>
@@ -83,12 +93,16 @@ $adminMoreActive = $navIsActive('admin/settings')
                                 <li><a class="dropdown-item<?= $navIsActive('admin/service-areas') ? ' active' : '' ?>" href="<?= base_url('admin/service-areas') ?>"<?= $navIsActive('admin/service-areas') ? ' aria-current="page"' : '' ?>><i class="bi bi-bounding-box" aria-hidden="true"></i> Service areas</a></li>
                                 <li><a class="dropdown-item<?= $navIsActive('admin/command-simulator') ? ' active' : '' ?>" href="<?= base_url('admin/command-simulator') ?>"<?= $navIsActive('admin/command-simulator') ? ' aria-current="page"' : '' ?>><i class="bi bi-lightning" aria-hidden="true"></i> Command simulator</a></li>
                                 <li><a class="dropdown-item<?= $navIsActive('admin/reports') ? ' active' : '' ?>" href="<?= base_url('admin/reports') ?>"<?= $navIsActive('admin/reports') ? ' aria-current="page"' : '' ?>><i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i> Reports</a></li>
+                                <li><a class="dropdown-item<?= $navIsActive('admin/package-reports') ? ' active' : '' ?>" href="<?= base_url('admin/package-reports') ?>"<?= $navIsActive('admin/package-reports') ? ' aria-current="page"' : '' ?>><i class="bi bi-box-seam" aria-hidden="true"></i> Package reports</a></li>
                                 <li><a class="dropdown-item<?= $navIsActive('admin/logs') ? ' active' : '' ?>" href="<?= base_url('admin/logs') ?>"<?= $navIsActive('admin/logs') ? ' aria-current="page"' : '' ?>><i class="bi bi-journal-code" aria-hidden="true"></i> API logs</a></li>
                                 <?php if ($showCourierSimulator): ?>
                                     <li><a class="dropdown-item<?= $navIsActive('admin/courier-simulator') ? ' active' : '' ?>" href="<?= base_url('admin/courier-simulator') ?>"<?= $navIsActive('admin/courier-simulator') ? ' aria-current="page"' : '' ?>><i class="bi bi-truck" aria-hidden="true"></i> Courier simulator</a></li>
                                 <?php endif; ?>
                             </ul>
                         </li>
+                    <?php else: ?>
+                        <li class="nav-item"><a class="nav-link" href="<?= base_url('#services') ?>"><i class="bi bi-layers" aria-hidden="true"></i><span>Services</span></a></li>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('careers/apply') ? ' active' : '' ?>" href="<?= base_url('careers/apply') ?>"><i class="bi bi-briefcase" aria-hidden="true"></i><span>Careers</span></a></li>
                     <?php endif; ?>
                 </ul>
 
@@ -107,8 +121,30 @@ $adminMoreActive = $navIsActive('admin/settings')
                             </ul>
                         </li>
                     <?php else: ?>
-                        <li class="nav-item"><a class="nav-link<?= $navIsActive('login') ? ' active' : '' ?>" href="<?= base_url('login') ?>"<?= $navIsActive('login') ? ' aria-current="page"' : '' ?>><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i><span>Sign in</span></a></li>
-                        <li class="nav-item"><a class="btn btn-primary" href="<?= base_url('register') ?>">Create account</a></li>
+                        <?php if (!$isHome): ?>
+                            <li class="nav-item me-lg-2 mb-2 mb-lg-0">
+                                <a class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1" href="<?= base_url() ?>">
+                                    <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                                    <span>Back to home</span>
+                                </a>
+                            </li>
+                        <?php endif; ?>
+                        <?php if ($navIsActive('login')): ?>
+                            <li class="nav-item">
+                                <a class="btn btn-primary btn-sm" href="<?= base_url('register') ?>">Create account</a>
+                            </li>
+                        <?php elseif ($navIsActive('register')): ?>
+                            <li class="nav-item">
+                                <a class="btn btn-primary btn-sm" href="<?= base_url('login') ?>">Sign in</a>
+                            </li>
+                        <?php else: ?>
+                            <li class="nav-item me-lg-2">
+                                <a class="nav-link" href="<?= base_url('login') ?>"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i><span>Sign in</span></a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="btn btn-primary btn-sm" href="<?= base_url('register') ?>">Create account</a>
+                            </li>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </ul>
             </div>

@@ -202,6 +202,36 @@ class Orders extends Controller
                 $errors[$stop . '_address'] = 'Choose a valid map location in the Philippines.';
             }
         }
+        if (!$hasMapLocations && empty($errors['pickup_address']) && empty($errors['dropoff_address']) && $pickupAddress !== '' && $dropoffAddress !== '') {
+            try {
+                $maps = $this->call->library('GoogleMapsService');
+                $origin = ($pickupLat !== null && $pickupLng !== null) ? ['lat' => $pickupLat, 'lng' => $pickupLng] : $pickupAddress;
+                $destination = ($dropoffLat !== null && $dropoffLng !== null) ? ['lat' => $dropoffLat, 'lng' => $dropoffLng] : $dropoffAddress;
+                $route = $maps->route($origin, $destination);
+                $distanceKm = (float)$route['distance_km'];
+                $distanceInput = (string)$distanceKm;
+                $formData['distance_km'] = $distanceInput;
+                if ($pickupLat === null || $pickupLng === null) {
+                    $pickupLat = (float)$route['start_location']['lat'];
+                    $pickupLng = (float)$route['start_location']['lng'];
+                    $formData['pickup_lat'] = (string)$pickupLat;
+                    $formData['pickup_lng'] = (string)$pickupLng;
+                }
+                if ($dropoffLat === null || $dropoffLng === null) {
+                    $dropoffLat = (float)$route['end_location']['lat'];
+                    $dropoffLng = (float)$route['end_location']['lng'];
+                    $formData['dropoff_lat'] = (string)$dropoffLat;
+                    $formData['dropoff_lng'] = (string)$dropoffLng;
+                }
+                $hasMapLocations = ($pickupLat !== null && $pickupLng !== null && $dropoffLat !== null && $dropoffLng !== null);
+            } catch (Throwable $e) {
+                $errors['dropoff_address'] = $e instanceof InvalidArgumentException
+                    ? $e->getMessage()
+                    : 'Unable to resolve route for the provided addresses. Please select from suggestions or pin on the map.';
+            }
+        } elseif (!$hasMapLocations) {
+            $errors['dropoff_address'] = 'Both locations must be resolved. Enter a valid address, select from suggestions, or place pins on the map.';
+        }
         if ($hasMapLocations && !$errors) {
             try {
                 $maps = $this->call->library('GoogleMapsService');
@@ -218,8 +248,8 @@ class Orders extends Controller
                     : 'Unable to confirm the Google Maps route. Please check the selected locations.';
             }
         }
-        if (!is_numeric($distanceInput) || $distanceKm <= 0 || $distanceKm > 10000) {
-            $errors['distance_km'] = 'Enter a distance greater than 0 and no more than 10000 km.';
+        if (!$hasMapLocations || !is_numeric($distanceInput) || $distanceKm <= 0 || $distanceKm > 10000) {
+            $errors['distance_km'] = 'A valid road distance must be calculated from both selected locations.';
         }
 
         if (!empty($errors)) {
@@ -328,7 +358,9 @@ class Orders extends Controller
             'form_data' => $formData,
             'errors' => $errors,
             'form_error' => $formError,
-            'order_id' => $id
+            'order_id' => $id,
+            'maps_js_key' => getenv('GOOGLE_MAPS_MAPS_JS_API_KEY') ?: '',
+            'route_api_endpoint' => base_url('api/route/calculate')
         ]);
     }
 
@@ -431,6 +463,15 @@ class Orders extends Controller
         $isFragile = !empty($formData['is_fragile']) ? 1 : 0;
         $distanceInput = trim($formData['distance_km'] ?? '');
         $distanceKm = is_numeric($distanceInput) ? (float)$distanceInput : 0.0;
+        $pickupLatInput = trim($formData['pickup_lat'] ?? '');
+        $pickupLngInput = trim($formData['pickup_lng'] ?? '');
+        $dropoffLatInput = trim($formData['dropoff_lat'] ?? '');
+        $dropoffLngInput = trim($formData['dropoff_lng'] ?? '');
+        $pickupLat = $pickupLatInput !== '' && is_numeric($pickupLatInput) ? (float)$pickupLatInput : null;
+        $pickupLng = $pickupLngInput !== '' && is_numeric($pickupLngInput) ? (float)$pickupLngInput : null;
+        $dropoffLat = $dropoffLatInput !== '' && is_numeric($dropoffLatInput) ? (float)$dropoffLatInput : null;
+        $dropoffLng = $dropoffLngInput !== '' && is_numeric($dropoffLngInput) ? (float)$dropoffLngInput : null;
+        $hasMapLocations = $pickupLat !== null && $pickupLng !== null && $dropoffLat !== null && $dropoffLng !== null;
         $errors = [];
 
         foreach ([
@@ -464,8 +505,52 @@ class Orders extends Controller
         if (!in_array($parcelSize, ['S', 'M', 'L'], true)) {
             $errors['parcel_size'] = 'Choose a parcel size.';
         }
-        if (!is_numeric($distanceInput) || $distanceKm <= 0 || $distanceKm > 10000) {
-            $errors['distance_km'] = 'Enter a distance greater than 0 and no more than 10000 km.';
+        if (!$hasMapLocations && empty($errors['pickup_address']) && empty($errors['dropoff_address']) && $pickupAddress !== '' && $dropoffAddress !== '') {
+            try {
+                $maps = $this->call->library('GoogleMapsService');
+                $origin = ($pickupLat !== null && $pickupLng !== null) ? ['lat' => $pickupLat, 'lng' => $pickupLng] : $pickupAddress;
+                $destination = ($dropoffLat !== null && $dropoffLng !== null) ? ['lat' => $dropoffLat, 'lng' => $dropoffLng] : $dropoffAddress;
+                $route = $maps->route($origin, $destination);
+                $distanceKm = (float)$route['distance_km'];
+                $distanceInput = (string)$distanceKm;
+                $formData['distance_km'] = $distanceInput;
+                if ($pickupLat === null || $pickupLng === null) {
+                    $pickupLat = (float)$route['start_location']['lat'];
+                    $pickupLng = (float)$route['start_location']['lng'];
+                    $formData['pickup_lat'] = (string)$pickupLat;
+                    $formData['pickup_lng'] = (string)$pickupLng;
+                }
+                if ($dropoffLat === null || $dropoffLng === null) {
+                    $dropoffLat = (float)$route['end_location']['lat'];
+                    $dropoffLng = (float)$route['end_location']['lng'];
+                    $formData['dropoff_lat'] = (string)$dropoffLat;
+                    $formData['dropoff_lng'] = (string)$dropoffLng;
+                }
+                $hasMapLocations = ($pickupLat !== null && $pickupLng !== null && $dropoffLat !== null && $dropoffLng !== null);
+            } catch (Throwable $e) {
+                $errors['dropoff_address'] = $e instanceof InvalidArgumentException
+                    ? $e->getMessage()
+                    : 'Unable to resolve route for the provided addresses. Please select from suggestions or pin on the map.';
+            }
+        }
+        if ($hasMapLocations && !$errors) {
+            try {
+                $maps = $this->call->library('GoogleMapsService');
+                $route = $maps->route(
+                    ['lat' => $pickupLat, 'lng' => $pickupLng],
+                    ['lat' => $dropoffLat, 'lng' => $dropoffLng]
+                );
+                $distanceKm = (float)$route['distance_km'];
+                $distanceInput = (string)$distanceKm;
+                $formData['distance_km'] = $distanceInput;
+            } catch (Throwable $e) {
+                $errors['dropoff_address'] = $e instanceof InvalidArgumentException
+                    ? $e->getMessage()
+                    : 'Unable to confirm the Google Maps route. Please check the selected locations.';
+            }
+        }
+        if (!$hasMapLocations || !is_numeric($distanceInput) || $distanceKm <= 0 || $distanceKm > 10000) {
+            $errors['distance_km'] = 'A valid road distance must be calculated from both selected locations.';
         }
         if ($pickupAddress !== '' && strcasecmp($pickupAddress, $dropoffAddress) === 0) {
             $errors['dropoff_address'] = 'Pickup and drop-off addresses cannot be identical.';
