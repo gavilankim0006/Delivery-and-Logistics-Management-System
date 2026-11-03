@@ -51,10 +51,22 @@ const timelineStages = {
 const statusFilter = ref(props.filters.status || '');
 const dateFilter = ref(props.filters.date || '');
 const searchFilter = ref(props.filters.search || '');
+const showMobileFilters = ref(false);
 
 const activeFilters = Object.fromEntries(
     Object.entries(props.filters).filter(([, value]) => value !== '' && value != null)
 );
+
+function applyQuickFilter(status) {
+    const params = new URLSearchParams(activeFilters);
+    if (status) {
+        params.set('status', status);
+    } else {
+        params.delete('status');
+    }
+    params.delete('page');
+    window.location.href = `${props.baseUrl}orders?${params.toString()}`;
+}
 
 function pageUrl(number) {
     const params = new URLSearchParams(activeFilters);
@@ -88,17 +100,93 @@ function money(value) {
 
 <template>
     <div class="container py-4 page-shell">
-        <header class="page-header">
+        <header class="page-header d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
             <div>
-                <h1 class="page-title">{{ title }}</h1>
+                <h1 class="page-title mb-1">{{ title }}</h1>
                 <p class="text-muted mb-0 page-description">
                     Review delivery details and follow each order's progress.
                 </p>
             </div>
-            <a v-if="role === 'customer'" class="btn btn-primary" :href="`${baseUrl}orders/new`">New order</a>
+            <a v-if="role === 'customer'" class="btn btn-primary" :href="`${baseUrl}orders/new`">
+                <i class="bi bi-plus-lg me-1" aria-hidden="true"></i> New order
+            </a>
         </header>
 
-        <form class="row g-3 align-items-end mb-4" method="get" :action="`${baseUrl}orders`">
+        <!-- Customer Mobile Quick Status Filter Pills -->
+        <div v-if="role === 'customer'" class="customer-mobile-filters d-md-none">
+            <div class="customer-filter-pills-scroll" role="tablist" aria-label="Filter orders by status">
+                <button
+                    type="button"
+                    class="customer-filter-pill"
+                    :class="{ 'is-active': !statusFilter }"
+                    @click="applyQuickFilter('')"
+                >
+                    All
+                </button>
+                <button
+                    type="button"
+                    class="customer-filter-pill"
+                    :class="{ 'is-active': statusFilter === 'draft' }"
+                    @click="applyQuickFilter('draft')"
+                >
+                    Draft
+                </button>
+                <button
+                    type="button"
+                    class="customer-filter-pill"
+                    :class="{ 'is-active': statusFilter === 'pending_payment' }"
+                    @click="applyQuickFilter('pending_payment')"
+                >
+                    Pending payment
+                </button>
+                <button
+                    type="button"
+                    class="customer-filter-pill"
+                    :class="{ 'is-active': statusFilter === 'paid' }"
+                    @click="applyQuickFilter('paid')"
+                >
+                    Paid
+                </button>
+                <button
+                    type="button"
+                    class="customer-filter-pill"
+                    :class="{ 'is-active': statusFilter === 'rider_assigned' }"
+                    @click="applyQuickFilter('rider_assigned')"
+                >
+                    In transit
+                </button>
+                <button
+                    type="button"
+                    class="customer-filter-pill"
+                    :class="{ 'is-active': statusFilter === 'delivered' }"
+                    @click="applyQuickFilter('delivered')"
+                >
+                    Delivered
+                </button>
+            </div>
+
+            <button
+                type="button"
+                class="customer-filter-toggle-btn"
+                :aria-expanded="showMobileFilters ? 'true' : 'false'"
+                @click="showMobileFilters = !showMobileFilters"
+            >
+                <span>
+                    <i class="bi bi-funnel me-1" aria-hidden="true"></i>
+                    {{ showMobileFilters ? 'Hide search & filters' : 'Search & more filters' }}
+                    <span v-if="dateFilter || searchFilter" class="badge bg-primary ms-1">Active</span>
+                </span>
+                <i :class="showMobileFilters ? 'bi bi-chevron-up' : 'bi bi-chevron-down'" aria-hidden="true"></i>
+            </button>
+        </div>
+
+        <!-- Filter Form -->
+        <form
+            class="row g-3 align-items-end mb-4"
+            :class="{ 'd-none d-md-flex': role === 'customer' && !showMobileFilters }"
+            method="get"
+            :action="`${baseUrl}orders`"
+        >
             <div class="col-12 col-md-3">
                 <SelectDropdown
                     id="order-status"
@@ -170,7 +258,84 @@ function money(value) {
         </section>
 
         <template v-else>
-            <div class="table-responsive surface">
+            <!-- Mobile Adaptive Order Cards (Phone View) -->
+            <div class="d-md-none">
+                <article
+                    v-for="order in orders"
+                    :key="`mobile-${order.id}`"
+                    class="surface p-3 mb-3 rounded-3 border"
+                >
+                    <div class="order-card-header">
+                        <div>
+                            <a class="order-card-title fw-bold" :href="`${baseUrl}orders/${order.id}`">
+                                {{ order.order_no }}
+                            </a>
+                            <div class="order-card-date">{{ date(order.created_at) }}</div>
+                        </div>
+                        <span class="status-chip" :class="`status-chip--${order.status}`">
+                            {{ statuses.find(([key]) => key === order.status)?.[1] || order.status }}
+                        </span>
+                    </div>
+
+                    <div class="order-card-route">
+                        <div class="order-card-route-stop">
+                            <span class="order-card-dot order-card-dot--pickup" aria-hidden="true"></span>
+                            <span class="order-card-route-text small">
+                                <strong>Pickup:</strong> {{ order.pickup_address }}
+                            </span>
+                        </div>
+                        <div class="order-card-route-stop">
+                            <span class="order-card-dot order-card-dot--dropoff" aria-hidden="true"></span>
+                            <span class="order-card-route-text small">
+                                <strong>Drop-off:</strong> {{ order.dropoff_address }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="role === 'customer' && !['cancelled', 'failed'].includes(order.status)"
+                        class="compact-route-progress my-2"
+                        role="img"
+                        :aria-label="`Delivery progress: ${statuses.find(([key]) => key === order.status)?.[1] || 'Unknown'}`"
+                    >
+                        <span class="compact-route-progress__track" aria-hidden="true">
+                            <span
+                                class="compact-route-progress__fill"
+                                :style="{ width: `${(progress(order) / (stages.length - 1)) * 100}%` }"
+                            ></span>
+                        </span>
+                        <span class="compact-route-progress__label small text-muted">
+                            {{ Number(order.distance_km || 0).toFixed(2) }} km · {{ stages[progress(order)].replace('_', ' ') }}
+                        </span>
+                    </div>
+
+                    <div class="order-card-footer">
+                        <div>
+                            <span class="text-muted small d-block">Delivery fee</span>
+                            <span class="order-card-fee">{{ money(order.delivery_fee) }}</span>
+                        </div>
+                        <div class="order-card-actions">
+                            <a
+                                v-if="role === 'customer' && ['draft', 'pending_payment'].includes(order.status)"
+                                class="btn btn-primary"
+                                :href="`${baseUrl}orders/${order.id}`"
+                            >
+                                Pay now
+                            </a>
+                            <a
+                                v-else
+                                class="btn btn-outline-secondary"
+                                :href="`${baseUrl}orders/${order.id}`"
+                            >
+                                Details
+                            </a>
+                        </div>
+                    </div>
+                </article>
+            </div>
+
+            <!-- Desktop / Tablet Table View -->
+            <div class="table-responsive surface d-none d-md-block">
                 <table class="table align-middle mb-0 table-responsive-stack table-clean">
                     <thead>
                         <tr>

@@ -102,7 +102,56 @@ $orderListProps = [
             'action_url' => $role === 'customer' && empty($query) ? base_url('orders/new') : ''
         ]); ?>
     <?php else: ?>
-        <div class="table-responsive surface">
+        <!-- Mobile Adaptive Cards View (SSR fallback / non-JS) -->
+        <div class="d-md-none">
+            <?php foreach ($orders as $order): ?>
+                <?php $status = $order['status']; ?>
+                <article class="surface p-3 mb-3 rounded-3 border">
+                    <div class="order-card-header">
+                        <div>
+                            <a class="order-card-title fw-bold" href="<?= base_url('orders/' . (int)$order['id']) ?>">
+                                <?= e($order['order_no']) ?>
+                            </a>
+                            <div class="order-card-date"><?= e(date('M j, Y · g:i a', strtotime($order['created_at']))) ?></div>
+                        </div>
+                        <span class="status-chip status-chip--<?= e($statusClasses[$status] ?? 'draft') ?>">
+                            <?= e($statusLabels[$status] ?? $status) ?>
+                        </span>
+                    </div>
+
+                    <div class="order-card-route">
+                        <div class="order-card-route-stop">
+                            <span class="order-card-dot order-card-dot--pickup" aria-hidden="true"></span>
+                            <span class="order-card-route-text small">
+                                <strong>Pickup:</strong> <?= e($order['pickup_address']) ?>
+                            </span>
+                        </div>
+                        <div class="order-card-route-stop">
+                            <span class="order-card-dot order-card-dot--dropoff" aria-hidden="true"></span>
+                            <span class="order-card-route-text small">
+                                <strong>Drop-off:</strong> <?= e($order['dropoff_address']) ?>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="order-card-footer">
+                        <div>
+                            <span class="text-muted small d-block">Delivery fee</span>
+                            <span class="order-card-fee">₱<?= number_format((float)$order['delivery_fee'], 2) ?></span>
+                        </div>
+                        <div class="order-card-actions">
+                            <?php if ($role === 'customer' && in_array($status, ['draft', 'pending_payment'], true)): ?>
+                                <a class="btn btn-primary" href="<?= base_url('orders/' . (int)$order['id']) ?>">Pay now</a>
+                            <?php else: ?>
+                                <a class="btn btn-outline-secondary" href="<?= base_url('orders/' . (int)$order['id']) ?>">Details</a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </article>
+            <?php endforeach; ?>
+        </div>
+
+        <div class="table-responsive surface d-none d-md-block">
             <table class="table align-middle mb-0 table-responsive-stack table-clean">
                 <thead>
                     <tr>

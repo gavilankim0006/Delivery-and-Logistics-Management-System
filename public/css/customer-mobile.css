@@ -1,0 +1,838 @@
+/**
+ * Dispatch - Customer Mobile Adaptive Design System
+ * Tailored responsive enhancements for customer workflows:
+ * Bottom navigation, responsive cards, sticky order summary, touch targets, and chat drawer.
+ */
+
+:root {
+    --customer-bottom-nav-height: 62px;
+    --customer-touch-target: 44px;
+    --customer-card-radius: 14px;
+    --customer-shadow-subtle: 0 2px 8px rgba(15, 23, 42, 0.06);
+    --customer-shadow-floating: 0 -4px 16px rgba(15, 23, 42, 0.08);
+}
+
+/* ==========================================================================
+   1. Customer Mobile Bottom Navigation Bar
+   ========================================================================== */
+
+.customer-bottom-nav {
+    display: none;
+}
+
+@media (max-width: 767.98px) {
+    .customer-bottom-nav {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: calc(var(--customer-bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        background: var(--surface, #ffffff);
+        border-top: 1px solid var(--line, #D3DDE5);
+        box-shadow: var(--customer-shadow-floating);
+        z-index: 1030;
+        align-items: stretch;
+        justify-content: space-around;
+        user-select: none;
+        -webkit-user-select: none;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+    }
+
+    /* Reserve space at bottom of document on mobile */
+    body.role-customer,
+    body.has-customer-bottom-nav {
+        padding-bottom: calc(var(--customer-bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 16px);
+    }
+
+    body.role-customer .app-footer,
+    body.has-customer-bottom-nav .app-footer {
+        margin-bottom: calc(var(--customer-bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+        padding-bottom: var(--s-3, 16px);
+    }
+
+    .customer-bottom-nav__item {
+        flex: 1 1 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: var(--ink-2, #4C6070);
+        text-decoration: none;
+        padding: 6px 2px;
+        min-height: var(--customer-touch-target);
+        transition: color 0.15s ease, transform 0.12s ease;
+        position: relative;
+    }
+
+    .customer-bottom-nav__item:hover,
+    .customer-bottom-nav__item:focus {
+        color: var(--route, #087F98);
+        text-decoration: none;
+    }
+
+    .customer-bottom-nav__item:active {
+        transform: scale(0.94);
+    }
+
+    .customer-bottom-nav__item.is-active {
+        color: var(--route, #087F98);
+        font-weight: 700;
+    }
+
+    .customer-bottom-nav__icon {
+        font-size: 1.25rem;
+        line-height: 1.2;
+        margin-bottom: 2px;
+        transition: transform 0.15s ease;
+    }
+
+    .customer-bottom-nav__item.is-active .customer-bottom-nav__icon {
+        transform: translateY(-1px);
+    }
+
+    .customer-bottom-nav__label {
+        font-size: 11px;
+        line-height: 1.1;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+    }
+
+    /* Highlighted Center "+ New" Order Button */
+    .customer-bottom-nav__item--action {
+        position: relative;
+    }
+
+    .customer-bottom-nav__action-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--route, #087F98) 0%, var(--route-dark, #05687E) 100%);
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: -16px;
+        box-shadow: 0 4px 14px rgba(8, 127, 152, 0.45);
+        font-size: 1.25rem;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .customer-bottom-nav__item--action:active .customer-bottom-nav__action-btn {
+        transform: scale(0.92);
+        box-shadow: 0 2px 8px rgba(8, 127, 152, 0.35);
+    }
+
+    .customer-bottom-nav__item--action .customer-bottom-nav__label {
+        margin-top: 2px;
+        font-weight: 600;
+    }
+}
+
+/* ==========================================================================
+   2. Top Navbar Polish on Mobile
+   ========================================================================== */
+
+@media (max-width: 767.98px) {
+    .navbar-custom {
+        padding-block: var(--s-2, 8px);
+    }
+
+    .navbar-brand-custom {
+        font-size: 1.1rem;
+        gap: var(--s-2, 8px);
+    }
+
+    .navbar-toggler {
+        min-width: 44px;
+        min-height: 44px;
+        padding: 8px;
+        border-radius: var(--r-sm, 6px);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .navbar-collapse {
+        margin-top: var(--s-2, 8px);
+        padding: var(--s-3, 16px);
+        background: var(--surface, #ffffff);
+        border: 1px solid var(--line, #D3DDE5);
+        border-radius: var(--r-md, 10px);
+        box-shadow: var(--shadow-pop, 0 8px 24px rgba(20, 33, 61, 0.12));
+    }
+
+    .navbar-nav .nav-link {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        padding: var(--s-2, 8px) var(--s-3, 16px);
+        border-radius: var(--r-sm, 6px);
+    }
+
+    .navbar-nav .nav-link.active {
+        background-color: var(--paper, #EEF2F5);
+        font-weight: 600;
+    }
+}
+
+/* ==========================================================================
+   3. Quick Status Filter Pills for Customer Orders
+   ========================================================================== */
+
+.customer-mobile-filters {
+    display: none;
+}
+
+@media (max-width: 767.98px) {
+    .customer-mobile-filters {
+        display: block;
+        margin-bottom: var(--s-3, 16px);
+    }
+
+    .customer-filter-pills-scroll {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 6px;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .customer-filter-pills-scroll::-webkit-scrollbar {
+        display: none;
+    }
+
+    .customer-filter-pill {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 14px;
+        border-radius: var(--r-pill, 999px);
+        font-size: var(--font-size-12, 12px);
+        font-weight: 600;
+        border: 1px solid var(--line, #D3DDE5);
+        background: var(--surface, #ffffff);
+        color: var(--ink-2, #4C6070);
+        text-decoration: none;
+        min-height: 36px;
+        transition: all 0.15s ease;
+        white-space: nowrap;
+    }
+
+    .customer-filter-pill:hover,
+    .customer-filter-pill:focus {
+        border-color: var(--route, #087F98);
+        color: var(--route, #087F98);
+        text-decoration: none;
+    }
+
+    .customer-filter-pill.is-active {
+        background: var(--route, #087F98);
+        border-color: var(--route, #087F98);
+        color: #ffffff;
+        box-shadow: 0 2px 8px rgba(8, 127, 152, 0.28);
+    }
+
+    .customer-filter-toggle-btn {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 14px;
+        border-radius: var(--r-sm, 6px);
+        border: 1px solid var(--line, #D3DDE5);
+        background: var(--surface, #ffffff);
+        color: var(--ink, #172B3A);
+        font-weight: 600;
+        font-size: var(--font-size-14, 14px);
+        min-height: 44px;
+        margin-top: 8px;
+    }
+}
+
+/* ==========================================================================
+   4. Customer Orders List: Adaptive Mobile Cards Layout
+   ========================================================================== */
+
+@media (max-width: 767.98px) {
+    /* Hide standard desktop table chrome */
+    .table-responsive-stack thead {
+        display: none !important;
+    }
+
+    .table-responsive-stack tbody {
+        display: block;
+    }
+
+    /* Transform each table row into an app-grade order card */
+    .table-responsive-stack tbody tr {
+        display: block;
+        margin-bottom: var(--s-3, 16px);
+        padding: var(--s-3, 16px);
+        background: var(--surface, #ffffff);
+        border: 1px solid var(--line, #D3DDE5);
+        border-radius: var(--customer-card-radius);
+        box-shadow: var(--customer-shadow-subtle);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .table-responsive-stack tbody tr:active {
+        transform: scale(0.99);
+    }
+
+    /* Individual fields */
+    .table-responsive-stack tbody td {
+        display: block;
+        padding: 4px 0;
+        border: 0;
+        text-align: start;
+        font-size: var(--font-size-14, 14px);
+    }
+
+    .table-responsive-stack tbody td::before {
+        display: none; /* Hide default label prefix for customer customized cards */
+    }
+
+    /* Specific Order Card Elements */
+    .order-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px dashed var(--line, #D3DDE5);
+    }
+
+    .order-card-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--route, #087F98);
+        text-decoration: none;
+    }
+
+    .order-card-date {
+        font-size: var(--font-size-12, 12px);
+        color: var(--ink-3, #617687);
+    }
+
+    /* Route visual timeline on cards */
+    .order-card-route {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-block: 8px 12px;
+        padding-inline-start: 4px;
+        position: relative;
+    }
+
+    .order-card-route-stop {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        font-size: var(--font-size-14, 14px);
+        line-height: 1.35;
+    }
+
+    .order-card-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        margin-top: 4px;
+    }
+
+    .order-card-dot--pickup {
+        background-color: var(--success, #146443);
+        box-shadow: 0 0 0 3px rgba(20, 100, 67, 0.18);
+    }
+
+    .order-card-dot--dropoff {
+        background-color: var(--danger, #A12C2A);
+        box-shadow: 0 0 0 3px rgba(161, 44, 42, 0.18);
+    }
+
+    .order-card-route-text {
+        color: var(--ink, #172B3A);
+        flex: 1 1 auto;
+        word-break: break-word;
+    }
+
+    .order-card-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--paper, #EEF2F5);
+    }
+
+    .order-card-fee {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--ink, #172B3A);
+        font-variant-numeric: tabular-nums;
+    }
+
+    .order-card-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .order-card-actions .btn {
+        min-height: 38px;
+        padding: 6px 14px;
+        font-size: var(--font-size-12, 12px);
+        font-weight: 600;
+        border-radius: var(--r-sm, 6px);
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+}
+
+/* ==========================================================================
+   5. Customer Order Creation & Editing on Mobile
+   ========================================================================== */
+
+@media (max-width: 767.98px) {
+    .order-form-page {
+        padding-bottom: 80px; /* Space for sticky order summary bar */
+    }
+
+    /* Size selector pill group */
+    .parcel-size-selector {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .parcel-size-pill {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 6px;
+        border: 2px solid var(--line, #D3DDE5);
+        border-radius: var(--r-md, 10px);
+        background: var(--surface, #ffffff);
+        cursor: pointer;
+        transition: all 0.15s ease;
+        text-align: center;
+        min-height: 64px;
+    }
+
+    .parcel-size-pill:hover,
+    .parcel-size-pill:focus-visible {
+        border-color: var(--route, #087F98);
+        background: var(--paper, #EEF2F5);
+    }
+
+    .parcel-size-pill.is-selected {
+        border-color: var(--route, #087F98);
+        background: color-mix(in srgb, var(--route, #087F98) 8%, #ffffff);
+        color: var(--route, #087F98);
+        font-weight: 700;
+    }
+
+    .parcel-size-pill__code {
+        font-size: 1.15rem;
+        font-weight: 700;
+        line-height: 1;
+        margin-bottom: 2px;
+    }
+
+    .parcel-size-pill__desc {
+        font-size: 10px;
+        color: var(--ink-2, #4C6070);
+        line-height: 1.2;
+    }
+
+    .parcel-size-pill.is-selected .parcel-size-pill__desc {
+        color: var(--route, #087F98);
+    }
+
+    /* Map container on mobile */
+    .delivery-map {
+        height: 220px !important;
+        border-radius: var(--r-md, 10px);
+        touch-action: pan-x pan-y;
+    }
+
+    /* Sticky Bottom Order Summary & CTA Bar */
+    .order-form-mobile-bar {
+        position: fixed;
+        bottom: calc(var(--customer-bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+        left: 0;
+        right: 0;
+        background: var(--surface, #ffffff);
+        border-top: 1px solid var(--line, #D3DDE5);
+        box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.08);
+        padding: 10px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        z-index: 1025;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+
+    .order-form-mobile-bar__info {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.2;
+    }
+
+    .order-form-mobile-bar__label {
+        font-size: 11px;
+        color: var(--ink-2, #4C6070);
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+    }
+
+    .order-form-mobile-bar__price {
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: var(--ink, #172B3A);
+        font-variant-numeric: tabular-nums;
+    }
+
+    .order-form-mobile-bar__sub {
+        font-size: 11px;
+        color: var(--ink-3, #617687);
+    }
+
+    .order-form-mobile-bar__btn {
+        min-height: 44px;
+        padding: 10px 20px;
+        font-weight: 700;
+        font-size: 14px;
+        border-radius: var(--r-sm, 6px);
+        flex-shrink: 0;
+    }
+}
+
+/* ==========================================================================
+   6. Customer Order Detail & Live Tracking
+   ========================================================================== */
+
+@media (max-width: 767.98px) {
+    /* Header action buttons on mobile */
+    .order-header-actions {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    .order-header-actions .btn {
+        width: 100%;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Route cards for Origin & Destination */
+    .order-route-card {
+        background: var(--surface, #ffffff);
+        border: 1px solid var(--line, #D3DDE5);
+        border-radius: var(--r-md, 10px);
+        padding: 14px;
+        margin-bottom: 12px;
+    }
+
+    .order-route-card__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+    }
+
+    .order-route-card__badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: var(--font-size-12, 12px);
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .order-route-card__badge--pickup {
+        color: var(--success, #146443);
+    }
+
+    .order-route-card__badge--dropoff {
+        color: var(--danger, #A12C2A);
+    }
+
+    .order-route-card__address {
+        font-size: 14px;
+        color: var(--ink, #172B3A);
+        margin-bottom: 6px;
+        line-height: 1.35;
+    }
+
+    .order-route-card__contact {
+        font-size: 13px;
+        color: var(--ink-2, #4C6070);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .order-route-card__call-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: var(--r-pill, 999px);
+        background: var(--paper, #EEF2F5);
+        color: var(--route, #087F98);
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 12px;
+        min-height: 32px;
+    }
+
+    /* Mobile Route Tracker Enhancements */
+    .ds-route-tracker__stages {
+        padding-inline-start: 0;
+    }
+
+    /* Proof of Delivery Image on Mobile */
+    .proof-preview-mobile {
+        width: 100%;
+        max-height: 300px;
+        object-fit: cover;
+        border-radius: var(--r-md, 10px);
+        border: 1px solid var(--line, #D3DDE5);
+    }
+}
+
+/* ==========================================================================
+   7. Customer Saved Addresses on Mobile
+   ========================================================================== */
+
+@media (max-width: 767.98px) {
+    .address-card-mobile {
+        background: var(--surface, #ffffff);
+        border: 1px solid var(--line, #D3DDE5);
+        border-radius: var(--customer-card-radius);
+        padding: 16px;
+        margin-bottom: 12px;
+        box-shadow: var(--customer-shadow-subtle);
+    }
+
+    .address-card-mobile__header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .address-card-mobile__title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--ink, #172B3A);
+        margin-bottom: 0;
+    }
+
+    .address-card-mobile__actions {
+        display: flex;
+        gap: 6px;
+    }
+
+    .address-card-mobile__actions .btn {
+        min-height: 38px;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    /* Mobile Floating Action Button (FAB) for Adding Address */
+    .customer-fab {
+        position: fixed;
+        right: 18px;
+        bottom: calc(var(--customer-bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 16px);
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--route, #087F98) 0%, var(--route-dark, #05687E) 100%);
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 16px rgba(8, 127, 152, 0.45);
+        z-index: 1020;
+        font-size: 1.4rem;
+        text-decoration: none;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .customer-fab:hover,
+    .customer-fab:focus {
+        color: #ffffff;
+        text-decoration: none;
+    }
+
+    .customer-fab:active {
+        transform: scale(0.92);
+    }
+}
+
+/* ==========================================================================
+   8. Package Messenger Mobile Refinements
+   ========================================================================== */
+
+@media (max-width: 767.98px) {
+    .messenger-wrapper {
+        margin-top: 0;
+        margin-bottom: 0;
+        padding-inline: 0;
+        height: 100%;
+    }
+
+    .messenger-shell {
+        height: calc(100dvh - 58px);
+        height: calc(100vh - 58px); /* Fallback */
+        min-height: 0;
+        max-height: none;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .messenger-shell.chat-open .messenger-sidebar {
+        display: none !important;
+    }
+
+    .messenger-shell.chat-open .messenger-main {
+        display: flex !important;
+        width: 100% !important;
+        height: 100% !important;
+    }
+
+    /* AI Sliding Panel on Mobile: Covers Full View with smooth slide */
+    .messenger-shell.ai-panel-open .ai-panel,
+    .ai-panel.is-open {
+        position: absolute !important;
+        top: 0 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        height: 100% !important;
+        z-index: 20 !important;
+        border-left: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .ai-panel-header {
+        padding: 12px 16px;
+    }
+
+    .btn-ai-action {
+        width: 36px;
+        height: 36px;
+        min-height: 36px;
+        font-size: 1rem;
+    }
+
+    .chat-input-bar {
+        padding: 10px 12px;
+        padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+        background: var(--surface, #ffffff);
+        border-top: 1px solid var(--msgr-border, #e2e8f0);
+    }
+
+    .chat-input-bar .btn-send {
+        width: 44px;
+        height: 44px;
+        min-height: 44px;
+    }
+}
+
+/* ==========================================================================
+   9. Floating AI Assistant Widget: Mobile Placement & Chat Window
+   ========================================================================== */
+
+@media (max-width: 767.98px) {
+    /* Pin floating 3D orb above customer bottom navigation */
+    body.has-customer-bottom-nav #ai-assistant-widget,
+    body.role-customer #ai-assistant-widget {
+        bottom: calc(var(--customer-bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 12px) !important;
+        right: 14px !important;
+        width: 64px !important;
+        height: 64px !important;
+    }
+
+    body.has-customer-bottom-nav .ai-bot-trigger,
+    body.role-customer .ai-bot-trigger {
+        width: 64px !important;
+        height: 64px !important;
+    }
+
+    /* Full-screen bottom sheet for AI Chat Window on mobile */
+    .ai-chat-window {
+        bottom: 0 !important;
+        right: 0 !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100dvh !important;
+        height: 100vh !important; /* Fallback */
+        max-height: none !important;
+        border-radius: 0 !important;
+        z-index: 1060 !important;
+    }
+
+    .ai-chat-header {
+        padding: 14px 16px;
+        border-radius: 0;
+    }
+
+    .ai-chat-input-bar {
+        padding-bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
+    }
+}
+
+/* ==========================================================================
+   10. Touch Target & Accessibility Guarantees
+   ========================================================================== */
+
+@media (max-width: 767.98px) {
+    button,
+    .btn,
+    .nav-link,
+    .dropdown-item {
+        min-height: var(--customer-touch-target);
+    }
+
+    /* Prevent text selection during rapid tapping */
+    .customer-bottom-nav a,
+    .parcel-size-pill,
+    .customer-filter-pill {
+        -webkit-tap-highlight-color: transparent;
+    }
+}

@@ -47,11 +47,13 @@ $isHome = ($normalizedCurrent === $normalizedBase) || ($normalizedCurrent === $n
     <?php $formsCssPath = dirname(__DIR__, 3) . '/public/css/shared-forms.css'; ?>
     <link href="<?= base_url('css/shared-forms.css') ?><?= is_file($formsCssPath) ? '?v=' . (string)filemtime($formsCssPath) : '' ?>" rel="stylesheet">
     <link href="<?= base_url('css/ai-assistant.css') ?>" rel="stylesheet">
+    <?php $customerCssPath = dirname(__DIR__, 3) . '/public/css/customer-mobile.css'; ?>
+    <link href="<?= base_url('css/customer-mobile.css') ?><?= is_file($customerCssPath) ? '?v=' . (string)filemtime($customerCssPath) : '' ?>" rel="stylesheet">
     <?php if (isset($extra_css)): ?>
         <?= $extra_css ?>
     <?php endif; ?>
 </head>
-<body>
+<body<?= $role ? ' class="role-' . e($role) . ($role === 'customer' ? ' has-customer-bottom-nav' : '') . '"' : '' ?>>
     <a class="skip-link" href="#main-content">Skip to content</a>
     <nav class="navbar navbar-expand-lg navbar-custom sticky-top" aria-label="Main navigation">
         <div class="container">

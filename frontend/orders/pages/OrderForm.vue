@@ -217,7 +217,7 @@ function feeEstimate() {
 </script>
 
 <template>
-    <div class="container py-4 ds-page page-shell">
+    <div class="container py-4 ds-page page-shell order-form-page">
         <nav aria-label="Breadcrumb" class="breadcrumb-line mb-3">
             <a :href="`${baseUrl}orders`">My orders</a>
             <span aria-hidden="true"> / </span>
@@ -235,7 +235,7 @@ function feeEstimate() {
 
         <div v-if="formError" class="alert alert-danger" role="alert">{{ formError }}</div>
 
-        <form method="post" :action="formAction" novalidate @submit="handleSubmit">
+        <form id="order-main-form" method="post" :action="formAction" novalidate @submit="handleSubmit">
             <div v-html="csrfField"></div>
             <input
                 v-for="key in ['pickup_lat', 'pickup_lng', 'dropoff_lat', 'dropoff_lng', 'hidden_distance_km', 'hidden_estimated_duration_min', 'hidden_delivery_fee', 'hidden_pickup_lat', 'hidden_pickup_lng', 'hidden_dropoff_lat', 'hidden_dropoff_lng']"
@@ -589,12 +589,50 @@ function feeEstimate() {
                                     <span>Size</span>
                                     <span class="text-danger ms-1" aria-hidden="true">*</span>
                                 </label>
+
+                                <!-- Mobile Friendly Visual Size Selector Pills (Phone view) -->
+                                <div class="parcel-size-selector d-sm-none" role="radiogroup" aria-label="Select parcel size">
+                                    <button
+                                        type="button"
+                                        class="parcel-size-pill"
+                                        :class="{ 'is-selected': parcelSize === 'S' }"
+                                        role="radio"
+                                        :aria-checked="parcelSize === 'S' ? 'true' : 'false'"
+                                        @click="parcelSize = 'S'; clearError('parcel_size')"
+                                    >
+                                        <span class="parcel-size-pill__code">S</span>
+                                        <span class="parcel-size-pill__desc">Pouch / doc</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="parcel-size-pill"
+                                        :class="{ 'is-selected': parcelSize === 'M' }"
+                                        role="radio"
+                                        :aria-checked="parcelSize === 'M' ? 'true' : 'false'"
+                                        @click="parcelSize = 'M'; clearError('parcel_size')"
+                                    >
+                                        <span class="parcel-size-pill__code">M</span>
+                                        <span class="parcel-size-pill__desc">Standard box</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="parcel-size-pill"
+                                        :class="{ 'is-selected': parcelSize === 'L' }"
+                                        role="radio"
+                                        :aria-checked="parcelSize === 'L' ? 'true' : 'false'"
+                                        @click="parcelSize = 'L'; clearError('parcel_size')"
+                                    >
+                                        <span class="parcel-size-pill__code">L</span>
+                                        <span class="parcel-size-pill__desc">Bulky / large</span>
+                                    </button>
+                                </div>
+
                                 <select
                                     id="parcel_size"
                                     v-model="parcelSize"
                                     name="parcel_size"
                                     required
-                                    class="form-select shared-select"
+                                    class="form-select shared-select d-none d-sm-block"
                                     :class="{ 'is-invalid': Boolean(getError('parcel_size')) }"
                                     @change="clearError('parcel_size')"
                                 >
@@ -665,5 +703,23 @@ function feeEstimate() {
                 </aside>
             </div>
         </form>
+
+        <!-- Sticky Floating Action Bar for Mobile Customer View -->
+        <div class="order-form-mobile-bar d-lg-none" role="region" aria-label="Order summary bar">
+            <div class="order-form-mobile-bar__info">
+                <span class="order-form-mobile-bar__label">Estimated Total</span>
+                <span class="order-form-mobile-bar__price" id="mobile-summary-fee">{{ feeEstimate() }}</span>
+                <span class="order-form-mobile-bar__sub" id="mobile-summary-distance">Calculated on save</span>
+            </div>
+            <button
+                class="btn btn-primary order-form-mobile-bar__btn"
+                type="button"
+                :disabled="submitting"
+                @click="handleSubmit"
+            >
+                <span v-if="submitting" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                <span>{{ submitting ? 'Saving...' : (isEdit ? 'Save' : 'Save Order') }}</span>
+            </button>
+        </div>
     </div>
 </template>

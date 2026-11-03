@@ -174,7 +174,7 @@ onUnmounted(() => {
                     <span aria-hidden="true">●</span> {{ statusLabels[order.status] || 'Unknown' }}
                 </span>
             </div>
-            <div class="d-flex flex-wrap gap-2">
+            <div class="d-flex flex-wrap gap-2 order-header-actions">
                 <template v-if="role === 'customer' && ['draft', 'pending_payment'].includes(order.status)">
                     <span v-if="order.payment_status === 'paid'" class="btn btn-success disabled" aria-disabled="true">Payment received</span>
                     <a v-else-if="order.checkout_url" class="btn btn-primary" :href="order.checkout_url" rel="noopener noreferrer">Continue payment · {{ money(order.delivery_fee) }}</a>
