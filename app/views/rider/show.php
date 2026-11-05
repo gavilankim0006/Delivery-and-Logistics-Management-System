@@ -1,6 +1,9 @@
 <?php
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
-$this->call->view('templates/header', ['page_title' => $page_title ?? 'Delivery details']);
+$this->call->view('templates/header', [
+    'page_title' => $page_title ?? 'Delivery details',
+    'extra_css'  => '<link href="' . base_url('css/rider-portal.css') . '?v=' . (is_file(dirname(__DIR__, 2) . '/public/css/rider-portal.css') ? filemtime(dirname(__DIR__, 2) . '/public/css/rider-portal.css') : '1') . '" rel="stylesheet">'
+]);
 $orderId = (int)$order['order_id'];
 $riderProps = [
     'order' => $order,

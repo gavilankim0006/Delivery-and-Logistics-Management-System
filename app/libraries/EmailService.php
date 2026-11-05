@@ -38,7 +38,8 @@ class EmailService
         $this->fromAddress = trim((string)($config['from_address'] ?? $defaultFrom));
         $this->fromName = trim((string)($config['from_name'] ?? $defaultName));
 
-        $this->mailer = strtolower(trim((string)($config['mailer'] ?? getenv('MAIL_MAILER') ?: ($this->host !== '' ? 'smtp' : 'mail'))));
+        $defaultMailer = $this->host !== '' ? 'smtp' : (PHP_OS_FAMILY === 'Windows' ? 'log' : 'mail');
+        $this->mailer = strtolower(trim((string)($config['mailer'] ?? getenv('MAIL_MAILER') ?: $defaultMailer)));
         $this->logPath = (defined('RUNTIME_DIR') ? RUNTIME_DIR : (defined('ROOT_DIR') ? ROOT_DIR . 'runtime/' : __DIR__ . '/../../runtime/')) . 'logs/email.log';
         $this->transport = isset($config['transport']) && is_callable($config['transport']) ? $config['transport'] : null;
     }
@@ -96,6 +97,28 @@ class EmailService
             $textBody = strip_tags(preg_replace('/<br\s*\/?>/i', "\n", $htmlBody));
         }
 
+        // 0. Check if email sending is disabled globally via MAIL_ENABLED=0
+        if (!$this->isEnabled()) {
+            $result = [
+                'success' => true,
+                'message' => 'Email delivery is disabled (MAIL_ENABLED=0); logged to runtime/logs/email.log.',
+                'simulated' => true
+            ];
+            $this->logDispatch($to, $subject, $htmlBody, $result);
+            return $result;
+        }
+
+        // If configured for 'log' mailer, record to log without attempting network transport
+        if ($this->mailer === 'log') {
+            $result = [
+                'success' => true,
+                'message' => 'Email logged to runtime/logs/email.log (MAIL_MAILER=log).',
+                'simulated' => true
+            ];
+            $this->logDispatch($to, $subject, $htmlBody, $result);
+            return $result;
+        }
+
         // Custom transport for testing/mocking
         if ($this->transport !== null && is_callable($this->transport)) {
             $headers = [
@@ -130,6 +153,8 @@ class EmailService
                     $result = ['success' => false, 'error' => 'SMTP failed: ' . $smtpError . '; Fallback error: ' . $ex->getMessage()];
                 }
             }
+        } elseif ($this->mailer === 'smtp' && $this->host === '') {
+            $result = ['success' => false, 'error' => 'SMTP mailer is configured but MAIL_HOST is empty in .env.'];
         } else {
             // 2. Use PHP native mail()
             try {
@@ -796,7 +821,20 @@ HTML;
         $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
         $extraParams = '-f' . escapeshellarg($this->fromAddress);
 
-        return @mail($to, $encodedSubject, $body, implode($eol, $headers), $extraParams);
+        $sent = false;
+        // Suppress native mail() connection warnings (e.g. localhost:25 on Windows without an active MTA)
+        set_error_handler(static function () {
+            return true;
+        });
+        try {
+            $sent = (bool)@mail($to, $encodedSubject, $body, implode($eol, $headers), $extraParams);
+        } catch (\Throwable $e) {
+            $sent = false;
+        } finally {
+            restore_error_handler();
+        }
+
+        return $sent;
     }
 
     /**

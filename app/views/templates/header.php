@@ -55,7 +55,7 @@ $isHome = ($normalizedCurrent === $normalizedBase) || ($normalizedCurrent === $n
 </head>
 <body<?= $role ? ' class="role-' . e($role) . ($role === 'customer' ? ' has-customer-bottom-nav' : '') . '"' : '' ?>>
     <a class="skip-link" href="#main-content">Skip to content</a>
-    <nav class="navbar navbar-expand-lg navbar-custom sticky-top" aria-label="Main navigation">
+    <nav class="navbar navbar-expand-lg navbar-custom" aria-label="Main navigation">
         <div class="container">
             <a class="navbar-brand navbar-brand-custom" href="<?= base_url($role === 'admin' ? 'admin' : ($role === 'dispatcher' ? 'dispatch' : ($role === 'rider' ? 'rider' : ($role === 'customer' ? 'orders' : '')))) ?>" aria-label="Dispatch home">
                 <i class="bi bi-box-seam" aria-hidden="true"></i>
@@ -93,12 +93,15 @@ $isHome = ($normalizedCurrent === $normalizedBase) || ($normalizedCurrent === $n
                                 <span>More</span>
                             </button>
                             <ul class="dropdown-menu" aria-labelledby="adminMoreDropdown">
+                                <li><h6 class="dropdown-header">Reports</h6></li>
+                                <li><a class="dropdown-item<?= $navIsActive('admin/reports') ? ' active' : '' ?>" href="<?= base_url('admin/reports') ?>"<?= $navIsActive('admin/reports') ? ' aria-current="page"' : '' ?>><i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i> Delivery reports</a></li>
+                                <li><a class="dropdown-item<?= $navIsActive('admin/package-reports') ? ' active' : '' ?>" href="<?= base_url('admin/package-reports') ?>"<?= $navIsActive('admin/package-reports') ? ' aria-current="page"' : '' ?>><i class="bi bi-box-seam" aria-hidden="true"></i> Package reports</a></li>
+                                <li><a class="dropdown-item<?= $navIsActive('admin/logs') ? ' active' : '' ?>" href="<?= base_url('admin/logs') ?>"<?= $navIsActive('admin/logs') ? ' aria-current="page"' : '' ?>><i class="bi bi-journal-code" aria-hidden="true"></i> API logs</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Configuration & tools</h6></li>
                                 <li><a class="dropdown-item<?= $navIsActive('admin/settings') ? ' active' : '' ?>" href="<?= base_url('admin/settings') ?>"<?= $navIsActive('admin/settings') ? ' aria-current="page"' : '' ?>><i class="bi bi-gear" aria-hidden="true"></i> Settings</a></li>
                                 <li><a class="dropdown-item<?= $navIsActive('admin/service-areas') ? ' active' : '' ?>" href="<?= base_url('admin/service-areas') ?>"<?= $navIsActive('admin/service-areas') ? ' aria-current="page"' : '' ?>><i class="bi bi-bounding-box" aria-hidden="true"></i> Service areas</a></li>
                                 <li><a class="dropdown-item<?= $navIsActive('admin/command-simulator') ? ' active' : '' ?>" href="<?= base_url('admin/command-simulator') ?>"<?= $navIsActive('admin/command-simulator') ? ' aria-current="page"' : '' ?>><i class="bi bi-lightning" aria-hidden="true"></i> Command simulator</a></li>
-                                <li><a class="dropdown-item<?= $navIsActive('admin/reports') ? ' active' : '' ?>" href="<?= base_url('admin/reports') ?>"<?= $navIsActive('admin/reports') ? ' aria-current="page"' : '' ?>><i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i> Reports</a></li>
-                                <li><a class="dropdown-item<?= $navIsActive('admin/package-reports') ? ' active' : '' ?>" href="<?= base_url('admin/package-reports') ?>"<?= $navIsActive('admin/package-reports') ? ' aria-current="page"' : '' ?>><i class="bi bi-box-seam" aria-hidden="true"></i> Package reports</a></li>
-                                <li><a class="dropdown-item<?= $navIsActive('admin/logs') ? ' active' : '' ?>" href="<?= base_url('admin/logs') ?>"<?= $navIsActive('admin/logs') ? ' aria-current="page"' : '' ?>><i class="bi bi-journal-code" aria-hidden="true"></i> API logs</a></li>
                                 <?php if ($showCourierSimulator): ?>
                                     <li><a class="dropdown-item<?= $navIsActive('admin/courier-simulator') ? ' active' : '' ?>" href="<?= base_url('admin/courier-simulator') ?>"<?= $navIsActive('admin/courier-simulator') ? ' aria-current="page"' : '' ?>><i class="bi bi-truck" aria-hidden="true"></i> Courier simulator</a></li>
                                 <?php endif; ?>

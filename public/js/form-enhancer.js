@@ -403,6 +403,7 @@
         document.querySelectorAll('input, select, textarea').forEach((field) => {
             if (field.dataset.enhancedValidation) return;
             field.dataset.enhancedValidation = 'true';
+            if (field.closest && field.closest('#vue-auth-root, [data-vue-form]')) return;
             if (field.hasAttribute('data-no-validate') || (field.closest && field.closest('[data-no-validate="true"]'))) {
                 return;
             }
@@ -435,6 +436,9 @@
 
             form.addEventListener('submit', (e) => {
                 if (form.getAttribute('data-no-validate') === 'true') return;
+                // Vue forms own their validation and error rendering. The global enhancer
+                // must not attach a second validation pass or duplicate feedback.
+                if (form.closest('#vue-auth-root, [data-vue-form]')) return;
 
                 let firstInvalid = null;
                 const fields = form.querySelectorAll('input, select, textarea');

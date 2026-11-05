@@ -14,7 +14,7 @@ class Address_model extends Model
     public function get_owned(int $addressId, int $customerId): ?array
     {
         $row = $this->getDb()->table('addresses')
-            ->select('id, label, address_line, contact_name, contact_phone, notes, created_at')
+            ->select('id, label, address_line, unit_number, street, barangay, city, province, contact_name, contact_phone, notes, created_at')
             ->where('id', $addressId)
             ->where('customer_id', $customerId)
             ->get();
@@ -28,6 +28,11 @@ class Address_model extends Model
             'customer_id' => $customerId,
             'label' => $data['label'] !== '' ? $data['label'] : null,
             'address_line' => $data['address_line'],
+            'unit_number' => $data['unit_number'] ?? null,
+            'street' => $data['street'] ?? null,
+            'barangay' => $data['barangay'] ?? null,
+            'city' => $data['city'] ?? null,
+            'province' => $data['province'] ?? null,
             'contact_name' => $data['contact_name'],
             'contact_phone' => $data['contact_phone'],
             'notes' => $data['notes'] !== '' ? $data['notes'] : null,
@@ -59,6 +64,11 @@ class Address_model extends Model
                     'customer_id' => $customerId,
                     'label' => $data['label'] !== '' ? $data['label'] : null,
                     'address_line' => $data['address_line'],
+                    'unit_number' => $data['unit_number'] ?? null,
+                    'street' => $data['street'] ?? null,
+                    'barangay' => $data['barangay'] ?? null,
+                    'city' => $data['city'] ?? null,
+                    'province' => $data['province'] ?? null,
                     'latitude' => $address['latitude'],
                     'longitude' => $address['longitude'],
                     'contact_name' => $data['contact_name'],
@@ -71,6 +81,11 @@ class Address_model extends Model
                 $db->table('addresses')->where('id', $addressId)->where('customer_id', $customerId)->update([
                     'label' => $data['label'] !== '' ? $data['label'] : null,
                     'address_line' => $data['address_line'],
+                    'unit_number' => $data['unit_number'] ?? null,
+                    'street' => $data['street'] ?? null,
+                    'barangay' => $data['barangay'] ?? null,
+                    'city' => $data['city'] ?? null,
+                    'province' => $data['province'] ?? null,
                     'contact_name' => $data['contact_name'],
                     'contact_phone' => $data['contact_phone'],
                     'notes' => $data['notes'] !== '' ? $data['notes'] : null,

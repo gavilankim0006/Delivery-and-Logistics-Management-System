@@ -246,7 +246,7 @@ if (!function_exists('auth_logout')) {
 }
 
 if (!function_exists('flash')) {
-    function flash(string $key, ?string $message = null)
+    function flash(string $key, $message = null)
     {
         if ($message !== null) {
             $_SESSION['flash'][$key] = $message;

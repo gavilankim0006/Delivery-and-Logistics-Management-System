@@ -8,7 +8,7 @@ class Careers extends Controller
         parent::__construct();
         $this->call->helper('auth');
         $this->call->model('Job_application_model');
-        $this->call->library('JobApplicationDocumentService');
+        $this->JobApplicationDocumentService = $this->call->library('JobApplicationDocumentService');
     }
 
     public function apply(): void
@@ -88,8 +88,8 @@ class Careers extends Controller
             // 6. Availability
             if ($formData['availability'] === '') {
                 $errors['availability'] = 'Availability is required.';
-            } elseif (mb_strlen($formData['availability']) > 180) {
-                $errors['availability'] = 'Availability cannot exceed 180 characters.';
+            } elseif (!in_array($formData['availability'], ['Full-time', 'Part-time', 'Weekdays', 'Weekends', 'Flexible'], true)) {
+                $errors['availability'] = 'Select one of the listed availability options.';
             }
 
             // 7. Experience
@@ -102,8 +102,8 @@ class Careers extends Controller
             // 8. ID type
             if ($formData['id_type'] === '') {
                 $errors['id_type'] = 'ID type is required.';
-            } elseif (mb_strlen($formData['id_type']) > 100) {
-                $errors['id_type'] = 'ID type cannot exceed 100 characters.';
+            } elseif (!in_array($formData['id_type'], ['Driver’s License', 'PhilID / National ID', 'UMID', 'Passport', 'Postal ID', 'Voter’s ID', 'Other government-issued ID'], true)) {
+                $errors['id_type'] = 'Choose an ID type from the list.';
             }
 
             // 9. ID number
@@ -128,7 +128,7 @@ class Careers extends Controller
             }
 
             try {
-                $uploaded = $this->jobapplicationdocumentservice->storeUpload($_FILES['id_document'] ?? []);
+                $uploaded = $this->JobApplicationDocumentService->store($_FILES['id_document'] ?? []);
             } catch (Exception $e) {
                 $errors['id_document'] = $e->getMessage() ?: 'Document upload rejected. Provide a valid JPEG, PNG, WebP, or PDF under 8 MB.';
                 $this->call->view('careers/apply', [
@@ -151,20 +151,21 @@ class Careers extends Controller
                 'availability' => $formData['availability'],
                 'id_type' => $formData['id_type'],
                 'id_number' => $formData['id_number'],
-                'id_document_path' => $uploaded['stored_name'],
-                'id_document_original_name' => $uploaded['original_name'],
-                'id_document_mime' => $uploaded['mime'],
-                'id_document_size_bytes' => $uploaded['size_bytes'],
-                'id_document_sha256' => $uploaded['sha256'],
-                'id_document_data' => $uploaded['file_data'] ?? null,
+                'id_storage_key' => $uploaded['storage_key'],
+                'id_original_name' => $uploaded['original_name'],
+                'id_mime_type' => $uploaded['mime_type'],
+                'id_file_data' => $uploaded['file_data'] ?? null,
                 'status' => 'pending',
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
 
             if (!$created) {
-                if (!empty($uploaded['stored_name'])) {
-                    $this->jobapplicationdocumentservice->deleteFile($uploaded['stored_name']);
+                if (!empty($uploaded['storage_key'])) {
+                    $path = $this->JobApplicationDocumentService->readPath($uploaded['storage_key']);
+                    if ($path && is_file($path)) {
+                        @unlink($path);
+                    }
                 }
                 flash('error', 'We could not submit your application. Please check your details and try again.');
                 $this->call->view('careers/apply', [

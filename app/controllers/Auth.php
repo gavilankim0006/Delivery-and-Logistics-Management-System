@@ -72,6 +72,89 @@ class Auth extends Controller
     }
 
     /**
+     * Request a single-use password reset link by email.
+     */
+    public function forgot_password()
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!verify_csrf()) {
+                flash('error', 'Invalid security token. Please try again.');
+                header('Location: ' . base_url('forgot-password'));
+                exit;
+            }
+
+            $email = strtolower(trim($_POST['email'] ?? ''));
+            $generic = 'If an active account exists for that email, we have sent a password reset link.';
+            if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $user = $this->User_model->find_by_email($email);
+                if ($user && $user['status'] === 'active') {
+                    $db = lava_instance()->db;
+                    $db->table('password_reset_tokens')->where('user_id', (int)$user['id'])->delete();
+                    $token = bin2hex(random_bytes(32));
+                    $expires = date('Y-m-d H:i:s', time() + 3600);
+                    $db->raw('INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE token_hash = VALUES(token_hash), expires_at = VALUES(expires_at)', [(int)$user['id'], hash('sha256', $token), $expires]);
+                    require_once APP_DIR . 'libraries/EmailService.php';
+                    $url = base_url('reset-password?token=' . rawurlencode($token));
+                    $safeUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+                    $body = '<p>We received a request to reset your password.</p><p><a href="' . $safeUrl . '">Reset your password</a></p><p>This link expires in one hour. If you did not request this, ignore this email.</p>';
+                    $sent = (new EmailService())->send($user['email'], 'Reset your password', $body);
+                    if (!$sent['success']) {
+                        log_message('error', 'Password reset email failed: ' . ($sent['error'] ?? 'unknown error'));
+                    }
+                }
+            }
+            flash('success', $generic);
+            header('Location: ' . base_url('login'));
+            exit;
+        }
+
+        $this->call->view('auth/forgot_password', ['page_title' => 'Forgot password']);
+    }
+
+    /** Reset password using a valid, unexpired, single-use email token. */
+    public function reset_password()
+    {
+        $token = (string)($_POST['token'] ?? $_GET['token'] ?? '');
+        $validToken = preg_match('/^[a-f0-9]{64}$/', $token) === 1;
+        $row = $validToken ? lava_instance()->db->raw(
+            'SELECT user_id FROM password_reset_tokens WHERE token_hash = ? AND expires_at > ? LIMIT 1',
+            [hash('sha256', $token), date('Y-m-d H:i:s')]
+        )->fetch(PDO::FETCH_ASSOC) : null;
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!verify_csrf()) {
+                flash('error', 'Invalid security token. Please try again.');
+                header('Location: ' . base_url('reset-password?token=' . rawurlencode($token)));
+                exit;
+            }
+            $password = (string)($_POST['password'] ?? '');
+            if (!$row || strlen($password) < 8) {
+                flash('error', !$row ? 'This password reset link is invalid or expired.' : 'Password must be at least 8 characters.');
+                header('Location: ' . base_url('reset-password?token=' . rawurlencode($token)));
+                exit;
+            }
+            $db = lava_instance()->db;
+            $db->begin();
+            try {
+                $db->table('users')->where('id', (int)$row['user_id'])->update(['password' => password_hash($password, PASSWORD_BCRYPT)]);
+                $db->table('password_reset_tokens')->where('user_id', (int)$row['user_id'])->delete();
+                $db->commit();
+            } catch (Throwable $e) {
+                $db->roll_back();
+                log_message('error', 'Password reset failed: ' . $e->getMessage());
+                flash('error', 'Unable to update password right now. Please try again.');
+                header('Location: ' . base_url('reset-password?token=' . rawurlencode($token)));
+                exit;
+            }
+            flash('success', 'Password updated. You can now sign in.');
+            header('Location: ' . base_url('login'));
+            exit;
+        }
+
+        $this->call->view('auth/reset_password', ['page_title' => 'Reset password', 'token' => $token, 'token_valid' => (bool)$row]);
+    }
+
+    /**
      * Show registration form and process customer sign-up
      */
     public function register()

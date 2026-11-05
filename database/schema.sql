@@ -62,6 +62,15 @@ CREATE TABLE `users` (
     CONSTRAINT `fk_users_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Password reset tokens are stored hashed and expire after one use.
+CREATE TABLE `password_reset_tokens` (
+    `user_id` BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+    `token_hash` CHAR(64) NOT NULL UNIQUE,
+    `expires_at` DATETIME NOT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT `fk_password_reset_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 3. Customers Table (one-to-one with users)
 CREATE TABLE `customers` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -95,6 +104,11 @@ CREATE TABLE `addresses` (
     `customer_id` BIGINT UNSIGNED NULL,
     `label` VARCHAR(100) NULL,
     `address_line` TEXT NOT NULL,
+    `unit_number` VARCHAR(100) NULL,
+    `street` VARCHAR(255) NULL,
+    `barangay` VARCHAR(255) NULL,
+    `city` VARCHAR(255) NULL,
+    `province` VARCHAR(255) NULL,
     `latitude` DECIMAL(10, 8) NULL,
     `longitude` DECIMAL(11, 8) NULL,
     `contact_name` VARCHAR(100) NOT NULL,

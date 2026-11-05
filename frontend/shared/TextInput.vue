@@ -79,6 +79,7 @@ const debounceDelay = computed(() => {
     return 0;
 });
 
+// An explicit external error takes precedence over local validation state.
 const displayError = computed(() => props.error || internalError.value);
 const hasError = computed(() => Boolean(displayError.value));
 
@@ -90,6 +91,12 @@ const ariaDescribedby = computed(() => {
 });
 
 function runCheck(value) {
+    // Check required rules first; they should short-circuit other validators.
+    const requiredRule = props.rules?.find(rule => rule === required || rule.name === 'required');
+    const isEmpty = value === null || value === undefined || String(value).trim() === '';
+    if ((props.required || requiredRule) && isEmpty) {
+        return `${props.label || 'This field'} is required.`;
+    }
     if (props.type === 'number' && value !== null && value !== undefined && value !== '') {
         const num = Number(value);
         if (!Number.isNaN(num) && num < 0) {
@@ -98,9 +105,6 @@ function runCheck(value) {
     }
     if (props.rules && props.rules.length > 0) {
         return runValidation(value, props.rules, props.label || 'This field');
-    }
-    if (props.required && (value === null || value === undefined || String(value).trim() === '')) {
-        return `${props.label || 'This field'} is required.`;
     }
     return '';
 }
@@ -265,7 +269,7 @@ defineExpose({
         <div
             v-if="hasError"
             :id="errorId"
-            class="invalid-feedback shared-error-text d-block mt-1"
+            class="shared-error-text d-block mt-1"
             role="alert"
             aria-live="polite"
         >

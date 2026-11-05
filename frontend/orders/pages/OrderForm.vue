@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, onUnmounted, reactive, ref } from 'vue';
 import { phPhone, normalizePhPhone } from '../../shared/validators.js';
 
 const props = defineProps({
@@ -34,32 +34,34 @@ const pickupContactPhone = ref(props.formData.pickup_contact_phone || props.user
 const dropoffContactPhone = ref(props.formData.dropoff_contact_phone || props.user.phone || '');
 
 const initialDistance = document.getElementById('distance_km')?.value || props.formData.distance_km || '';
+// Address inputs are updated imperatively by map reverse-geocoding and may later
+// trigger unrelated Vue renders (e.g. typing the parcel description). Keep their
+// current values in reactive state so Vue never reapplies stale initial values.
+const addressComponents = reactive(Object.fromEntries(
+    ['pickup_unit_number', 'pickup_street', 'pickup_barangay', 'pickup_city', 'pickup_province',
+        'dropoff_unit_number', 'dropoff_street', 'dropoff_barangay', 'dropoff_city', 'dropoff_province']
+        .map((key) => [key, props.formData[key] || ''])
+));
 const initialCoords = Object.fromEntries(
     ['pickup_lat', 'pickup_lng', 'dropoff_lat', 'dropoff_lng'].map((key) => [
         key,
         document.getElementById(key)?.value || props.formData[key] || ''
     ])
 );
+const coordinateAddresses = reactive({
+    pickup: props.formData.pickup_coords || '',
+    dropoff: props.formData.dropoff_coords || ''
+});
+// The map manager is a plain script; expose this small bridge so pin updates
+// participate in Vue's reactive state instead of being lost on the next render.
+window.orderFormState = { coordinateAddresses };
 
 function value(key) {
-    if (key === 'pickup_address') return props.formData.pickup_address || '';
-    if (key === 'dropoff_address') return props.formData.dropoff_address || '';
-    if (key === 'pickup_coords') {
-        const lat = initialCoords['pickup_lat'];
-        const lng = initialCoords['pickup_lng'];
-        if (lat !== '' && lng !== '' && lat != null && lng != null && !isNaN(Number(lat)) && !isNaN(Number(lng))) {
-            return `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`;
-        }
-        return props.formData['pickup_coords'] || '';
-    }
-    if (key === 'dropoff_coords') {
-        const lat = initialCoords['dropoff_lat'];
-        const lng = initialCoords['dropoff_lng'];
-        if (lat !== '' && lng !== '' && lat != null && lng != null && !isNaN(Number(lat)) && !isNaN(Number(lng))) {
-            return `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`;
-        }
-        return props.formData['dropoff_coords'] || '';
-    }
+    if (Object.prototype.hasOwnProperty.call(addressComponents, key)) return addressComponents[key];
+    if (key === 'pickup_address') return '';
+    if (key === 'dropoff_address') return '';
+    if (key === 'pickup_coords') return coordinateAddresses.pickup;
+    if (key === 'dropoff_coords') return coordinateAddresses.dropoff;
     if (key === 'distance_km' && initialDistance) return initialDistance;
     if (props.formData[key] != null) return props.formData[key];
     if (key.endsWith('_contact_name')) return props.user.name || '';
@@ -92,7 +94,17 @@ function validateField(id, val, ruleFn, errorMsg) {
 function handleSubmit(event) {
     const form = event.target;
 
-    // Read current values directly from DOM inputs to ensure Google Places autocomplete & typed updates are captured
+    // The split components are authoritative. Compose them before validation/submission so
+    // route lookup and saved coordinates always correspond to the displayed address.
+    for (const stop of ['pickup', 'dropoff']) {
+        const parts = ['unit_number', 'street', 'barangay', 'city', 'province']
+            .map((part) => form.elements.namedItem(`${stop}_${part}`)?.value?.trim() || '')
+            .filter(Boolean);
+        const addressInput = document.getElementById(`${stop}_address`);
+        if (addressInput) addressInput.value = parts.join(', ');
+    }
+
+    // Read current values directly from DOM inputs to ensure component updates are captured
     const pAddressEl = document.getElementById('pickup_address');
     const pNameEl = document.getElementById('pickup_contact_name');
     const pPhoneEl = document.getElementById('pickup_contact_phone');
@@ -117,13 +129,13 @@ function handleSubmit(event) {
 
     const checks = [
         // Pickup section
-        { el: pAddressEl, valid: validateField('pickup_address', pAddressEl?.value, null, 'Pickup address is required.') },
+        { el: pAddressEl, valid: validateField('pickup_address', pAddressEl?.value, null, 'Enter at least one pickup address component.') },
         { el: pNameEl, valid: validateField('pickup_contact_name', pNameEl?.value, (v) => (!v || v.trim().length < 2 ? 'Pickup contact name must be at least 2 characters.' : null)) },
         { el: pPhoneEl, valid: validateField('pickup_contact_phone', pPhoneEl?.value, phPhone) },
         { el: pNotesEl, valid: validateField('pickup_notes', pNotesEl?.value, (v) => (v && v.length > 300 ? 'Pickup notes cannot exceed 300 characters.' : null)) },
 
         // Drop-off section
-        { el: dAddressEl, valid: validateField('dropoff_address', dAddressEl?.value, null, 'Drop-off address is required.') },
+        { el: dAddressEl, valid: validateField('dropoff_address', dAddressEl?.value, null, 'Enter at least one drop-off address component.') },
         { el: dNameEl, valid: validateField('dropoff_contact_name', dNameEl?.value, (v) => (!v || v.trim().length < 2 ? 'Drop-off contact name must be at least 2 characters.' : null)) },
         { el: dPhoneEl, valid: validateField('dropoff_contact_phone', dPhoneEl?.value, phPhone) },
         { el: dNotesEl, valid: validateField('dropoff_notes', dNotesEl?.value, (v) => (v && v.length > 300 ? 'Drop-off notes cannot exceed 300 characters.' : null)) },
@@ -235,6 +247,12 @@ function feeEstimate() {
 
         <div v-if="formError" class="alert alert-danger" role="alert">{{ formError }}</div>
 
+        <ol class="order-form-steps mb-4" aria-label="Order form sections">
+            <li class="order-form-step order-form-step--current"><span aria-hidden="true">1</span> Pickup & drop-off</li>
+            <li class="order-form-step"><span aria-hidden="true">2</span> Parcel & contacts</li>
+            <li class="order-form-step"><span aria-hidden="true">3</span> Review & save</li>
+        </ol>
+
         <form id="order-main-form" method="post" :action="formAction" novalidate @submit="handleSubmit">
             <div v-html="csrfField"></div>
             <input
@@ -250,32 +268,21 @@ function feeEstimate() {
                 <div class="col-12 col-lg-7">
                     <!-- Pickup Section -->
                     <section class="surface surface-section mb-4" aria-labelledby="pickup-heading">
-                        <h2 id="pickup-heading" class="h5 mb-3">Pickup</h2>
+                        <h2 id="pickup-heading" class="h5 mb-1">Pickup address</h2>
+                        <p class="small text-muted mb-3">Where should the rider collect your parcel?</p>
 
                         <!-- Pickup Address (Google Places Autocomplete attached to this exact input) -->
-                        <div class="mb-3 shared-field-wrap" :class="{ 'has-error': Boolean(getError('pickup_address')) }">
-                            <label class="form-label shared-label" for="pickup_address">
-                                <span>Address</span>
-                                <span class="text-danger ms-1" aria-hidden="true">*</span>
-                            </label>
-                            <input
-                                id="pickup_address"
-                                class="form-control shared-input"
-                                :class="{ 'is-invalid': Boolean(getError('pickup_address')) }"
-                                type="text"
-                                name="pickup_address"
-                                maxlength="500"
-                                :value="value('pickup_address')"
-                                placeholder="e.g. Makati CBD, Ayala Avenue"
-                                required
-                                :aria-invalid="getError('pickup_address') ? 'true' : 'false'"
-                                :aria-describedby="getError('pickup_address') ? 'pickup_address-error' : null"
-                                @input="clearError('pickup_address')"
-                            >
-                            <div v-if="getError('pickup_address')" id="pickup_address-error" class="invalid-feedback shared-error-text d-block mt-1" role="alert">
-                                <i class="bi bi-exclamation-circle-fill me-1" aria-hidden="true"></i>{{ getError('pickup_address') }}
+                        <fieldset class="mb-3 shared-field-wrap border-0 p-0">
+                            <legend class="form-label shared-label">Pickup address components</legend>
+                            <div class="row g-2">
+                                <div class="col-6"><input type="text" class="form-control" name="pickup_unit_number" aria-label="Pickup unit or house number" placeholder="Unit/House No." v-model="addressComponents.pickup_unit_number" @input="clearError('pickup_address')"></div>
+                                <div class="col-6"><input type="text" class="form-control" name="pickup_street" aria-label="Pickup street" placeholder="Street" v-model="addressComponents.pickup_street" @input="clearError('pickup_address')"></div>
+                                <div class="col-4"><input type="text" class="form-control" name="pickup_barangay" aria-label="Pickup barangay" placeholder="Barangay" v-model="addressComponents.pickup_barangay" @input="clearError('pickup_address')"></div>
+                                <div class="col-4"><input type="text" class="form-control" name="pickup_city" aria-label="Pickup city" placeholder="City" v-model="addressComponents.pickup_city" @input="clearError('pickup_address')"></div>
+                                <div class="col-4"><input type="text" class="form-control" name="pickup_province" aria-label="Pickup province" placeholder="Province" v-model="addressComponents.pickup_province" @input="clearError('pickup_address')"></div>
                             </div>
-                        </div>
+                        </fieldset>
+                        <input type="hidden" id="pickup_address" name="pickup_address" :value="value('pickup_address')">
 
                         <!-- Pickup Coordinate Address -->
                         <div class="mb-3 shared-field-wrap">
@@ -291,7 +298,7 @@ function feeEstimate() {
                                     class="form-control shared-input bg-light font-monospace"
                                     type="text"
                                     name="pickup_coords"
-                                    :value="value('pickup_coords')"
+                                    v-model="coordinateAddresses.pickup"
                                     readonly
                                     placeholder="Click map or drag pin to set coordinates"
                                 >
@@ -390,32 +397,21 @@ function feeEstimate() {
 
                     <!-- Drop-off Section -->
                     <section class="surface surface-section mb-4" aria-labelledby="dropoff-heading">
-                        <h2 id="dropoff-heading" class="h5 mb-3">Drop-off</h2>
+                        <h2 id="dropoff-heading" class="h5 mb-1">Drop-off address</h2>
+                        <p class="small text-muted mb-3">Where should the rider deliver your parcel?</p>
 
                         <!-- Drop-off Address (Google Places Autocomplete attached to this exact input) -->
-                        <div class="mb-3 shared-field-wrap" :class="{ 'has-error': Boolean(getError('dropoff_address')) }">
-                            <label class="form-label shared-label" for="dropoff_address">
-                                <span>Address</span>
-                                <span class="text-danger ms-1" aria-hidden="true">*</span>
-                            </label>
-                            <input
-                                id="dropoff_address"
-                                class="form-control shared-input"
-                                :class="{ 'is-invalid': Boolean(getError('dropoff_address')) }"
-                                type="text"
-                                name="dropoff_address"
-                                maxlength="500"
-                                :value="value('dropoff_address')"
-                                placeholder="e.g. BGC High Street, Taguig"
-                                required
-                                :aria-invalid="getError('dropoff_address') ? 'true' : 'false'"
-                                :aria-describedby="getError('dropoff_address') ? 'dropoff_address-error' : null"
-                                @input="clearError('dropoff_address')"
-                            >
-                            <div v-if="getError('dropoff_address')" id="dropoff_address-error" class="invalid-feedback shared-error-text d-block mt-1" role="alert">
-                                <i class="bi bi-exclamation-circle-fill me-1" aria-hidden="true"></i>{{ getError('dropoff_address') }}
+                        <fieldset class="mb-3 shared-field-wrap border-0 p-0">
+                            <legend class="form-label shared-label">Drop-off address components</legend>
+                            <div class="row g-2">
+                                <div class="col-6"><input type="text" class="form-control" name="dropoff_unit_number" aria-label="Drop-off unit or house number" placeholder="Unit/House No." v-model="addressComponents.dropoff_unit_number" @input="clearError('dropoff_address')"></div>
+                                <div class="col-6"><input type="text" class="form-control" name="dropoff_street" aria-label="Drop-off street" placeholder="Street" v-model="addressComponents.dropoff_street" @input="clearError('dropoff_address')"></div>
+                                <div class="col-4"><input type="text" class="form-control" name="dropoff_barangay" aria-label="Drop-off barangay" placeholder="Barangay" v-model="addressComponents.dropoff_barangay" @input="clearError('dropoff_address')"></div>
+                                <div class="col-4"><input type="text" class="form-control" name="dropoff_city" aria-label="Drop-off city" placeholder="City" v-model="addressComponents.dropoff_city" @input="clearError('dropoff_address')"></div>
+                                <div class="col-4"><input type="text" class="form-control" name="dropoff_province" aria-label="Drop-off province" placeholder="Province" v-model="addressComponents.dropoff_province" @input="clearError('dropoff_address')"></div>
                             </div>
-                        </div>
+                        </fieldset>
+                        <input type="hidden" id="dropoff_address" name="dropoff_address" :value="value('dropoff_address')">
 
                         <!-- Drop-off Coordinate Address -->
                         <div class="mb-3 shared-field-wrap">
@@ -431,7 +427,7 @@ function feeEstimate() {
                                     class="form-control shared-input bg-light font-monospace"
                                     type="text"
                                     name="dropoff_coords"
-                                    :value="value('dropoff_coords')"
+                                    v-model="coordinateAddresses.dropoff"
                                     readonly
                                     placeholder="Click map or drag pin to set coordinates"
                                 >
@@ -675,7 +671,8 @@ function feeEstimate() {
                                 <button class="btn btn-outline-primary active" type="button" data-map-select="pickup" aria-pressed="true">Place pickup pin</button>
                                 <button class="btn btn-outline-primary" type="button" data-map-select="dropoff" aria-pressed="false">Place drop-off pin</button>
                             </div>
-                            <p v-if="mapsKey" class="form-text shared-helper-text mt-0">Type an address, select from suggestions, or click the map to place a pin.</p>
+                            <p v-if="mapsKey" class="form-text shared-helper-text mt-0">1. Search each address and choose a suggestion. 2. If needed, choose which stop to adjust below, then click the map to place its pin. The highlighted stop receives the next pin.</p>
+                            <p v-if="mapsKey" id="active-stop-hint" class="small fw-semibold text-primary mb-2" aria-live="polite">Map clicks set the pickup pin.</p>
                             <div v-if="mapsKey" id="delivery-map" class="delivery-map mb-3" role="region" aria-label="Delivery route map"></div>
                             <div v-else class="alert alert-warning" role="status">Interactive map unavailable. Configure a Google Maps key to select locations and calculate route distance.</div>
                             <div id="route-error-alert" class="d-none" role="alert" aria-live="polite"></div>

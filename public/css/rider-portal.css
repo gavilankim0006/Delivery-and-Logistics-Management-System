@@ -1,0 +1,525 @@
+/* =====================================================================
+   Rider Portal – Mobile-First Styles
+   Complements the existing design system (app.css) with rider-specific
+   layout, card, stepper, and touch-optimised overrides.
+   ===================================================================== */
+
+/* ---------- Variables ---------- */
+:root {
+    --rider-pickup-bg: #e8f5e9;
+    --rider-pickup-ink: #2e7d32;
+    --rider-pickup-border: #a5d6a7;
+    --rider-dropoff-bg: #e3f2fd;
+    --rider-dropoff-ink: #1565c0;
+    --rider-dropoff-border: #90caf9;
+    --rider-card-shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+    --rider-card-hover-shadow: 0 4px 12px rgba(0,0,0,.1);
+    --rider-stepper-complete: #4caf50;
+    --rider-stepper-active: var(--bs-primary, #0d6efd);
+    --rider-stepper-pending: #dee2e6;
+    --rider-pulse-color: rgba(220, 53, 69, .35);
+    --rider-sticky-shadow: 0 -2px 12px rgba(0,0,0,.08);
+    --rider-transition: .25s cubic-bezier(.4,0,.2,1);
+}
+
+/* ---------- Fade-in animation ---------- */
+@keyframes riderFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.rider-fade-in {
+    animation: riderFadeIn .4s ease-out both;
+}
+
+/* ---------- Delivery Cards ---------- */
+.rider-delivery-card {
+    background: var(--surface, #fff);
+    border: 1px solid var(--line, #e9ecef);
+    border-radius: .75rem;
+    box-shadow: var(--rider-card-shadow);
+    padding: 1rem;
+    transition: box-shadow var(--rider-transition), transform var(--rider-transition);
+    position: relative;
+    overflow: hidden;
+}
+.rider-delivery-card:hover,
+.rider-delivery-card:focus-within {
+    box-shadow: var(--rider-card-hover-shadow);
+    transform: translateY(-2px);
+}
+.rider-delivery-card + .rider-delivery-card {
+    margin-top: .75rem;
+}
+.rider-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    margin-bottom: .75rem;
+}
+.rider-card-order {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: inherit;
+    text-decoration: none;
+}
+.rider-card-order:hover { text-decoration: underline; }
+
+.rider-card-route {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    margin-bottom: .75rem;
+}
+.rider-card-stop {
+    display: flex;
+    align-items: flex-start;
+    gap: .5rem;
+    font-size: .875rem;
+    line-height: 1.4;
+}
+.rider-card-stop-icon {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: .85rem;
+}
+.rider-card-stop-icon--pickup {
+    background: var(--rider-pickup-bg);
+    color: var(--rider-pickup-ink);
+}
+.rider-card-stop-icon--dropoff {
+    background: var(--rider-dropoff-bg);
+    color: var(--rider-dropoff-ink);
+}
+.rider-card-connector {
+    width: 2px;
+    height: 16px;
+    margin-left: 13px;
+    background: repeating-linear-gradient(
+        to bottom,
+        var(--line, #dee2e6) 0px,
+        var(--line, #dee2e6) 3px,
+        transparent 3px,
+        transparent 6px
+    );
+}
+.rider-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    padding-top: .75rem;
+    border-top: 1px solid var(--line, #e9ecef);
+}
+.rider-card-time {
+    font-size: .75rem;
+    color: #6c757d;
+}
+.rider-card-action {
+    min-height: 44px;
+    min-width: 44px;
+    font-weight: 600;
+    font-size: .875rem;
+    border-radius: .5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .375rem;
+    padding: .5rem 1rem;
+}
+
+/* ---- Desktop table (≥992px) ---- */
+@media (min-width: 992px) {
+    .rider-cards-mobile { display: none; }
+    .rider-table-desktop { display: block; }
+}
+@media (max-width: 991.98px) {
+    .rider-cards-mobile { display: block; }
+    .rider-table-desktop { display: none; }
+}
+
+/* ---------- Empty / Error States ---------- */
+.rider-empty-state {
+    text-align: center;
+    padding: 3rem 1.5rem;
+}
+.rider-empty-icon {
+    font-size: 3rem;
+    color: #adb5bd;
+    margin-bottom: 1rem;
+    display: block;
+}
+.rider-empty-state h2 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: .5rem;
+}
+.rider-empty-state p {
+    color: #6c757d;
+    max-width: 28rem;
+    margin: 0 auto;
+}
+
+/* ---------- Progress Stepper ---------- */
+.rider-stepper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: .75rem 0 1rem;
+}
+.rider-stepper-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .25rem;
+    position: relative;
+    flex: 0 0 auto;
+    min-width: 72px;
+}
+.rider-stepper-dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .75rem;
+    font-weight: 700;
+    border: 2px solid var(--rider-stepper-pending);
+    background: var(--surface, #fff);
+    color: #adb5bd;
+    transition: all var(--rider-transition);
+    position: relative;
+    z-index: 1;
+}
+.rider-stepper-step--complete .rider-stepper-dot {
+    background: var(--rider-stepper-complete);
+    border-color: var(--rider-stepper-complete);
+    color: #fff;
+}
+.rider-stepper-step--active .rider-stepper-dot {
+    background: var(--rider-stepper-active);
+    border-color: var(--rider-stepper-active);
+    color: #fff;
+    box-shadow: 0 0 0 4px rgba(13, 110, 253, .2);
+}
+.rider-stepper-label {
+    font-size: .7rem;
+    font-weight: 600;
+    color: #adb5bd;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    white-space: nowrap;
+}
+.rider-stepper-step--complete .rider-stepper-label,
+.rider-stepper-step--active .rider-stepper-label {
+    color: var(--bs-body-color, #212529);
+}
+.rider-stepper-line {
+    flex: 1 1 auto;
+    height: 2px;
+    min-width: 32px;
+    max-width: 80px;
+    background: var(--rider-stepper-pending);
+    transition: background var(--rider-transition);
+}
+.rider-stepper-line--complete {
+    background: var(--rider-stepper-complete);
+}
+
+/* ---------- Route Timeline (detail page) ---------- */
+.rider-route-timeline {
+    position: relative;
+    padding-left: 2rem;
+}
+.rider-route-timeline::before {
+    content: '';
+    position: absolute;
+    left: 14px;
+    top: 28px;
+    bottom: 28px;
+    width: 2px;
+    background: repeating-linear-gradient(
+        to bottom,
+        var(--line, #dee2e6) 0px,
+        var(--line, #dee2e6) 4px,
+        transparent 4px,
+        transparent 8px
+    );
+}
+.rider-route-stop {
+    position: relative;
+    padding-bottom: 1.5rem;
+}
+.rider-route-stop:last-child {
+    padding-bottom: 0;
+}
+.rider-route-marker {
+    position: absolute;
+    left: -2rem;
+    top: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .8rem;
+    z-index: 1;
+}
+.rider-route-marker--pickup {
+    background: var(--rider-pickup-bg);
+    color: var(--rider-pickup-ink);
+    border: 2px solid var(--rider-pickup-border);
+}
+.rider-route-marker--dropoff {
+    background: var(--rider-dropoff-bg);
+    color: var(--rider-dropoff-ink);
+    border: 2px solid var(--rider-dropoff-border);
+}
+.rider-route-stop h3 {
+    font-size: .85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-bottom: .375rem;
+}
+.rider-route-stop--pickup h3 { color: var(--rider-pickup-ink); }
+.rider-route-stop--dropoff h3 { color: var(--rider-dropoff-ink); }
+
+.rider-route-address {
+    font-size: .95rem;
+    font-weight: 500;
+    margin-bottom: .25rem;
+}
+.rider-route-contact {
+    font-size: .85rem;
+    color: #6c757d;
+}
+.rider-route-notes {
+    background: #f8f9fa;
+    border: 1px solid var(--line, #dee2e6);
+    border-radius: var(--r-sm, 6px);
+    padding: .5rem .75rem;
+    margin-top: .5rem;
+    font-size: .8rem;
+    color: #495057;
+}
+.rider-route-stop--pickup .rider-route-notes { border-left-color: var(--rider-pickup-border); }
+.rider-route-stop--dropoff .rider-route-notes { border-left-color: var(--rider-dropoff-border); }
+
+/* ---- Contact action buttons ---- */
+.rider-contact-actions {
+    display: flex;
+    gap: .5rem;
+    margin-top: .5rem;
+    flex-wrap: wrap;
+}
+.rider-contact-btn {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    gap: .375rem;
+    padding: .375rem .75rem;
+    border-radius: .5rem;
+    font-size: .8rem;
+    font-weight: 600;
+    text-decoration: none;
+    border: 1px solid var(--line, #dee2e6);
+    background: var(--surface, #fff);
+    color: var(--bs-body-color, #212529);
+    transition: all var(--rider-transition);
+}
+.rider-contact-btn:hover {
+    background: #f8f9fa;
+    border-color: #adb5bd;
+    color: var(--bs-body-color, #212529);
+}
+.rider-contact-btn--call {
+    border-color: var(--rider-pickup-border);
+    color: var(--rider-pickup-ink);
+}
+.rider-contact-btn--call:hover { background: var(--rider-pickup-bg); }
+.rider-contact-btn--navigate {
+    border-color: var(--rider-dropoff-border);
+    color: var(--rider-dropoff-ink);
+}
+.rider-contact-btn--navigate:hover { background: var(--rider-dropoff-bg); }
+
+/* ---------- Mobile Sticky Action Bar ---------- */
+.rider-sticky-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--surface, #fff);
+    box-shadow: var(--rider-sticky-shadow);
+    padding: .75rem 1rem;
+    z-index: 1030;
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    border-top: 1px solid var(--line, #e9ecef);
+    transform: translateY(0);
+    transition: transform var(--rider-transition);
+}
+.rider-sticky-bar-info {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.rider-sticky-bar-order {
+    font-size: .8rem;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.rider-sticky-bar-status {
+    font-size: .7rem;
+    color: #6c757d;
+}
+.rider-sticky-bar .btn {
+    flex-shrink: 0;
+    min-height: 44px;
+    font-weight: 600;
+}
+/* Only show sticky bar on mobile */
+@media (min-width: 992px) {
+    .rider-sticky-bar { display: none; }
+}
+/* Provide bottom padding so sticky bar doesn't cover content */
+@media (max-width: 991.98px) {
+    .rider-detail-page { padding-bottom: 5rem; }
+}
+
+/* ---------- Location Sharing Pulse ---------- */
+@keyframes riderPulse {
+    0%   { box-shadow: 0 0 0 0 var(--rider-pulse-color); }
+    70%  { box-shadow: 0 0 0 10px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+}
+.rider-location-pulse {
+    animation: riderPulse 2s infinite;
+    border-radius: 50%;
+    display: inline-flex;
+}
+.rider-location-panel {
+    border-radius: .75rem;
+    border: 1px solid var(--line, #e9ecef);
+    background: var(--surface, #fff);
+    padding: 1rem;
+    margin-top: 1rem;
+}
+.rider-location-status {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: .8rem;
+    color: #6c757d;
+    margin-bottom: .75rem;
+}
+.rider-location-status i {
+    font-size: 1rem;
+}
+
+.rider-location-panel .btn {
+    min-height: 48px;
+    font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rider-fade-in { animation: none; }
+    .rider-location-pulse { animation: none; }
+    .rider-complete-icon { animation: none; }
+    .rider-delivery-card,
+    .rider-quick-action,
+    .rider-sticky-bar,
+    .rider-progress-fill { transition: none; }
+}
+
+@media (max-width: 575.98px) {
+    .rider-location-panel { padding: 1rem; }
+    .rider-location-status { align-items: flex-start; font-size: .875rem; line-height: 1.45; }
+    .rider-location-status > span:last-child { min-width: 0; }
+}
+
+/* ---------- Form Completeness Indicator ---------- */
+.rider-form-progress {
+    display: flex;
+    gap: .25rem;
+    margin-bottom: 1rem;
+}
+.rider-form-progress-step {
+    flex: 1 1 0;
+    height: 4px;
+    border-radius: 2px;
+    background: #e9ecef;
+    transition: background var(--rider-transition);
+}
+.rider-form-progress-step--done {
+    background: var(--rider-stepper-complete);
+}
+
+/* ---------- Pull-to-Refresh ---------- */
+.rider-ptr-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 0;
+    overflow: hidden;
+    transition: height .2s ease;
+    color: #6c757d;
+    font-size: .8rem;
+}
+.rider-ptr-indicator i {
+    margin-right: .375rem;
+    transition: transform .3s ease;
+}
+.rider-ptr-indicator--pulling i {
+    transform: rotate(180deg);
+}
+.rider-ptr-indicator--refreshing {
+    height: 48px;
+}
+@keyframes riderSpin {
+    100% { transform: rotate(360deg); }
+}
+.rider-ptr-indicator--refreshing i {
+    animation: riderSpin 1s linear infinite;
+}
+
+/* ---------- Refresh Footer ---------- */
+.rider-refresh-footer {
+    text-align: center;
+    padding: 1rem 0 .5rem;
+    font-size: .75rem;
+    color: #adb5bd;
+}
+
+/* ---------- Completion success animation ---------- */
+@keyframes riderCheckConfirm {
+    from { transform: scale(.92); opacity: .65; }
+    to { transform: scale(1); opacity: 1; }
+}
+.rider-complete-icon {
+    animation: riderCheckConfirm .24s ease-out;
+    font-size: 2.5rem;
+    color: var(--rider-stepper-complete);
+}
+
+/* ---------- Utility ---------- */
+.rider-action-btn {
+    min-height: 44px;
+    font-size: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+}
+

@@ -118,6 +118,10 @@ class DeliveryMapManager {
         document.querySelectorAll('[data-map-select]').forEach((button) => {
             button.addEventListener('click', () => {
                 this.activeStop = button.dataset.mapSelect === 'dropoff' ? 'dropoff' : 'pickup';
+                const activeStopHint = document.getElementById('active-stop-hint');
+                if (activeStopHint) {
+                    activeStopHint.textContent = `Map clicks set the ${this.activeStop === 'pickup' ? 'pickup' : 'drop-off'} pin.`;
+                }
                 document.querySelectorAll('[data-map-select]').forEach((option) => {
                     const active = option === button;
                     option.classList.toggle('active', active);
@@ -143,7 +147,7 @@ class DeliveryMapManager {
             fields: ['formatted_address', 'geometry', 'name']
         };
 
-        if (this.pickupInput) {
+        if (this.pickupInput && this.pickupInput.type !== 'hidden') {
             this.pickupAutocomplete = new google.maps.places.Autocomplete(this.pickupInput, options);
             this.pickupAutocomplete.addListener('place_changed', () => {
                 const place = this.pickupAutocomplete.getPlace();
@@ -155,21 +159,19 @@ class DeliveryMapManager {
                     // Populate Address text box with selected place
                     this.pickupInput.value = place.formatted_address || place.name || this.pickupInput.value;
 
-                    // Coordinate address is readonly and inputed ONLY by pinpoints.
-                    // If no pinpoint has been placed, pan map to help user pinpoint
-                    if (!this.pickupPinCoords) {
-                        if (this.map) {
-                            this.map.panTo(loc);
-                            this.map.setZoom(15);
-                        }
+                    // Selecting an address suggestion supersedes any older pin.
+                    if (this.pickupPinCoords) this.clearStopPinpoint('pickup');
+                    // Pan map to the selected result to help the user confirm its location.
+                    if (this.map) {
+                        this.map.panTo(loc);
+                        this.map.setZoom(15);
                     }
-                    // Pinpoint coordinates take priority if they already exist
                     this.triggerRouteCalculation();
                 }
             });
         }
 
-        if (this.dropoffInput) {
+        if (this.dropoffInput && this.dropoffInput.type !== 'hidden') {
             this.dropoffAutocomplete = new google.maps.places.Autocomplete(this.dropoffInput, options);
             this.dropoffAutocomplete.addListener('place_changed', () => {
                 const place = this.dropoffAutocomplete.getPlace();
@@ -180,11 +182,11 @@ class DeliveryMapManager {
                     };
                     this.dropoffInput.value = place.formatted_address || place.name || this.dropoffInput.value;
 
-                    if (!this.dropoffPinCoords) {
-                        if (this.map) {
-                            this.map.panTo(loc);
-                            this.map.setZoom(15);
-                        }
+                    // Selecting an address suggestion supersedes any older pin.
+                    if (this.dropoffPinCoords) this.clearStopPinpoint('dropoff');
+                    if (this.map) {
+                        this.map.panTo(loc);
+                        this.map.setZoom(15);
                     }
                     this.triggerRouteCalculation();
                 }
@@ -212,15 +214,13 @@ class DeliveryMapManager {
             this.debounceTimer = setTimeout(() => this.triggerRouteCalculation(), 600);
         };
 
-        if (this.pickupInput) {
+        if (this.pickupInput && this.pickupInput.type !== 'hidden') {
             this.pickupInput.addEventListener('input', () => {
-                // If coordinates are set by pinpoint, coordinates have priority!
-                // Do NOT wipe out the pinpoint marker or coordinates when typing address notes.
-                if (!this.pickupPinCoords) {
-                    this.clearRouteEstimate();
-                    this.clearError();
-                    debouncedCalc();
-                }
+                // Editing the address means any previous pin may no longer match it.
+                if (this.pickupPinCoords) this.clearStopPinpoint('pickup');
+                this.clearRouteEstimate();
+                this.clearError();
+                debouncedCalc();
             });
             this.pickupInput.addEventListener('blur', () => {
                 if (!this.pickupPinCoords) {
@@ -228,13 +228,13 @@ class DeliveryMapManager {
                 }
             });
         }
-        if (this.dropoffInput) {
+        if (this.dropoffInput && this.dropoffInput.type !== 'hidden') {
             this.dropoffInput.addEventListener('input', () => {
-                if (!this.dropoffPinCoords) {
-                    this.clearRouteEstimate();
-                    this.clearError();
-                    debouncedCalc();
-                }
+                // Editing the address means any previous pin may no longer match it.
+                if (this.dropoffPinCoords) this.clearStopPinpoint('dropoff');
+                this.clearRouteEstimate();
+                this.clearError();
+                debouncedCalc();
             });
             this.dropoffInput.addEventListener('blur', () => {
                 if (!this.dropoffPinCoords) {
@@ -545,6 +545,11 @@ class DeliveryMapManager {
 
         const coordStr = `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`;
         const coordsInput = isPickup ? this.pickupCoordsInput : this.dropoffCoordsInput;
+        const coordAddressState = isPickup ? 'pickup' : 'dropoff';
+        // Keep Vue's model in sync when a pin is set by this non-Vue map manager.
+        if (window.orderFormState?.coordinateAddresses) {
+            window.orderFormState.coordinateAddresses[coordAddressState] = coordStr;
+        }
         if (coordsInput) {
             coordsInput.value = coordStr;
             coordsInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -562,7 +567,9 @@ class DeliveryMapManager {
         // PRIORITY: Display the icon on the map at the pinpoint coordinates
         this.updateMarker(stop, coords);
 
-        // NOTE: The separate Address textbox is preserved and NOT overwritten.
+        // Resolve the pin to address components (street/barangay/city/province).
+        // Keep unit/house number untouched because reverse geocoding cannot infer it reliably.
+        this.reverseGeocodePin(stop, coords);
 
         this.clearRouteEstimate();
         this.clearError();
@@ -586,6 +593,10 @@ class DeliveryMapManager {
         }
 
         const coordsInput = isPickup ? this.pickupCoordsInput : this.dropoffCoordsInput;
+        const coordAddressState = isPickup ? 'pickup' : 'dropoff';
+        if (window.orderFormState?.coordinateAddresses) {
+            window.orderFormState.coordinateAddresses[coordAddressState] = '';
+        }
         if (coordsInput) {
             coordsInput.value = '';
             coordsInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -717,6 +728,75 @@ class DeliveryMapManager {
                     }
                 }
             );
+        });
+    }
+
+    /**
+     * Reverse-geocode a map pin and populate the stop's structured address fields.
+     * Unit/house number is intentionally not changed.
+     * @param {'pickup'|'dropoff'} stop
+     * @param {{lat: number, lng: number}} coords
+     */
+    reverseGeocodePin(stop, coords) {
+        const requestId = (this._reverseGeocodeRequestIds ||= { pickup: 0, dropoff: 0 });
+        const currentRequest = ++requestId[stop];
+        const applyValues = (values) => {
+            if (requestId[stop] !== currentRequest) return;
+            Object.entries(values).forEach(([name, value]) => {
+                const field = document.querySelector(`[name="${name}"]`);
+                if (!field) return;
+                // Pinning refreshes resolved address components; manual entries
+                // are preserved if the lookup has no value for that component.
+                if (!value && field.value.trim()) return;
+                field.value = value || '';
+                field.dispatchEvent(new Event('input', { bubbles: true }));
+                field.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        };
+
+        const useNominatim = async () => {
+            const url = new URL('https://nominatim.openstreetmap.org/reverse');
+            url.search = new URLSearchParams({
+                format: 'jsonv2', lat: String(coords.lat), lon: String(coords.lng), addressdetails: '1', zoom: '18'
+            });
+            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            if (!response.ok) throw new Error(`OpenStreetMap lookup failed (${response.status})`);
+            const address = (await response.json()).address || {};
+            const city = address.city || address.town || address.municipality || address.city_district || '';
+            const values = {
+                [`${stop}_street`]: [address.house_number, address.road || address.pedestrian || address.residential].filter(Boolean).join(' '),
+                [`${stop}_barangay`]: address.suburb || address.quarter || address.neighbourhood || address.village || '',
+                [`${stop}_city`]: city,
+                [`${stop}_province`]: address.state || address.province || address.region || ''
+            };
+            if (!Object.values(values).some(Boolean)) throw new Error('No address details found for this pin');
+            applyValues(values);
+        };
+
+        if (!window.google?.maps?.Geocoder) {
+            useNominatim().catch((error) => console.warn('Reverse geocoding unavailable:', error));
+            return;
+        }
+        if (!this._geocoder) this._geocoder = new google.maps.Geocoder();
+
+        this._geocoder.geocode({ location: coords }, (results, status) => {
+            if (requestId[stop] !== currentRequest) return;
+            if (status !== 'OK' || !results?.length) {
+                // Use OpenStreetMap when Google Geocoding is disabled or unavailable.
+                useNominatim().catch((error) => console.warn('Reverse geocoding unavailable:', error));
+                return;
+            }
+            const components = results[0].address_components || [];
+            const get = (...types) => {
+                const component = components.find((item) => types.some((type) => item.types.includes(type)));
+                return component?.long_name || '';
+            };
+            applyValues({
+                [`${stop}_street`]: [get('street_number'), get('route')].filter(Boolean).join(' '),
+                [`${stop}_barangay`]: get('sublocality_level_1', 'sublocality', 'neighborhood'),
+                [`${stop}_city`]: get('locality', 'administrative_area_level_2'),
+                [`${stop}_province`]: get('administrative_area_level_1')
+            });
         });
     }
 

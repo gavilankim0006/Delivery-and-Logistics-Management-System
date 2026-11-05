@@ -105,6 +105,9 @@ function handleSubmit(event) {
                 :rules="[required]"
             />
 
+            <div class="d-flex justify-content-end mb-3">
+                <a :href="`${baseUrl}forgot-password`" class="small text-decoration-none">Forgot password?</a>
+            </div>
             <div class="d-grid mb-4">
                 <button type="submit" class="btn btn-primary py-2 fw-medium" :disabled="submitting">
                     <span v-if="submitting" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
@@ -114,7 +117,10 @@ function handleSubmit(event) {
 
             <p class="text-center text-muted mb-0">
                 New here?
-                <a :href="`${baseUrl}register`" class="fw-semibold text-decoration-none">Create an account</a>
+                <a :href="`${baseUrl}register`" class="fw-semibold text-decoration-none">Create a customer account</a>
+            </p>
+            <p class="text-center small mb-0">
+                Looking to ride with us? <a :href="`${baseUrl}careers/apply`">Apply as a rider</a>.
             </p>
         </form>
     </section>

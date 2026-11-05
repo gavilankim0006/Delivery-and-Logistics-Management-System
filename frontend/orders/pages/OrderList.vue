@@ -237,8 +237,8 @@ function money(value) {
             </div>
         </form>
 
-        <section v-if="orders.length === 0" class="empty-state surface p-4" aria-live="polite">
-            <h2 class="h5">
+        <section v-if="orders.length === 0" class="empty-state surface p-4" aria-labelledby="orders-empty-title" aria-live="polite">
+            <h2 id="orders-empty-title" class="h5">
                 {{ Object.keys(activeFilters).length ? 'No matching orders' : 'No orders yet' }}
             </h2>
             <p class="mb-0">
@@ -390,8 +390,8 @@ function money(value) {
                             </td>
                             <td data-label="Fee" class="text-nowrap money">{{ money(order.delivery_fee) }}</td>
                             <td data-label="Details">
-                                <a class="btn btn-sm btn-outline-secondary" :href="`${baseUrl}orders/${order.id}`">
-                                    View
+                                <a class="btn btn-sm btn-outline-secondary" :href="`${baseUrl}orders/${order.id}`" :aria-label="`Track order ${order.order_no}`">
+                                    Track order
                                 </a>
                             </td>
                         </tr>

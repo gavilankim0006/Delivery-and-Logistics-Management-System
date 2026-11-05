@@ -35,6 +35,11 @@ class Addresses extends Controller
         $data = [
             'label' => trim($input['label'] ?? ''),
             'address_line' => trim($input['address_line'] ?? ''),
+            'unit_number' => trim($input['unit_number'] ?? ''),
+            'street' => trim($input['street'] ?? ''),
+            'barangay' => trim($input['barangay'] ?? ''),
+            'city' => trim($input['city'] ?? ''),
+            'province' => trim($input['province'] ?? ''),
             'contact_name' => trim($input['contact_name'] ?? ''),
             'contact_phone' => trim($input['contact_phone'] ?? ''),
             'notes' => trim($input['notes'] ?? '')

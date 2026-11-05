@@ -20,6 +20,36 @@ class Orders extends Controller
         return getenv('DEMO_PAYMENT_SIMULATION_ENABLED') === '1';
     }
 
+    private function addressParts(array $input, string $prefix): array
+    {
+        $parts = [];
+        foreach (['unit_number', 'street', 'barangay', 'city', 'province'] as $part) {
+            $parts[$part] = trim((string)($input[$prefix . '_' . $part] ?? ''));
+        }
+        return $parts;
+    }
+
+    private function composeAddress(array $parts, string $legacyAddress = ''): string
+    {
+        $components = array_values(array_filter($parts, static fn($part) => $part !== ''));
+        return mb_substr(implode(', ', $components) ?: $legacyAddress, 0, 500);
+    }
+
+    private function addressPartErrors(array $pickup, array $dropoff): array
+    {
+        $errors = [];
+        $limits = ['unit_number' => 100, 'street' => 255, 'barangay' => 255, 'city' => 255, 'province' => 255];
+        foreach (['pickup' => $pickup, 'dropoff' => $dropoff] as $stop => $parts) {
+            foreach ($limits as $part => $limit) {
+                if (mb_strlen($parts[$part]) > $limit) {
+                    $errors[$stop . '_address'] = ucfirst($stop) . ' ' . str_replace('_', ' ', $part) . " must be {$limit} characters or fewer.";
+                    break;
+                }
+            }
+        }
+        return $errors;
+    }
+
     public function __construct()
     {
         parent::__construct();
@@ -130,12 +160,14 @@ class Orders extends Controller
             return;
         }
 
-        $pickupAddress = trim($_POST['pickup_address'] ?? '');
+        $pickupParts = $this->addressParts($_POST, 'pickup');
+        $pickupAddress = $this->composeAddress($pickupParts, trim($_POST['pickup_address'] ?? ''));
         $pickupContactName = trim($_POST['pickup_contact_name'] ?? '');
         $pickupContactPhone = trim($_POST['pickup_contact_phone'] ?? '');
         $pickupNotes = trim($_POST['pickup_notes'] ?? '');
 
-        $dropoffAddress = trim($_POST['dropoff_address'] ?? '');
+        $dropoffParts = $this->addressParts($_POST, 'dropoff');
+        $dropoffAddress = $this->composeAddress($dropoffParts, trim($_POST['dropoff_address'] ?? ''));
         $dropoffContactName = trim($_POST['dropoff_contact_name'] ?? '');
         $dropoffContactPhone = trim($_POST['dropoff_contact_phone'] ?? '');
         $dropoffNotes = trim($_POST['dropoff_notes'] ?? '');
@@ -176,7 +208,7 @@ class Orders extends Controller
         $dropoffLat = $dropoffLatInput !== '' && is_numeric($dropoffLatInput) ? (float)$dropoffLatInput : null;
         $dropoffLng = $dropoffLngInput !== '' && is_numeric($dropoffLngInput) ? (float)$dropoffLngInput : null;
         $hasMapLocations = $pickupLat !== null && $pickupLng !== null && $dropoffLat !== null && $dropoffLng !== null;
-        $errors = [];
+        $errors = $this->addressPartErrors($pickupParts, $dropoffParts);
         if (mb_strlen($pickupNotes) > 1000) {
             $errors['pickup_notes'] = 'Please keep pickup notes to 1000 characters or fewer.';
         }
@@ -307,6 +339,11 @@ class Orders extends Controller
                 'pickup' => [
                     'label' => 'Pickup Location',
                     'address_line' => $pickupAddress,
+                    'unit_number' => $pickupParts['unit_number'],
+                    'street' => $pickupParts['street'],
+                    'barangay' => $pickupParts['barangay'],
+                    'city' => $pickupParts['city'],
+                    'province' => $pickupParts['province'],
                     'latitude' => $pickupLat,
                     'longitude' => $pickupLng,
                     'contact_name' => $pickupContactName,
@@ -316,6 +353,11 @@ class Orders extends Controller
                 'dropoff' => [
                     'label' => 'Drop-off Location',
                     'address_line' => $dropoffAddress,
+                    'unit_number' => $dropoffParts['unit_number'],
+                    'street' => $dropoffParts['street'],
+                    'barangay' => $dropoffParts['barangay'],
+                    'city' => $dropoffParts['city'],
+                    'province' => $dropoffParts['province'],
                     'latitude' => $dropoffLat,
                     'longitude' => $dropoffLng,
                     'contact_name' => $dropoffContactName,
@@ -380,6 +422,11 @@ class Orders extends Controller
 
         $this->render_edit_order($id, [
             'pickup_address' => $order['pickup_address'],
+            'pickup_unit_number' => $order['pickup_unit_number'] ?? '',
+            'pickup_street' => $order['pickup_street'] ?? '',
+            'pickup_barangay' => $order['pickup_barangay'] ?? '',
+            'pickup_city' => $order['pickup_city'] ?? '',
+            'pickup_province' => $order['pickup_province'] ?? '',
             'pickup_lat' => $order['pickup_lat'],
             'pickup_lng' => $order['pickup_lng'],
             'pickup_coords' => $pickupCoords,
@@ -387,6 +434,11 @@ class Orders extends Controller
             'pickup_contact_phone' => $order['pickup_phone'],
             'pickup_notes' => $order['pickup_notes'],
             'dropoff_address' => $order['dropoff_address'],
+            'dropoff_unit_number' => $order['dropoff_unit_number'] ?? '',
+            'dropoff_street' => $order['dropoff_street'] ?? '',
+            'dropoff_barangay' => $order['dropoff_barangay'] ?? '',
+            'dropoff_city' => $order['dropoff_city'] ?? '',
+            'dropoff_province' => $order['dropoff_province'] ?? '',
             'dropoff_lat' => $order['dropoff_lat'],
             'dropoff_lng' => $order['dropoff_lng'],
             'dropoff_coords' => $dropoffCoords,
@@ -498,11 +550,13 @@ class Orders extends Controller
         }
 
         $formData = array_map(static fn($value) => is_scalar($value) ? (string)$value : '', $_POST);
-        $pickupAddress = trim($formData['pickup_address'] ?? '');
+        $pickupParts = $this->addressParts($formData, 'pickup');
+        $pickupAddress = $this->composeAddress($pickupParts, trim($formData['pickup_address'] ?? ''));
         $pickupContactName = trim($formData['pickup_contact_name'] ?? '');
         $pickupContactPhone = trim($formData['pickup_contact_phone'] ?? '');
         $pickupNotes = trim($formData['pickup_notes'] ?? '');
-        $dropoffAddress = trim($formData['dropoff_address'] ?? '');
+        $dropoffParts = $this->addressParts($formData, 'dropoff');
+        $dropoffAddress = $this->composeAddress($dropoffParts, trim($formData['dropoff_address'] ?? ''));
         $dropoffContactName = trim($formData['dropoff_contact_name'] ?? '');
         $dropoffContactPhone = trim($formData['dropoff_contact_phone'] ?? '');
         $dropoffNotes = trim($formData['dropoff_notes'] ?? '');
@@ -541,7 +595,7 @@ class Orders extends Controller
         $dropoffLat = $dropoffLatInput !== '' && is_numeric($dropoffLatInput) ? (float)$dropoffLatInput : null;
         $dropoffLng = $dropoffLngInput !== '' && is_numeric($dropoffLngInput) ? (float)$dropoffLngInput : null;
         $hasMapLocations = $pickupLat !== null && $pickupLng !== null && $dropoffLat !== null && $dropoffLng !== null;
-        $errors = [];
+        $errors = $this->addressPartErrors($pickupParts, $dropoffParts);
 
         foreach ([
             'pickup_address' => [$pickupAddress, 500],
@@ -650,12 +704,22 @@ class Orders extends Controller
                 'delivery_fee' => $feeCalc['total_fee'],
                 'pickup' => [
                     'address_line' => $pickupAddress,
+                    'unit_number' => $pickupParts['unit_number'],
+                    'street' => $pickupParts['street'],
+                    'barangay' => $pickupParts['barangay'],
+                    'city' => $pickupParts['city'],
+                    'province' => $pickupParts['province'],
                     'contact_name' => $pickupContactName,
                     'contact_phone' => $pickupContactPhone,
                     'notes' => $pickupNotes
                 ],
                 'dropoff' => [
                     'address_line' => $dropoffAddress,
+                    'unit_number' => $dropoffParts['unit_number'],
+                    'street' => $dropoffParts['street'],
+                    'barangay' => $dropoffParts['barangay'],
+                    'city' => $dropoffParts['city'],
+                    'province' => $dropoffParts['province'],
                     'contact_name' => $dropoffContactName,
                     'contact_phone' => $dropoffContactPhone,
                     'notes' => $dropoffNotes

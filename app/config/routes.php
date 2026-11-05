@@ -26,6 +26,8 @@ $router->post('/package-workflow/handoff', 'Package_workflow::handoff');
 $router->post('/package-workflow/confirm', 'Package_workflow::confirm');
 // Authentication routes
 $router->match('/login', 'Auth::login', 'GET|POST');
+$router->match('/forgot-password', 'Auth::forgot_password', 'GET|POST');
+$router->match('/reset-password', 'Auth::reset_password', 'GET|POST');
 $router->match('/register', 'Auth::register', 'GET|POST');
 $router->get('/logout', 'Auth::logout');
 $router->match('/profile', 'Auth::profile', 'GET|POST');

@@ -20,10 +20,22 @@ $fieldErrors = $errors ?? [];
     <?php endforeach; ?>
 
     <section class="surface surface-section" aria-labelledby="application-form-title">
-        <h2 id="application-form-title" class="h4 mb-3">Application details</h2>
+        <h2 id="application-form-title" class="h4 mb-2">Application details</h2>
+        <p class="text-muted mb-3">Complete the fields below. Required fields are marked with <span class="text-danger" aria-hidden="true">*</span>.</p>
+        <?php if ($fieldErrors): ?>
+            <div class="alert alert-danger" role="alert" aria-labelledby="application-errors-title" tabindex="-1">
+                <strong id="application-errors-title">Please review your application.</strong>
+                <?php if (isset($fieldErrors['form'])): ?><p class="mb-0 mt-2"><?= e($fieldErrors['form']) ?></p><?php endif; ?>
+                <ul class="mb-0 mt-2">
+                    <?php foreach ($fieldErrors as $field => $message): ?>
+                        <?php if ($field !== 'form'): ?><li><a href="#<?= e($field) ?>"><?= e($message) ?></a></li><?php endif; ?>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        <?php endif; ?>
         <div class="alert alert-warning" role="note"><strong>Privacy:</strong> ID number and uploaded document are sensitive. They are visible only to authorized administrators. Submit only if comfortable sharing them for recruitment verification.</div>
 
-        <form action="<?= e(base_url('careers/apply')) ?>" method="POST" enctype="multipart/form-data" class="row g-3" novalidate>
+        <form action="<?= e(base_url('careers/apply')) ?>" method="POST" enctype="multipart/form-data" class="row g-3">
             <?= csrf_field() ?>
 
             <!-- Full legal name -->
@@ -160,17 +172,19 @@ $fieldErrors = $errors ?? [];
                     <span>Availability</span>
                     <span class="text-danger ms-1" aria-hidden="true">*</span>
                 </label>
-                <input
-                    class="form-control shared-input <?= isset($fieldErrors['availability']) ? 'is-invalid' : '' ?>"
+                <select
+                    class="form-select shared-input <?= isset($fieldErrors['availability']) ? 'is-invalid' : '' ?>"
                     id="availability"
                     name="availability"
-                    type="text"
-                    maxlength="180"
-                    placeholder="Days, hours, or preferred shift"
-                    value="<?= e($formData['availability'] ?? '') ?>"
                     required
-                    <?= isset($fieldErrors['availability']) ? 'aria-invalid="true" aria-describedby="availability-error"' : '' ?>
+                    <?= isset($fieldErrors['availability']) ? 'aria-invalid="true" aria-describedby="availability-error availability-help"' : 'aria-describedby="availability-help"' ?>
                 >
+                    <option value="" disabled <?= empty($formData['availability']) ? 'selected' : '' ?>>Choose your availability</option>
+                    <?php foreach (['Full-time', 'Part-time', 'Weekdays', 'Weekends', 'Flexible'] as $availabilityOption): ?>
+                        <option value="<?= e($availabilityOption) ?>" <?= ($formData['availability'] ?? '') === $availabilityOption ? 'selected' : '' ?>><?= e($availabilityOption) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <div id="availability-help" class="form-text shared-helper-text mt-1">Choose the schedule that best describes when you can work.</div>
                 <?php if (isset($fieldErrors['availability'])): ?>
                     <div class="invalid-feedback d-block mt-1" role="alert" id="availability-error">
                         <i class="bi bi-exclamation-circle-fill me-1" aria-hidden="true"></i><?= e($fieldErrors['availability']) ?>
@@ -207,18 +221,19 @@ $fieldErrors = $errors ?? [];
                     <span>ID type</span>
                     <span class="text-danger ms-1" aria-hidden="true">*</span>
                 </label>
-                <input
-                    class="form-control shared-input <?= isset($fieldErrors['id_type']) ? 'is-invalid' : '' ?>"
+                <select
+                    class="form-select shared-input <?= isset($fieldErrors['id_type']) ? 'is-invalid' : '' ?>"
                     id="id_type"
                     name="id_type"
-                    type="text"
-                    maxlength="100"
-                    autocomplete="off"
-                    placeholder="For example, Driver's License, UMID, Passport, Postal ID"
-                    value="<?= e($formData['id_type'] ?? '') ?>"
                     required
-                    <?= isset($fieldErrors['id_type']) ? 'aria-invalid="true" aria-describedby="id_type-error"' : '' ?>
+                    <?= isset($fieldErrors['id_type']) ? 'aria-invalid="true" aria-describedby="id_type-error id_type-help"' : 'aria-describedby="id_type-help"' ?>
                 >
+                    <option value="" disabled <?= empty($formData['id_type']) ? 'selected' : '' ?>>Choose your ID type</option>
+                    <?php foreach (["Driver’s License", 'PhilID / National ID', 'UMID', 'Passport', 'Postal ID', 'Voter’s ID', 'Other government-issued ID'] as $idTypeOption): ?>
+                        <option value="<?= e($idTypeOption) ?>" <?= ($formData['id_type'] ?? '') === $idTypeOption ? 'selected' : '' ?>><?= e($idTypeOption) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <div id="id_type-help" class="form-text shared-helper-text mt-1">Select the same ID type shown on the document you upload.</div>
                 <?php if (isset($fieldErrors['id_type'])): ?>
                     <div class="invalid-feedback d-block mt-1" role="alert" id="id_type-error">
                         <i class="bi bi-exclamation-circle-fill me-1" aria-hidden="true"></i><?= e($fieldErrors['id_type']) ?>
@@ -277,7 +292,7 @@ $fieldErrors = $errors ?? [];
 
             <!-- Actions -->
             <div class="col-12 d-flex flex-wrap align-items-center gap-3 pt-2">
-                <button type="submit" class="btn btn-primary">Submit application</button>
+                <button type="submit" class="btn btn-primary">Send application</button>
                 <span class="small text-muted">You can contact our team later if you need your application or document removed.</span>
             </div>
         </form>

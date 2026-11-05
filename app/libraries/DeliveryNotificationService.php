@@ -168,11 +168,14 @@ class DeliveryNotificationService
                     $orderRow = [];
                     try {
                         $orderStmt = $this->db->raw(
-                            'SELECT o.id, o.order_no, o.status, o.pickup_address, o.delivery_address,
+                            'SELECT o.id, o.order_no, o.status,
+                                    pa.address_line AS pickup_address, da.address_line AS delivery_address,
                                     r.name AS rider_name, r.phone AS rider_phone, u.name AS customer_name
                              FROM orders o
                              INNER JOIN customers c ON c.id = o.customer_id
                              INNER JOIN users u ON u.id = c.user_id
+                             LEFT JOIN addresses pa ON pa.id = o.pickup_address_id
+                             LEFT JOIN addresses da ON da.id = o.dropoff_address_id
                              LEFT JOIN deliveries d ON d.order_id = o.id
                              LEFT JOIN riders r ON r.id = d.actor_id AND d.actor_type = \'rider\'
                              WHERE o.id = ? ORDER BY d.id DESC LIMIT 1',

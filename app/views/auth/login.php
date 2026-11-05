@@ -74,6 +74,7 @@ $oldEmail = flash('old_email') ?: '';
                     placeholder="Enter your password"
                 >
             </div>
+            <p class="text-end mb-3"><a href="<?= e(base_url('forgot-password')) ?>">Forgot password?</a></p>
             <div class="d-grid mb-4">
                 <button type="submit" class="btn btn-primary py-2 fw-medium">Sign in</button>
             </div>

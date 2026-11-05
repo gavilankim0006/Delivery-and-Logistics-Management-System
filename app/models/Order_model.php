@@ -111,6 +111,11 @@ class Order_model extends Model
             'customer_id' => $customerId,
             'label' => $address['label'] ?? null,
             'address_line' => trim($address['address_line']),
+            'unit_number' => $address['unit_number'] ?? null,
+            'street' => $address['street'] ?? null,
+            'barangay' => $address['barangay'] ?? null,
+            'city' => $address['city'] ?? null,
+            'province' => $address['province'] ?? null,
             'latitude' => $address['latitude'] ?? null,
             'longitude' => $address['longitude'] ?? null,
             'contact_name' => trim($address['contact_name']),
@@ -160,6 +165,11 @@ class Order_model extends Model
                     'customer_id' => null,
                     'label' => $old['label'],
                     'address_line' => $address['address_line'],
+                    'unit_number' => $address['unit_number'] ?? null,
+                    'street' => $address['street'] ?? null,
+                    'barangay' => $address['barangay'] ?? null,
+                    'city' => $address['city'] ?? null,
+                    'province' => $address['province'] ?? null,
                     'latitude' => $old['latitude'],
                     'longitude' => $old['longitude'],
                     'contact_name' => $address['contact_name'],
@@ -346,9 +356,11 @@ class Order_model extends Model
                        (SELECT pay.checkout_url FROM payments pay WHERE pay.order_id = o.id AND pay.status = 'pending' ORDER BY pay.id DESC LIMIT 1) AS checkout_url,
                        u.name AS customer_name, u.email AS customer_email, u.phone AS customer_user_phone,
                        c.company_name,
-                       pa.address_line AS pickup_address, pa.contact_name AS pickup_contact_name, pa.contact_phone AS pickup_phone,
+                       pa.address_line AS pickup_address, pa.unit_number AS pickup_unit_number, pa.street AS pickup_street, pa.barangay AS pickup_barangay, pa.city AS pickup_city, pa.province AS pickup_province,
+                       pa.contact_name AS pickup_contact_name, pa.contact_phone AS pickup_phone,
                        pa.latitude AS pickup_lat, pa.longitude AS pickup_lng, pa.notes AS pickup_notes,
-                       da.address_line AS dropoff_address, da.contact_name AS dropoff_contact_name, da.contact_phone AS dropoff_phone,
+                       da.address_line AS dropoff_address, da.unit_number AS dropoff_unit_number, da.street AS dropoff_street, da.barangay AS dropoff_barangay, da.city AS dropoff_city, da.province AS dropoff_province,
+                       da.contact_name AS dropoff_contact_name, da.contact_phone AS dropoff_phone,
                        da.latitude AS dropoff_lat, da.longitude AS dropoff_lng, da.notes AS dropoff_notes,
                        p.description AS parcel_description, p.weight_kg, p.size AS parcel_size, p.is_fragile,
                        r.name AS rider_name, r.phone AS rider_phone, r.vehicle_type AS rider_vehicle, r.plate_number,
@@ -419,7 +431,8 @@ class Order_model extends Model
         $limit = max(1, min(100, (int)($filters['limit'] ?? 50)));
         $offset = max(0, (int)($filters['offset'] ?? 0));
         $sql = "SELECT o.*, u.name AS customer_name, c.company_name,
-                       pa.address_line AS pickup_address, da.address_line AS dropoff_address,
+                       pa.address_line AS pickup_address, pa.unit_number AS pickup_unit_number, pa.street AS pickup_street, pa.barangay AS pickup_barangay, pa.city AS pickup_city, pa.province AS pickup_province,
+                       da.address_line AS dropoff_address, da.unit_number AS dropoff_unit_number, da.street AS dropoff_street, da.barangay AS dropoff_barangay, da.city AS dropoff_city, da.province AS dropoff_province,
                        p.description AS parcel_description, p.weight_kg, r.name AS rider_name, r.plate_number
                 FROM orders o
                 INNER JOIN customers c ON o.customer_id = c.id

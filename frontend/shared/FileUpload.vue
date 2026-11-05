@@ -193,7 +193,7 @@ defineExpose({
             </div>
 
             <!-- State when valid file is selected -->
-            <div v-else class="file-preview-card text-start d-flex align-items-center gap-3 p-2 bg-light rounded">
+            <div v-else class="file-preview-card text-start d-flex align-items-center gap-2 p-2 bg-light rounded">
                 <!-- Image thumbnail preview -->
                 <div v-if="previewUrl" class="file-thumb-wrap">
                     <img :src="previewUrl" :alt="selectedFile.name" class="file-thumb-img rounded">
@@ -284,11 +284,28 @@ defineExpose({
 .file-preview-card {
     position: relative;
     z-index: 2; /* Sits above the invisible file input so Remove button is clickable */
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.file-info {
+    min-width: 0;
+}
+
+.file-info > div {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .file-thumb-wrap {
     width: 56px;
     height: 56px;
+    min-width: 56px;
+    max-width: 56px;
+    max-height: 56px;
     flex-shrink: 0;
     overflow: hidden;
     display: flex;
