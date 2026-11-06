@@ -1,49 +1,48 @@
-/* ==========================================================================
-   Modern Built-in Package Messenger Styles
-   Refined, polished, SaaS-grade chat experience matching Dispatch UI
-   ========================================================================== */
+/* Package messenger — aligned with Dispatch Control Tower design tokens. */
 
 :root {
-  --msgr-bg-surface: #ffffff;
-  --msgr-bg-sidebar: #f8fafc;
-  --msgr-bg-chat: #f3f6fa;
-  --msgr-bg-hover: #f1f5f9;
-  --msgr-bg-active: #e8eef7;
-  --msgr-border: #e2e8f0;
-  --msgr-border-subtle: #f1f5f9;
-  --msgr-text-primary: #0f172a;
-  --msgr-text-secondary: #475569;
-  --msgr-text-muted: #94a3b8;
-  --msgr-primary: #0284c7;
-  --msgr-primary-hover: #0369a1;
-  --msgr-primary-grad: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-  --msgr-bubble-me: #0284c7;
+  --msgr-bg-surface: var(--surface, #fff);
+  --msgr-bg-sidebar: var(--paper, #eef2f5);
+  --msgr-bg-chat: var(--surface, #fff);
+  --msgr-bg-hover: color-mix(in srgb, var(--route, #087f98) 6%, var(--surface, #fff));
+  --msgr-bg-active: var(--status-blue-bg, #e4f4f7);
+  --msgr-border: var(--line, #d3dde5);
+  --msgr-border-subtle: color-mix(in srgb, var(--line, #d3dde5) 55%, white);
+  --msgr-text-primary: var(--ink, #172b3a);
+  --msgr-text-secondary: var(--ink-2, #4c6070);
+  --msgr-text-muted: var(--ink-3, #617687);
+  --msgr-primary: var(--route, #087f98);
+  --msgr-primary-hover: var(--route-dark, #05687e);
+  --msgr-primary-grad: var(--route, #087f98);
+  --msgr-bubble-me: var(--route, #087f98);
   --msgr-bubble-me-text: #ffffff;
-  --msgr-bubble-them: #ffffff;
-  --msgr-bubble-them-text: #0f172a;
-  --msgr-bubble-radius: 18px;
-  --msgr-bubble-small-radius: 4px;
-  --msgr-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.05);
-  --msgr-shadow: 0 12px 32px -6px rgba(15, 23, 42, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.04);
+  --msgr-bubble-them: var(--surface, #fff);
+  --msgr-bubble-them-text: var(--ink, #172b3a);
+  --msgr-bubble-radius: 14px;
+  --msgr-bubble-small-radius: 5px;
+  --msgr-shadow-sm: var(--shadow-card, 0 2px 8px rgba(23, 43, 58, .06));
+  --msgr-shadow: var(--shadow-card, 0 2px 8px rgba(23, 43, 58, .06));
 }
 
 .messenger-wrapper {
-  margin: 1.25rem auto 2rem;
-  max-width: 1400px;
-  padding-inline: clamp(0.75rem, 2vw, 1.5rem);
+  width: min(100% - var(--s-4) * 2, 1180px);
+  margin: 1rem auto 1.5rem;
+  max-width: none;
+  padding-inline: 0;
 }
 
 .messenger-shell {
   display: flex;
-  height: calc(100vh - 120px);
-  min-height: min(600px, calc(100dvh - 180px));
+  height: min(880px, calc(100dvh - 190px));
+  min-height: min(520px, calc(100dvh - 190px));
   max-height: 880px;
   background-color: var(--msgr-bg-surface);
   border: 1px solid var(--msgr-border);
-  border-radius: 20px;
+  border-radius: var(--r-md, 10px);
   box-shadow: var(--msgr-shadow);
   overflow: hidden;
   position: relative;
+  overscroll-behavior: contain;
 }
 
 /* ==========================================================================
@@ -64,7 +63,7 @@
 }
 
 .messenger-sidebar-header {
-  padding: 1.125rem 1.25rem 0.875rem;
+  padding: 1rem 1rem 0.875rem;
   background-color: var(--msgr-bg-surface);
   border-bottom: 1px solid var(--msgr-border);
 }
@@ -102,10 +101,11 @@
 }
 
 .btn-new-handoff {
-  font-size: 0.8125rem;
+  min-height: 44px;
+  font-size: 0.875rem;
   font-weight: 700;
   padding: 0.45rem 0.9rem;
-  border-radius: 10px;
+  border-radius: var(--r-sm, 6px);
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -141,20 +141,22 @@
 
 .messenger-search-input {
   width: 100%;
-  padding: 0.5rem 2.2rem 0.5rem 2.2rem;
-  background-color: #f1f5f9;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  font-size: 0.84rem;
+  min-height: 44px;
+  padding: 0.5rem 2.2rem;
+  background-color: var(--msgr-bg-sidebar);
+  border: 1px solid var(--msgr-border-subtle);
+  border-radius: var(--r-sm, 6px);
+  font-size: 1rem;
   color: var(--msgr-text-primary);
   transition: all 0.18s ease;
 }
 
 .messenger-search-input:focus {
-  background-color: #ffffff;
-  border-color: #bae6fd;
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+  background-color: var(--msgr-bg-surface);
+  border-color: var(--msgr-primary);
+  outline: 3px solid color-mix(in srgb, var(--msgr-primary) 32%, transparent);
+  outline-offset: 1px;
+  box-shadow: none;
 }
 
 .messenger-search-input::placeholder {
@@ -183,21 +185,23 @@
 /* Sidebar Filter Pills */
 .messenger-filter-tabs {
   display: flex;
-  gap: 0.35rem;
-  background-color: #f1f5f9;
-  padding: 0.25rem;
-  border-radius: 10px;
+  gap: var(--s-1, 4px);
+  background-color: var(--msgr-bg-sidebar);
+  padding: var(--s-1, 4px);
+  border: 1px solid var(--msgr-border-subtle);
+  border-radius: var(--r-md, 10px);
 }
 
 .messenger-tab-btn {
   flex: 1;
   background: transparent;
   border: none;
-  font-size: 0.75rem;
-  font-weight: 600;
+  min-height: 40px;
+  font-size: 0.875rem;
+  font-weight: 700;
   color: var(--msgr-text-secondary);
-  padding: 0.35rem 0.5rem;
-  border-radius: 7px;
+  padding: 0.45rem 0.5rem;
+  border-radius: var(--r-sm, 6px);
   cursor: pointer;
   transition: all 0.15s ease;
   text-align: center;
@@ -210,10 +214,10 @@
 }
 
 .messenger-tab-btn.active {
-  background-color: #ffffff;
-  color: var(--msgr-text-primary);
+  background-color: var(--msgr-bg-surface);
+  color: var(--msgr-primary-hover);
   font-weight: 700;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 2px rgba(23, 43, 58, 0.08);
 }
 
 .tab-ai-shortcut {
@@ -690,7 +694,7 @@
   color: #64748b;
   background-color: #ffffff;
   padding: 0.25rem 0.85rem;
-  border-radius: 20px;
+  border-radius: var(--r-md, 10px);
   border: 1px solid #e2e8f0;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
@@ -872,7 +876,7 @@
 .messenger-chat-footer {
   background-color: var(--msgr-bg-surface);
   border-top: 1px solid var(--msgr-border);
-  padding: 0.85rem 1.35rem 1rem;
+  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
   position: relative;
 }
 
@@ -889,11 +893,12 @@
 }
 
 .quick-chip-btn {
-  background-color: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  border-radius: 20px;
-  padding: 0.3rem 0.75rem;
-  font-size: 0.75rem;
+  min-height: 40px;
+  background-color: var(--msgr-bg-sidebar);
+  border: 1px solid var(--msgr-border);
+  border-radius: var(--r-sm, 6px);
+  padding: 0.4rem 0.75rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--msgr-text-secondary);
   white-space: nowrap;
@@ -905,9 +910,9 @@
 }
 
 .quick-chip-btn:hover {
-  background-color: #e2e8f0;
-  color: var(--msgr-text-primary);
-  border-color: #cbd5e1;
+  background-color: var(--msgr-bg-active);
+  color: var(--msgr-primary-hover);
+  border-color: var(--msgr-primary);
   transform: translateY(-1px);
 }
 
@@ -921,23 +926,24 @@
   flex: 1;
   resize: none;
   border: 1px solid var(--msgr-border);
-  border-radius: 22px;
-  padding: 0.65rem 1.15rem;
-  font-size: 0.9rem;
+  border-radius: var(--r-md, 10px);
+  padding: 0.65rem 0.85rem;
+  font-size: 1rem;
   line-height: 1.4;
   max-height: 120px;
   min-height: 44px;
   height: 44px;
   color: var(--msgr-text-primary);
-  background-color: #f8fafc;
-  transition: all 0.15s ease;
+  background-color: var(--msgr-bg-sidebar);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .chat-textarea:focus {
-  background-color: #ffffff;
-  border-color: #0284c7;
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+  background-color: var(--msgr-bg-surface);
+  border-color: var(--msgr-primary);
+  outline: 3px solid color-mix(in srgb, var(--msgr-primary) 32%, transparent);
+  outline-offset: 1px;
+  box-shadow: none;
 }
 
 .btn-send-msg {
@@ -1342,11 +1348,42 @@ body:has(.messenger-wrapper) #ai-chat-window {
   pointer-events: none !important;
 }
 
+/* Keyboard access and motion preferences */
+.messenger-wrapper :focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--msgr-primary) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.messenger-wrapper button,
+.messenger-wrapper a {
+  min-height: 40px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .messenger-wrapper *,
+  .messenger-wrapper *::before,
+  .messenger-wrapper *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* ==========================================================================
    Responsive Adaptations
    ========================================================================== */
 
 @media (max-width: 991px) {
+  .messenger-wrapper {
+    width: min(100% - var(--s-4) * 2, 1180px);
+  }
+
+  .messenger-shell {
+    height: min(760px, calc(100dvh - 180px));
+    min-height: min(480px, calc(100dvh - 180px));
+  }
+
   .ai-panel {
     position: absolute;
     right: 0;
@@ -1359,15 +1396,14 @@ body:has(.messenger-wrapper) #ai-chat-window {
 
 @media (max-width: 768px) {
   .messenger-wrapper {
+    width: 100%;
     margin: 0 auto;
     padding: 0;
-    width: 100%;
-    max-width: none;
   }
 
   .messenger-shell {
-    height: calc(100dvh - 165px);
-    min-height: 420px;
+    height: max(0px, calc(100dvh - var(--messenger-top-offset, 145px) - env(safe-area-inset-bottom, 0px)));
+    min-height: 0;
     max-height: none;
     border-radius: 0;
     border-inline: 0;
@@ -1382,6 +1418,38 @@ body:has(.messenger-wrapper) #ai-chat-window {
   .messenger-ai-main .messenger-chat-header {
     padding: 0.75rem 1rem;
     min-height: 68px;
+  }
+
+  .messenger-chat-header {
+    padding: 0.75rem 1rem;
+    min-height: 64px;
+  }
+
+  .messenger-chat-header .messenger-header-title {
+    flex-wrap: wrap;
+    white-space: normal;
+    font-size: 0.95rem;
+  }
+
+  .messenger-chat-header .messenger-header-sub {
+    font-size: 0.78rem;
+    line-height: 1.35;
+  }
+
+  .messenger-chat-header .btn-chat-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    min-width: 42px;
+    min-height: 42px;
+    flex: 0 0 42px;
+  }
+
+  .messenger-chat-feed,
+  .messenger-feed {
+    min-height: 0;
+    padding: 1rem;
   }
 
   .messenger-ai-main .messenger-header-title {
@@ -1482,8 +1550,7 @@ body:has(.messenger-wrapper) #ai-chat-window {
   }
 
   .messenger-shell {
-    height: calc(100vh - 140px);
-    height: calc(100dvh - 140px);
+    height: calc(100dvh - var(--messenger-top-offset, 145px));
     min-height: 0;
     border-radius: 0;
   }

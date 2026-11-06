@@ -28,8 +28,9 @@
           class="messenger-search-input"
           :value="localSearchQuery"
           @input="onSearchInput"
-          placeholder="Search chats or orders..."
+          placeholder="Search people or orders"
           autocomplete="off"
+          aria-label="Search people or orders"
         />
         <button
           v-if="localSearchQuery"
@@ -201,7 +202,7 @@ const props = defineProps({
   },
 });
 
-defineEmits([
+const emit = defineEmits([
   'select-conversation',
   'open-new-handoff',
   'update:searchQuery',

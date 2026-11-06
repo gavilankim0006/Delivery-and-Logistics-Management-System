@@ -87,7 +87,7 @@
     </div>
 
     <!-- Messages Feed -->
-    <div class="messenger-chat-feed messenger-feed" ref="feedEl">
+    <div class="messenger-chat-feed messenger-feed" ref="feedEl" role="log" aria-label="Messages" aria-live="polite" aria-relevant="additions text">
       <!-- Expiry notice banner if pending -->
       <div v-if="canMessage && !isConfirmed" class="chat-system-banner banner-handoff-pending">
         <div class="banner-icon-badge">
@@ -208,7 +208,8 @@
             ref="textareaEl"
             v-model="inputBody"
             class="chat-textarea"
-            placeholder="Type a message... (Press Enter to send, Shift+Enter for new line)"
+            placeholder="Write a message…"
+            aria-label="Message"
             rows="1"
             maxlength="4000"
             data-no-validate="true"

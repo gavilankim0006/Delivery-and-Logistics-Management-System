@@ -1,5 +1,5 @@
 <template>
-  <div class="container-fluid page-shell messenger-wrapper">
+  <div class="page-shell messenger-wrapper">
     <!-- Main Messenger Shell -->
     <div
       class="messenger-shell"
@@ -416,6 +416,13 @@ function handlePopState() {
   const match = window.location.pathname.match(/package-workflow\/conversation\/(\d+)/);
   if (match && match[1]) {
     onSelectConversation(parseInt(match[1], 10), false);
+  } else {
+    activeHandoffId.value = null;
+    activeHandoff.value = null;
+    messages.value = [];
+    isChatOpen.value = false;
+    isAiPanelOpen.value = false;
+    stopPolling();
   }
 }
 
