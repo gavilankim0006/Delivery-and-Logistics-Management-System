@@ -26,6 +26,7 @@ $router->post('/package-workflow/handoff', 'Package_workflow::handoff');
 $router->post('/package-workflow/confirm', 'Package_workflow::confirm');
 // Authentication routes
 $router->match('/login', 'Auth::login', 'GET|POST');
+$router->match('/applicant/login', 'Auth::applicant_login', 'GET|POST');
 $router->match('/forgot-password', 'Auth::forgot_password', 'GET|POST');
 $router->match('/reset-password', 'Auth::reset_password', 'GET|POST');
 $router->match('/register', 'Auth::register', 'GET|POST');
@@ -35,6 +36,7 @@ $router->post('/users/save_token', 'Auth::save_token');
 $router->post('/auth/save_token', 'Auth::save_token');
 $router->post('/auth/test_push', 'Auth::test_push');
 $router->post('/auth/test_sms', 'Auth::test_sms');
+$router->post('/auth/test_email', 'Auth::test_email');
 
 // Admin panel routes
 $router->get('/admin', 'Admin::index');

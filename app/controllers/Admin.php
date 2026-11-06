@@ -76,7 +76,7 @@ class Admin extends Controller
             $roleApplied = strtolower(trim((string)($application['role_applied'] ?? 'rider')));
             $roleId = ($roleApplied === 'dispatcher') ? 2 : 4;
             $roleName = ($roleApplied === 'dispatcher') ? 'Dispatcher' : 'Rider';
-            $email = strtolower(trim((string)$application['email']));
+            $email = strtolower(trim((string)($application['account_email'] ?? $application['email'])));
             $name = substr(trim((string)$application['full_name']), 0, 100);
             $phone = substr(trim((string)$application['phone']), 0, 30);
 

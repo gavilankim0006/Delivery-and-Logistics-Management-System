@@ -109,7 +109,7 @@ $isHome = ($normalizedCurrent === $normalizedBase) || ($normalizedCurrent === $n
                         </li>
                     <?php else: ?>
                         <li class="nav-item"><a class="nav-link" href="<?= base_url('#services') ?>"><i class="bi bi-layers" aria-hidden="true"></i><span>Services</span></a></li>
-                        <li class="nav-item"><a class="nav-link<?= $navIsActive('careers/apply') ? ' active' : '' ?>" href="<?= base_url('careers/apply') ?>"><i class="bi bi-briefcase" aria-hidden="true"></i><span>Careers</span></a></li>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('careers/apply') ? ' active' : '' ?>" href="<?= base_url('applicant/login') ?>"><i class="bi bi-briefcase" aria-hidden="true"></i><span>Careers</span></a></li>
                     <?php endif; ?>
                 </ul>
 

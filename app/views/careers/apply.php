@@ -21,7 +21,7 @@ $fieldErrors = $errors ?? [];
 
     <section class="surface surface-section" aria-labelledby="application-form-title">
         <h2 id="application-form-title" class="h4 mb-2">Application details</h2>
-        <p class="text-muted mb-3">Complete the fields below. Required fields are marked with <span class="text-danger" aria-hidden="true">*</span>.</p>
+        <p class="text-muted mb-3">Signed in as <strong><?= e(auth_user()['email'] ?? '') ?></strong>. Use application email below for decision notifications. If accepted, staff account uses your sign-in email. Required fields are marked with <span class="text-danger" aria-hidden="true">*</span>.</p>
         <?php if ($fieldErrors): ?>
             <div class="alert alert-danger" role="alert" aria-labelledby="application-errors-title" tabindex="-1">
                 <strong id="application-errors-title">Please review your application.</strong>
@@ -91,7 +91,7 @@ $fieldErrors = $errors ?? [];
             <!-- Email address -->
             <div class="col-12 col-md-6 shared-field-wrap">
                 <label class="form-label shared-label" for="email">
-                    <span>Email address</span>
+                    <span>Email address for application notifications</span>
                     <span class="text-danger ms-1" aria-hidden="true">*</span>
                 </label>
                 <input

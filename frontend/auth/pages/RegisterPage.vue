@@ -223,7 +223,7 @@ function handleSubmit(event) {
                 Already registered?
                 <a :href="`${baseUrl}login`" class="fw-semibold text-decoration-none">Sign in</a>
             </p>
-            <p class="text-center small mb-0">Applying to deliver? <a :href="`${baseUrl}careers/apply`">Start a rider application</a>.</p>
+            <p class="text-center small mb-0">Applying to deliver? <a :href="`${baseUrl}careers/apply`">Start a rider or dispatcher application</a>.</p>
         </form>
     </section>
 </template>

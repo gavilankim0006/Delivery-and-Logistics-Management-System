@@ -37,6 +37,7 @@ if (root) {
             successMessage: root.dataset.successMessage || '',
             vapidKey: root.dataset.vapidKey || '',
             oldEmail: root.dataset.oldEmail || '',
+            loginContext: root.dataset.loginContext || 'customer',
             oldRegister,
             user
         }).mount(root);

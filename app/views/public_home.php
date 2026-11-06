@@ -3,7 +3,7 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 $this->call->view('templates/header', ['page_title' => 'Home']);
 $loginUrl = base_url('login');
 $registerUrl = base_url('register');
-$applicationUrl = base_url('careers/apply');
+$applicationUrl = base_url('applicant/login');
 ?>
 
 <div class="container page-shell">

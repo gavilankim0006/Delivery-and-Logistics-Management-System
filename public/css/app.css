@@ -886,6 +886,7 @@ a:hover { color: var(--route-dark); }
 .auth-page__route { width: 112px; height: 24px; display: block; margin: 0 auto var(--s-3); color: var(--route); }
 .auth-page__header .page-title { margin: 0 0 var(--s-2); }
 .auth-page__header .page-description { margin: 0; }
+.auth-form { text-align: left; }
 .auth-form > .mb-3,
 .auth-form > .mb-4 { margin-block-end: var(--s-3) !important; }
 .auth-form .btn[type="submit"] { min-height: 44px; }

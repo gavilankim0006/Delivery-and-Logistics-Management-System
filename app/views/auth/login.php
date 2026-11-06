@@ -7,10 +7,13 @@ $flashError = flash('error');
 $flashSuccess = flash('success');
 $csrfToken = csrf_token();
 $oldEmail = flash('old_email') ?: '';
+$isApplicantLogin = ($login_context ?? '') === 'applicant';
+$loginAction = $isApplicantLogin ? 'applicant/login' : 'login';
 ?>
 
 <div id="vue-auth-root"
     data-page="login"
+    data-login-context="<?= $isApplicantLogin ? 'applicant' : 'customer' ?>"
     data-requires-vue="true"
     data-base-url="<?= e(base_url()) ?>"
     data-csrf-token="<?= e($csrfToken) ?>"
@@ -29,8 +32,8 @@ $oldEmail = flash('old_email') ?: '';
                 <circle cx="56" cy="12" r="5" fill="var(--paper)" stroke="currentColor" stroke-width="2" />
                 <circle cx="100" cy="12" r="5" fill="var(--paper)" stroke="currentColor" stroke-width="2" />
             </svg>
-            <h1 id="auth-title" class="page-title">Sign in</h1>
-            <p class="page-description">Manage your deliveries and saved addresses.</p>
+            <h1 id="auth-title" class="page-title"><?= $isApplicantLogin ? 'Applicant sign in' : 'Sign in' ?></h1>
+            <p class="page-description"><?= $isApplicantLogin ? 'Sign in with the email you want associated with your Rider or Dispatcher account. After sign in, you will continue to the application form.' : 'Manage your deliveries and saved addresses.' ?></p>
         </header>
 
         <?php if ($flashSuccess): ?>
@@ -40,7 +43,7 @@ $oldEmail = flash('old_email') ?: '';
             <div class="alert alert-danger" role="alert"><?= e($flashError) ?></div>
         <?php endif; ?>
 
-        <form class="auth-form" action="<?= e(base_url('login')) ?>" method="POST" novalidate>
+        <form class="auth-form" action="<?= e(base_url($loginAction)) ?>" method="POST" novalidate>
             <?= csrf_field() ?>
             <div class="mb-3 shared-field-wrap">
                 <label for="email" class="form-label shared-label">
@@ -75,6 +78,12 @@ $oldEmail = flash('old_email') ?: '';
                 >
             </div>
             <p class="text-end mb-3"><a href="<?= e(base_url('forgot-password')) ?>">Forgot password?</a></p>
+            <?php if ($isApplicantLogin): ?>
+                <p class="text-center small text-muted">Use an existing account to apply. <a href="<?= e(base_url('register')) ?>">Create an account</a></p>
+                <p class="text-center small mb-3">Signing in as a customer? <a href="<?= e(base_url('login')) ?>">Customer sign in</a></p>
+            <?php else: ?>
+                <p class="text-center small mb-3">Applying as a rider or dispatcher? <a href="<?= e(base_url('applicant/login')) ?>">Applicant sign in</a></p>
+            <?php endif; ?>
             <div class="d-grid mb-4">
                 <button type="submit" class="btn btn-primary py-2 fw-medium">Sign in</button>
             </div>

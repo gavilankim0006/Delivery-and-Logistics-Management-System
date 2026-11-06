@@ -13,6 +13,11 @@ class Careers extends Controller
 
     public function apply(): void
     {
+        if (!auth_check()) {
+            redirect('applicant/login');
+            return;
+        }
+
         $formData = [
             'full_name' => '',
             'email' => '',
@@ -144,6 +149,7 @@ class Careers extends Controller
                 'user_id' => $currentUserId ?: null,
                 'full_name' => $formData['full_name'],
                 'email' => $formData['email'],
+                'account_email' => strtolower(trim((string)(auth_user()['email'] ?? ''))),
                 'phone' => $formData['phone'],
                 'role_applied' => $formData['role_applied'],
                 'location' => $formData['location'],

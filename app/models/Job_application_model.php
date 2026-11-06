@@ -6,6 +6,7 @@ class Job_application_model extends Model
     protected $table = 'job_applications';
     protected $primary_key = 'id';
     private bool $hasFileDataCol = false;
+    private bool $hasUserIdCol = false;
 
     public function __construct()
     {
@@ -28,6 +29,7 @@ class Job_application_model extends Model
             if (!$userCol) {
                 $this->db->raw("ALTER TABLE job_applications ADD COLUMN user_id BIGINT UNSIGNED NULL AFTER reviewed_by");
             }
+            $this->hasUserIdCol = true;
         } catch (Throwable $e) {
             // Gracefully ignore if table doesn't exist yet or user lacks ALTER permissions
         }
@@ -67,30 +69,30 @@ class Job_application_model extends Model
 
     public function create(array $application): int
     {
-        if ($this->hasFileDataCol && isset($application['id_file_data']) && $application['id_file_data'] !== null) {
-            $this->db->raw(
-                'INSERT INTO job_applications (full_name, email, phone, role_applied, location, experience, availability, id_type, id_number, id_storage_key, id_mime_type, id_original_name, id_file_data, status, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, \'pending\', CURRENT_TIMESTAMP)',
-                [
-                    $application['full_name'], $application['email'], $application['phone'],
-                    $application['role_applied'], $application['location'], $application['experience'],
-                    $application['availability'], $application['id_type'], $application['id_number'],
-                    $application['id_storage_key'], $application['id_mime_type'], $application['id_original_name'],
-                    $application['id_file_data'],
-                ]
-            );
-        } else {
-            $this->db->raw(
-                'INSERT INTO job_applications (full_name, email, phone, role_applied, location, experience, availability, id_type, id_number, id_storage_key, id_mime_type, id_original_name, status, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, \'pending\', CURRENT_TIMESTAMP)',
-                [
-                    $application['full_name'], $application['email'], $application['phone'],
-                    $application['role_applied'], $application['location'], $application['experience'],
-                    $application['availability'], $application['id_type'], $application['id_number'],
-                    $application['id_storage_key'], $application['id_mime_type'], $application['id_original_name'],
-                ]
-            );
+        $columns = 'full_name, email, phone, role_applied, location, experience, availability, id_type, id_number, id_storage_key, id_mime_type, id_original_name';
+        $values = [
+            $application['full_name'], $application['email'], $application['phone'],
+            $application['role_applied'], $application['location'], $application['experience'],
+            $application['availability'], $application['id_type'], $application['id_number'],
+            $application['id_storage_key'], $application['id_mime_type'], $application['id_original_name'],
+        ];
+        $placeholders = implode(', ', array_fill(0, count($values), '?'));
+
+        if ($this->hasFileDataCol) {
+            $columns .= ', id_file_data';
+            $placeholders .= ', ?';
+            $values[] = $application['id_file_data'] ?? null;
         }
+        if ($this->hasUserIdCol) {
+            $columns .= ', user_id';
+            $placeholders .= ', ?';
+            $values[] = $application['user_id'] ?? null;
+        }
+
+        $this->db->raw(
+            "INSERT INTO job_applications ({$columns}, status, created_at) VALUES ({$placeholders}, 'pending', CURRENT_TIMESTAMP)",
+            $values
+        );
         return (int)$this->db->last_id();
     }
 

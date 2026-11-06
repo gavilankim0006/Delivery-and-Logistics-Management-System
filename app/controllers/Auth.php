@@ -15,7 +15,23 @@ class Auth extends Controller
      */
     public function login()
     {
+        $this->handle_login(false);
+    }
+
+    /** Applicant-specific login, always returning successful applicants to the application form. */
+    public function applicant_login(): void
+    {
+        $this->handle_login(true);
+    }
+
+    private function handle_login(bool $forApplicant): void
+    {
+        $loginPath = $forApplicant ? 'applicant/login' : 'login';
         if (auth_check()) {
+            if ($forApplicant) {
+                redirect('careers/apply');
+                return;
+            }
             $this->redirect_by_role(auth_role());
             return;
         }
@@ -23,7 +39,7 @@ class Auth extends Controller
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!verify_csrf()) {
                 flash('error', 'Invalid security token. Please try again.');
-                header('Location: ' . base_url('login'));
+                header('Location: ' . base_url($loginPath));
                 exit;
             }
 
@@ -32,42 +48,45 @@ class Auth extends Controller
             $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
             $throttleKey = $email . '|' . $ip;
 
-            // Check login throttling (max 5 attempts per 5 minutes)
             $throttle = login_throttle_check($throttleKey, 5, 300);
             if (!$throttle['allowed']) {
                 $retryAfter = $throttle['retry_after'];
                 flash('old_email', $email);
                 flash('error', "Too many failed login attempts. Please wait {$retryAfter} seconds before trying again.");
-                header('Location: ' . base_url('login'));
+                header('Location: ' . base_url($loginPath));
                 exit;
             }
 
             if (empty($email) || empty($password)) {
                 flash('old_email', $email);
                 flash('error', 'Please provide both email address and password.');
-                header('Location: ' . base_url('login'));
+                header('Location: ' . base_url($loginPath));
                 exit;
             }
 
             $user = $this->User_model->authenticate($email, $password);
-
             if ($user) {
                 login_throttle_clear($throttleKey);
                 auth_login($user);
                 flash('success', "Welcome back, {$user['name']}!");
+                if ($forApplicant) {
+                    redirect('careers/apply');
+                    return;
+                }
                 $this->redirect_by_role($user['role_name']);
                 return;
-            } else {
-                login_throttle_record($throttleKey);
-                flash('old_email', $email);
-                flash('error', 'Invalid credentials or inactive account.');
-                header('Location: ' . base_url('login'));
-                exit;
             }
+
+            login_throttle_record($throttleKey);
+            flash('old_email', $email);
+            flash('error', 'Invalid credentials or inactive account.');
+            header('Location: ' . base_url($loginPath));
+            exit;
         }
 
         $this->call->view('auth/login', [
-            'page_title' => 'Sign In',
+            'page_title' => $forApplicant ? 'Applicant sign in' : 'Sign In',
+            'login_context' => $forApplicant ? 'applicant' : 'customer',
         ]);
     }
 
@@ -474,15 +493,19 @@ class Auth extends Controller
             exit;
         }
 
-        $this->call->library('SemaphoreService');
+        require_once APP_DIR . 'libraries/SemaphoreService.php';
+        $semaphore = new SemaphoreService();
         $msg = 'Dispatch: Semaphore test message. Notifications are active for your account.';
-        $sent = $this->semaphoreservice->send($phone, $msg);
+        $result = $semaphore->send($phone, $msg);
 
-        if ($sent) {
+        if (!empty($result['success'])) {
             echo json_encode(['success' => true, 'message' => "Test SMS sent to {$phone}."]);
         } else {
             http_response_code(502);
-            echo json_encode(['success' => false, 'error' => 'Semaphore SMS failed. Verify your API key and sender name in settings.']);
+            echo json_encode([
+                'success' => false,
+                'error' => $result['error'] ?? 'Semaphore SMS failed. Verify your API key and sender name in settings.'
+            ]);
         }
         exit;
     }
@@ -516,7 +539,8 @@ class Auth extends Controller
             exit;
         }
 
-        $this->call->library('EmailService');
+        require_once APP_DIR . 'libraries/EmailService.php';
+        $emailService = new EmailService();
         $subject = 'Dispatch Test Email Notification';
         $body = "
             <p>Hello " . e($user['name'] ?? 'User') . ",</p>
@@ -525,13 +549,16 @@ class Auth extends Controller
             <p>Best regards,<br>The Dispatch Team</p>
         ";
 
-        $sent = $this->emailservice->send($email, $subject, $body);
+        $result = $emailService->send($email, $subject, $body);
 
-        if ($sent) {
+        if (!empty($result['success'])) {
             echo json_encode(['success' => true, 'message' => "Test email sent to {$email}."]);
         } else {
             http_response_code(502);
-            echo json_encode(['success' => false, 'error' => 'Failed to send test email. Please verify SMTP settings.']);
+            echo json_encode([
+                'success' => false,
+                'error' => $result['error'] ?? 'Failed to send test email. Please verify SMTP settings.'
+            ]);
         }
         exit;
     }

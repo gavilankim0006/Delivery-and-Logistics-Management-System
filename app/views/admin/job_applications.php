@@ -26,7 +26,7 @@ $this->call->view('templates/header', ['page_title' => $page_title ?? 'Job appli
                         <span class="small text-muted">Submitted <?= e($application['created_at']) ?></span>
                     </div>
                     <div class="row g-3 small mb-3">
-                        <div class="col-12 col-md-6"><strong>Email:</strong> <?= e($application['email']) ?><br><strong>Phone:</strong> <?= e($application['phone']) ?><br><strong>Location:</strong> <?= e($application['location']) ?></div>
+                        <div class="col-12 col-md-6"><strong>Notification email:</strong> <?= e($application['email']) ?><br><strong>Account email:</strong> <?= e($application['account_email'] ?? 'Not linked') ?><br><strong>Phone:</strong> <?= e($application['phone']) ?><br><strong>Location:</strong> <?= e($application['location']) ?></div>
                         <div class="col-12 col-md-6"><strong>Availability:</strong> <?= e($application['availability']) ?><br><strong>ID type:</strong> <?= e($application['id_type']) ?><br><strong>ID number:</strong> <?= e($application['id_number']) ?><br><strong>ID file:</strong> <a href="<?= e(base_url('admin/applications/' . (int)$application['id'] . '/id')) ?>" target="_blank" rel="noopener noreferrer">View securely (<?= e(strtoupper(pathinfo($application['id_original_name'], PATHINFO_EXTENSION))) ?>)</a></div>
                         <div class="col-12"><strong>Experience:</strong><p class="mb-0" style="white-space:pre-wrap"><?= e($application['experience']) ?></p></div>
                     </div>

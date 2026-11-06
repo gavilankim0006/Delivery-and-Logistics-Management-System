@@ -7,9 +7,12 @@ const props = defineProps({
     csrfToken: { type: String, required: true },
     errorMessage: { type: String, default: '' },
     successMessage: { type: String, default: '' },
-    oldEmail: { type: String, default: '' }
+    oldEmail: { type: String, default: '' },
+    loginContext: { type: String, default: 'customer' }
 });
 
+const isApplicant = props.loginContext === 'applicant';
+const loginAction = isApplicant ? 'applicant/login' : 'login';
 const email = ref('');
 const password = ref('');
 const submitting = ref(false);
@@ -68,14 +71,14 @@ function handleSubmit(event) {
                 <circle cx="56" cy="12" r="5" fill="var(--paper)" stroke="currentColor" stroke-width="2" />
                 <circle cx="100" cy="12" r="5" fill="var(--paper)" stroke="currentColor" stroke-width="2" />
             </svg>
-            <h1 id="auth-title" class="page-title">Sign in</h1>
-            <p class="page-description">Manage your deliveries and saved addresses.</p>
+            <h1 id="auth-title" class="page-title">{{ isApplicant ? 'Applicant sign in' : 'Customer sign in' }}</h1>
+            <p class="page-description">{{ isApplicant ? 'Sign in with the account you want to use if your application is approved. You will continue to the rider or dispatcher application form.' : 'Sign in to manage orders, deliveries, and saved addresses.' }}</p>
         </header>
 
         <div v-if="successMessage" class="alert alert-success" role="status">{{ successMessage }}</div>
         <div v-if="errorMessage" class="alert alert-danger" role="alert">{{ errorMessage }}</div>
 
-        <form class="auth-form" :action="`${baseUrl}login`" method="POST" novalidate @submit="handleSubmit">
+        <form class="auth-form" :action="`${baseUrl}${loginAction}`" method="POST" novalidate @submit="handleSubmit">
             <input type="hidden" name="csrf_token" :value="csrfToken">
 
             <TextInput
@@ -117,10 +120,13 @@ function handleSubmit(event) {
 
             <p class="text-center text-muted mb-0">
                 New here?
-                <a :href="`${baseUrl}register`" class="fw-semibold text-decoration-none">Create a customer account</a>
+                <a :href="`${baseUrl}register`" class="fw-semibold text-decoration-none">{{ isApplicant ? 'Create an account to apply' : 'Create a customer account' }}</a>
             </p>
-            <p class="text-center small mb-0">
-                Looking to ride with us? <a :href="`${baseUrl}careers/apply`">Apply as a rider</a>.
+            <p v-if="isApplicant" class="text-center small mb-0">
+                Signing in as a customer? <a :href="`${baseUrl}login`">Customer sign in</a>.
+            </p>
+            <p v-else class="text-center small mb-0">
+                Applying as a rider or dispatcher? <a :href="`${baseUrl}applicant/login`">Applicant sign in</a>.
             </p>
         </form>
     </section>

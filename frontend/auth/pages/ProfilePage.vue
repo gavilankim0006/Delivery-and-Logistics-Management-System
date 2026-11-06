@@ -122,7 +122,13 @@ async function testEmail(event) {
             },
             body: JSON.stringify({ csrf_token: props.csrfToken })
         });
-        const result = await response.json();
+        const responseText = await response.text();
+        let result;
+        try {
+            result = JSON.parse(responseText);
+        } catch {
+            throw new Error(`Test email endpoint returned HTTP ${response.status} with a non-JSON response. Check the server error log.`);
+        }
         if (!response.ok || !result.success) throw new Error(result.error || 'Unable to send test email.');
         emailResult.value = result.message || 'Test email sent.';
     } catch (error) {

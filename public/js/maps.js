@@ -23,6 +23,7 @@ class DeliveryMapManager {
         this.activeStop = 'pickup';
         this.requestId = 0;
         this.routeReady = false;
+        this.routeTimeoutMs = 20000;
 
         this.map = null;
         this.directionsRenderer = null;
@@ -218,6 +219,8 @@ class DeliveryMapManager {
             this.pickupInput.addEventListener('input', () => {
                 // Editing the address means any previous pin may no longer match it.
                 if (this.pickupPinCoords) this.clearStopPinpoint('pickup');
+                this.cancelPendingRoute();
+                this.setLoading(false);
                 this.clearRouteEstimate();
                 this.clearError();
                 debouncedCalc();
@@ -232,6 +235,8 @@ class DeliveryMapManager {
             this.dropoffInput.addEventListener('input', () => {
                 // Editing the address means any previous pin may no longer match it.
                 if (this.dropoffPinCoords) this.clearStopPinpoint('dropoff');
+                this.cancelPendingRoute();
+                this.setLoading(false);
                 this.clearRouteEstimate();
                 this.clearError();
                 debouncedCalc();
@@ -252,13 +257,26 @@ class DeliveryMapManager {
         const pickupText = this.pickupInput ? this.pickupInput.value.trim() : '';
         const dropoffText = this.dropoffInput ? this.dropoffInput.value.trim() : '';
         const weight = this.weightInput ? parseFloat(this.weightInput.value) || 1.0 : 1.0;
-        if (this.weightInput && (!Number.isFinite(parseFloat(this.weightInput.value)) || parseFloat(this.weightInput.value) <= 0)) return;
+        if (this.weightInput && (!Number.isFinite(parseFloat(this.weightInput.value)) || parseFloat(this.weightInput.value) <= 0)) {
+            this.cancelPendingRoute();
+            this.setLoading(false);
+            return;
+        }
 
         // Pinpoint coordinates take priority over typed address text
         const pickupOrigin = this.pickupPinCoords || pickupText;
         const dropoffDestination = this.dropoffPinCoords || dropoffText;
 
+        // Invalidate immediately, including while asynchronous geocoding is underway.
+        const calculationId = ++this.requestId;
+        if (this.routeAbortController) {
+            this.routeAbortController.abort();
+            this.routeAbortController = null;
+        }
+
         if (!pickupOrigin || !dropoffDestination) {
+            this.cancelPendingRoute();
+            this.setLoading(false);
             return;
         }
 
@@ -291,12 +309,20 @@ class DeliveryMapManager {
             return;
         }
 
-        const requestId = ++this.requestId;
+        if (calculationId !== this.requestId) return;
+        const requestId = calculationId;
         this.routeReady = false;
         const distanceField = document.getElementById('distance_km');
         if (distanceField) distanceField.value = '';
         this.setLoading(true);
         this.clearError();
+
+        // Bound route requests so a stalled connection can never leave the button
+        // permanently in its loading state.
+        if (this.routeAbortController) this.routeAbortController.abort();
+        const controller = new AbortController();
+        this.routeAbortController = controller;
+        const timeoutId = setTimeout(() => controller.abort(), this.routeTimeoutMs);
 
         const payload = {
             origin: this.pickupPinCoords || this.pickupCoords || pickupText,
@@ -310,7 +336,8 @@ class DeliveryMapManager {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest'
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
+            signal: controller.signal
         })
         .then(async (response) => {
             const data = await response.json();
@@ -331,10 +358,19 @@ class DeliveryMapManager {
             }
         })
         .catch((err) => {
-            if (requestId === this.requestId) this.showError(err.message);
+            if (requestId !== this.requestId) return;
+            if (err.name === 'AbortError') {
+                this.showError('Route calculation timed out or was superseded. Please try again.');
+            } else {
+                this.showError(err.message || 'Failed to calculate delivery route. Please try again.');
+            }
         })
         .finally(() => {
-            if (requestId === this.requestId) this.setLoading(false);
+            clearTimeout(timeoutId);
+            if (requestId === this.requestId) {
+                this.routeAbortController = null;
+                this.setLoading(false);
+            }
         });
     }
 
@@ -475,6 +511,16 @@ class DeliveryMapManager {
 
             this.map.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
         }
+    }
+
+    cancelPendingRoute() {
+        // Invalidate callbacks before aborting; abort() also runs their finally handlers.
+        this.requestId += 1;
+        if (this.routeAbortController) {
+            this.routeAbortController.abort();
+            this.routeAbortController = null;
+        }
+        this.routeReady = false;
     }
 
     setLoading(loading) {
@@ -677,6 +723,8 @@ class DeliveryMapManager {
     }
 
     clearRouteEstimate() {
+        this.cancelPendingRoute();
+        this.setLoading(false);
         const distanceField = document.getElementById('distance_km');
         if (distanceField) {
             distanceField.value = '';
