@@ -262,16 +262,39 @@ function askQuickPrompt(promptText) {
   sendMessage();
 }
 
-function resetConversation() {
-  conversationId.value = null;
-  messages.value = [
-    {
+async function resetConversation() {
+  if (isThinking.value) return;
+
+  try {
+    const res = await fetch(`${props.baseUrl}ai/clear`, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || `Clear failed (${res.status})`);
+    }
+
+    conversationId.value = null;
+    historyLoaded = true;
+    messages.value = [
+      {
+        sender: 'assistant',
+        content: 'Hello! 👋 I am your Dispatch AI assistant, now built directly into Package Messenger. Ask me about orders, custody handoffs, delivery statuses, or courier rules!',
+      },
+    ];
+    scrollToBottom();
+  } catch (err) {
+    console.error('Failed to clear AI conversation:', err);
+    messages.value.push({
       sender: 'assistant',
-      content: 'Conversation reset. How else can I assist your logistics today?',
-    },
-  ];
-  scrollToBottom();
+      content: 'I could not clear the saved conversation. Please try again.',
+    });
+    scrollToBottom();
+  }
 }
+
+defineExpose({ resetConversation });
 
 watch(
   () => props.isOpen,

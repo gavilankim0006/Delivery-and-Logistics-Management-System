@@ -13,7 +13,9 @@ const props = defineProps({
     helperText: { type: String, default: '' },
     error: { type: String, default: '' },
     required: { type: Boolean, default: false },
-    disabled: { type: Boolean, default: false }
+    disabled: { type: Boolean, default: false },
+    previewMode: { type: String, default: 'thumbnail' },
+    showPreview: { type: Boolean, default: true }
 });
 
 const emit = defineEmits(['update:modelValue', 'change', 'blur', 'clear']);
@@ -180,7 +182,7 @@ defineExpose({
                 :disabled="disabled"
                 :aria-invalid="hasError ? 'true' : 'false'"
                 :aria-describedby="hasError ? errorId : (helperText ? helperId : null)"
-                class="shared-native-file-input"
+                class="visually-hidden"
                 @change="handleFileChange"
                 @blur="handleBlur"
             >
@@ -188,24 +190,23 @@ defineExpose({
             <!-- State when no valid file selected -->
             <div v-if="!selectedFile" class="file-picker-prompt py-2">
                 <i class="bi bi-cloud-arrow-up-fill fs-2 text-primary d-block mb-1" aria-hidden="true"></i>
-                <span class="btn btn-outline-primary btn-sm mb-1">Choose file</span>
-                <p class="small text-muted mb-0">or click to browse from device</p>
+                <button type="button" class="btn btn-outline-primary btn-sm mb-1" @click="fileInputRef?.click()">Choose file</button>
+                <p class="small text-muted mb-0">or use Choose file to browse from device</p>
             </div>
 
             <!-- State when valid file is selected -->
-            <div v-else class="file-preview-card text-start d-flex align-items-center gap-2 p-2 bg-light rounded">
+            <div v-else class="file-preview-card text-start d-flex align-items-center gap-2 p-2 bg-light rounded" :class="{ 'file-preview-card--compact': compact }">
                 <!-- Image thumbnail preview -->
-                <div v-if="previewUrl" class="file-thumb-wrap">
+                <div v-if="previewUrl && showPreview" class="file-thumb-wrap" :class="{ 'file-thumb-wrap--large': previewMode === 'large' }">
                     <img :src="previewUrl" :alt="selectedFile.name" class="file-thumb-img rounded">
                 </div>
-
                 <!-- PDF document icon preview -->
                 <div v-else-if="isPdf" class="file-thumb-icon text-danger fs-1">
                     <i class="bi bi-file-earmark-pdf-fill" aria-hidden="true"></i>
                 </div>
 
                 <!-- Generic file icon -->
-                <div v-else class="file-thumb-icon text-primary fs-1">
+                <div v-else-if="!previewUrl" class="file-thumb-icon text-primary fs-1">
                     <i class="bi bi-file-earmark-text-fill" aria-hidden="true"></i>
                 </div>
 
@@ -271,16 +272,6 @@ defineExpose({
     background-color: color-mix(in srgb, var(--route, #087F98) 4%, var(--surface, #FFFFFF));
 }
 
-.shared-native-file-input {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    cursor: pointer;
-    z-index: 1;
-}
-
 .file-preview-card {
     position: relative;
     z-index: 2; /* Sits above the invisible file input so Remove button is clickable */
@@ -315,10 +306,30 @@ defineExpose({
     border-radius: var(--r-sm, 6px);
 }
 
+.file-thumb-wrap--hidden {
+    display: none;
+}
+
+.file-thumb-wrap--large {
+    width: 100%;
+    height: auto;
+    min-width: 0;
+    max-width: 100%;
+    max-height: none;
+}
+
 .file-thumb-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+.file-thumb-wrap--large .file-thumb-img {
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 180px;
+    object-fit: contain;
 }
 
 .file-thumb-icon {

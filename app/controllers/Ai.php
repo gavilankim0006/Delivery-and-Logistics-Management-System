@@ -249,4 +249,41 @@ class Ai extends Controller
             'messages' => $messages
         ]);
     }
+
+    /**
+     * POST /ai/clear: remove this user's/session's AI conversation history.
+     */
+    public function clear()
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode(['success' => false, 'error' => 'Method not allowed']);
+            return;
+        }
+
+        $user = auth_user();
+        $userId = $user ? (int)$user['id'] : null;
+        $sessionId = session_id();
+
+        try {
+            $stmt = $this->db->raw(
+                'SELECT id FROM ai_conversations WHERE user_id = ? OR session_id = ?',
+                [$userId, $sessionId]
+            );
+            $rows = $stmt ? $stmt->fetchAll(PDO::FETCH_COLUMN) : [];
+            if ($rows) {
+                $ids = array_map('intval', $rows);
+                $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                $this->db->raw("DELETE FROM ai_messages WHERE conversation_id IN ($placeholders)", $ids);
+                $this->db->raw("DELETE FROM ai_conversations WHERE id IN ($placeholders)", $ids);
+            }
+
+            echo json_encode(['success' => true]);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Could not clear conversation history']);
+        }
+    }
 }

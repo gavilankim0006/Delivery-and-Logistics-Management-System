@@ -1,7 +1,8 @@
 import { createApp } from 'vue';
 import AdminDashboard from './pages/AdminDashboard.vue';
+import Analytics from './pages/Analytics.vue';
 
-const pages = { dashboard: AdminDashboard };
+const pages = { dashboard: AdminDashboard, analytics: Analytics };
 const root = document.getElementById('vue-admin-root');
 if (root) {
     const component = pages[root.dataset.page];

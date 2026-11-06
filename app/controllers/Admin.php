@@ -1160,6 +1160,32 @@ class Admin extends Controller
     }
 
     /**
+     * Admin analytics overview, separate from detailed report exports.
+     */
+    public function analytics(): void
+    {
+        $normalized = Report_model::normalize_filters('deliveries', $_GET);
+        $filters = $normalized['filters'];
+        $analytics = ['summary' => [], 'daily' => [], 'outcomes' => []];
+        $analyticsError = null;
+        if (!$normalized['errors']) {
+            try {
+                $analytics = $this->Report_model->get_analytics_report($filters['from'], $filters['to']);
+            } catch (Throwable $e) {
+                error_log('Admin analytics query failed: ' . $e->getMessage());
+                $analyticsError = 'Analytics could not be loaded. Check that the database migrations are up to date, then try again.';
+            }
+        }
+        $this->call->view('admin/analytics', [
+            'page_title' => 'Analytics',
+            'filters' => $filters,
+            'errors' => $normalized['errors'],
+            'analytics' => $analytics,
+            'analytics_error' => $analyticsError
+        ]);
+    }
+
+    /**
      * Read-only delivery and payment reports for administrators.
      */
     public function reports()

@@ -22,6 +22,7 @@ $adminDashboardActive = $navIsActive('admin')
     && !$navIsActive('admin/users')
     && !$navIsActive('admin/riders')
     && !$navIsActive('admin/applications')
+    && !$navIsActive('admin/analytics')
     && !$adminMoreActive;
 $basePath = parse_url(base_url(), PHP_URL_PATH) ?: '/';
 $normalizedCurrent = rtrim($currentUri, '/') ?: '/';
@@ -88,6 +89,7 @@ $isHome = ($normalizedCurrent === $normalizedBase) || ($normalizedCurrent === $n
                         <li class="nav-item"><a class="nav-link<?= $navIsActive('admin/users') ? ' active' : '' ?>" href="<?= base_url('admin/users') ?>"<?= $navIsActive('admin/users') ? ' aria-current="page"' : '' ?>><i class="bi bi-people" aria-hidden="true"></i><span>Users</span></a></li>
                         <li class="nav-item"><a class="nav-link<?= $navIsActive('admin/riders') ? ' active' : '' ?>" href="<?= base_url('admin/riders') ?>"<?= $navIsActive('admin/riders') ? ' aria-current="page"' : '' ?>><i class="bi bi-bicycle" aria-hidden="true"></i><span>Riders</span></a></li>
                         <li class="nav-item"><a class="nav-link<?= $navIsActive('admin/applications') ? ' active' : '' ?>" href="<?= base_url('admin/applications') ?>"<?= $navIsActive('admin/applications') ? ' aria-current="page"' : '' ?>><i class="bi bi-person-vcard" aria-hidden="true"></i><span>Applications</span></a></li>
+                        <li class="nav-item"><a class="nav-link<?= $navIsActive('admin/analytics') ? ' active' : '' ?>" href="<?= base_url('admin/analytics') ?>"<?= $navIsActive('admin/analytics') ? ' aria-current="page"' : '' ?>><i class="bi bi-graph-up" aria-hidden="true"></i><span>Analytics</span></a></li>
                         <li class="nav-item dropdown">
                             <button class="nav-link dropdown-toggle<?= $adminMoreActive ? ' active' : '' ?>" id="adminMoreDropdown" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">
                                 <span>More</span>

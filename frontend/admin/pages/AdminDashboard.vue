@@ -7,6 +7,15 @@ const props = defineProps({
 });
 const number = (value) => new Intl.NumberFormat().format(Number(value || 0));
 const money = (value) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'PHP' }).format(Number(value || 0));
+const endpointLabel = (value) => {
+    const raw = String(value || 'API request');
+    try {
+        const url = new URL(raw, window.location.origin);
+        return `${url.hostname}${url.pathname}`;
+    } catch {
+        return raw;
+    }
+};
 </script>
 
 <style>
@@ -14,7 +23,23 @@ const money = (value) => new Intl.NumberFormat(undefined, { style: 'currency', c
     --admin-ink: var(--ink, #172b3a);
     --admin-muted: var(--ink-2, #627485);
     --admin-line: var(--line, #dce4e9);
-    padding-block: var(--s-5, 2rem) !important;
+    padding-block: clamp(1.5rem, 3vw, 2.5rem) !important;
+}
+
+.admin-dashboard .page-shell {
+    width: min(100% - 2rem, 1180px);
+}
+
+.admin-dashboard .page-header {
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--admin-line);
+}
+
+.admin-dashboard .page-description {
+    margin-top: .4rem;
+    color: var(--admin-muted);
+    font-size: .95rem;
+    line-height: 1.55;
 }
 
 .admin-dashboard .page-header {
@@ -33,16 +58,16 @@ const money = (value) => new Intl.NumberFormat(undefined, { style: 'currency', c
 
 .admin-dashboard .ds-metric {
     display: flex;
-    min-height: 142px;
+    min-height: 132px;
     flex-direction: column;
     align-items: flex-start;
     justify-content: center;
-    gap: .45rem;
-    padding: var(--s-4, 1.5rem);
+    gap: .4rem;
+    padding: 1.25rem 1.4rem;
     border: 1px solid var(--admin-line);
     border-radius: var(--r-md, 10px);
     background: var(--surface, #fff);
-    box-shadow: var(--shadow-card, 0 2px 8px rgb(23 43 58 / 6%));
+    box-shadow: 0 1px 2px rgb(23 43 58 / 4%);
 }
 
 .admin-dashboard .ds-metric__label {
@@ -66,7 +91,11 @@ const money = (value) => new Intl.NumberFormat(undefined, { style: 'currency', c
 .admin-dashboard .surface-section {
     min-width: 0;
     padding: clamp(1rem, 2vw, 1.4rem);
+    overflow: hidden;
+    border: 1px solid var(--admin-line);
     border-radius: var(--r-md, 12px);
+    background: var(--surface, #fff);
+    box-shadow: var(--shadow-card, 0 2px 8px rgb(23 43 58 / 6%));
 }
 
 .admin-dashboard .surface-section h2 {
@@ -100,6 +129,22 @@ const money = (value) => new Intl.NumberFormat(undefined, { style: 'currency', c
 .admin-dashboard .list-group-item:last-child { border-bottom: 0; }
 .admin-dashboard .admin-log-meta { display: flex; flex-wrap: wrap; gap: .35rem .65rem; color: var(--admin-muted); font-size: .8rem; }
 .admin-dashboard .admin-log-status { font-variant-numeric: tabular-nums; font-weight: 650; }
+.admin-dashboard .admin-log-endpoint {
+    display: block;
+    overflow-wrap: anywhere;
+    color: var(--admin-ink);
+    font-family: var(--font-family, sans-serif);
+    font-size: .84rem;
+    font-weight: 600;
+    line-height: 1.45;
+}
+
+.admin-dashboard .table tbody td { vertical-align: middle; }
+.admin-dashboard .table tbody tr:hover { background: color-mix(in srgb, var(--route) 4%, transparent); }
+.admin-dashboard :is(a, button):focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 3px;
+}
 
 @media (max-width: 575.98px) {
     .admin-dashboard .page-header { align-items: flex-start; }
@@ -179,7 +224,7 @@ const money = (value) => new Intl.NumberFormat(undefined, { style: 'currency', c
                 </section>
             </div>
             <div class="col-12 col-xl-5">
-                <section class="surface surface-section h-100" style="min-width:0; overflow:hidden" aria-labelledby="recent-logs-heading">
+                <section class="surface surface-section h-100" aria-labelledby="recent-logs-heading">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h2 id="recent-logs-heading" class="h5 mb-0">Latest API logs</h2>
                         <a :href="links.logs" class="btn btn-sm btn-secondary">View logs</a>
@@ -187,7 +232,7 @@ const money = (value) => new Intl.NumberFormat(undefined, { style: 'currency', c
                     <div v-if="recentLogs.length" class="list-group list-group-flush" style="min-width:0; overflow:hidden">
                         <div v-for="log in recentLogs" :key="log.id" class="list-group-item px-0" style="min-width:0; overflow:hidden">
                             <div class="d-flex flex-column gap-1">
-                                <strong class="text-break" style="overflow-wrap:anywhere">{{ log.endpoint || log.url || 'API request' }}</strong>
+                                <strong class="admin-log-endpoint">{{ endpointLabel(log.endpoint || log.url) }}</strong>
                                 <span class="small text-muted">{{ log.created_at }}</span>
                             </div>
                             <div class="small text-muted">{{ log.method || '—' }} · {{ log.response_status || '—' }}</div>

@@ -120,6 +120,79 @@ class Report_model extends Model
         return ['summary' => $summary, 'rows' => $rows];
     }
 
+    /** Read-only time-series summary for the admin Analytics surface. */
+    public function get_analytics_report(string $from, string $to): array
+    {
+        $db = $this->getDb();
+        $start = $from . ' 00:00:00';
+        $endExclusive = (new DateTimeImmutable($to))->modify('+1 day')->format('Y-m-d') . ' 00:00:00';
+        $summary = $db->raw(
+            "SELECT COUNT(*) AS order_count,
+                    COALESCE(SUM(CASE WHEN o.status = 'delivered' THEN 1 ELSE 0 END), 0) AS delivered_count,
+                    COALESCE(SUM(CASE WHEN o.status IN ('failed', 'cancelled') THEN 1 ELSE 0 END), 0) AS unsuccessful_count
+             FROM orders o
+             WHERE o.deleted_at IS NULL AND o.created_at >= ? AND o.created_at < ?",
+            [$start, $endExclusive]
+        )->fetch(PDO::FETCH_ASSOC) ?: [];
+        $paymentSummary = $db->raw(
+            "SELECT COUNT(*) AS payment_count,
+                    COALESCE(SUM(CASE WHEN p.status = 'paid' AND p.paid_at >= ? AND p.paid_at < ? THEN p.amount ELSE 0 END), 0) AS paid_revenue,
+                    COALESCE(SUM(CASE WHEN p.status = 'failed' THEN 1 ELSE 0 END), 0) AS failed_payment_count
+             FROM payments p
+             INNER JOIN orders o ON o.id = p.order_id
+             WHERE o.deleted_at IS NULL AND p.created_at >= ? AND p.created_at < ?",
+            [$start, $endExclusive, $start, $endExclusive]
+        )->fetch(PDO::FETCH_ASSOC) ?: [];
+        $dailyRows = $db->raw(
+            "SELECT DATE(created_at) AS report_date, COUNT(*) AS order_count
+             FROM orders
+             WHERE deleted_at IS NULL AND created_at >= ? AND created_at < ?
+             GROUP BY DATE(created_at)
+             ORDER BY report_date ASC",
+            [$start, $endExclusive]
+        )->fetchAll(PDO::FETCH_ASSOC);
+        $dailyMap = [];
+        foreach ($dailyRows as $row) {
+            $dailyMap[(string)$row['report_date']] = (int)$row['order_count'];
+        }
+        $daily = [];
+        $cursor = new DateTimeImmutable($from);
+        $last = new DateTimeImmutable($to);
+        while ($cursor <= $last) {
+            $date = $cursor->format('Y-m-d');
+            $daily[] = ['date' => $date, 'orders' => $dailyMap[$date] ?? 0];
+            $cursor = $cursor->modify('+1 day');
+        }
+        $outcomeRows = $db->raw(
+            "SELECT status, COUNT(*) AS order_count
+             FROM orders
+             WHERE deleted_at IS NULL AND created_at >= ? AND created_at < ?
+             GROUP BY status
+             ORDER BY order_count DESC, status ASC",
+            [$start, $endExclusive]
+        )->fetchAll(PDO::FETCH_ASSOC);
+        $statusLabels = [
+            'draft' => 'Draft', 'pending_payment' => 'Awaiting payment', 'paid' => 'Paid',
+            'booking' => 'Booking', 'rider_assigned' => 'Rider assigned', 'picked_up' => 'Picked up',
+            'delivered' => 'Delivered', 'cancelled' => 'Cancelled', 'failed' => 'Failed'
+        ];
+        $total = (int)($summary['order_count'] ?? 0);
+        $outcomes = array_map(static function (array $row) use ($statusLabels, $total): array {
+            $count = (int)$row['order_count'];
+            return [
+                'status' => (string)$row['status'],
+                'label' => $statusLabels[$row['status']] ?? ucfirst(str_replace('_', ' ', (string)$row['status'])),
+                'count' => $count,
+                'percent' => $total > 0 ? round($count * 100 / $total, 1) : 0
+            ];
+        }, $outcomeRows);
+        return [
+            'summary' => array_merge($summary, $paymentSummary),
+            'daily' => $daily,
+            'outcomes' => $outcomes
+        ];
+    }
+
     public function get_payment_report(array $filters): array
     {
         [$where, $params] = $this->payment_conditions($filters);

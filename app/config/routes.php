@@ -59,6 +59,7 @@ $router->post('/admin/test-push', 'Admin::test_push');
 $router->post('/admin/test-email', 'Admin::test_email');
 $router->post('/auth/test_email', 'Auth::test_email');
 $router->post('/auth/test-email', 'Auth::test_email');
+$router->get('/admin/analytics', 'Admin::analytics');
 $router->get('/admin/reports', 'Admin::reports');
 $router->get('/admin/logs', 'Admin::logs');
 $router->get('/admin/courier-simulator', 'Admin::courier_simulator');
@@ -120,5 +121,6 @@ $router->get('/api/places/autocomplete', 'Route_api::autocomplete');
 // AI Assistant routes
 $router->post('/ai/chat', 'Ai::chat');
 $router->get('/ai/history', 'Ai::history');
+$router->post('/ai/clear', 'Ai::clear');
 
 

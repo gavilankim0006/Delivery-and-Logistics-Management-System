@@ -421,6 +421,7 @@ onUnmounted(() => {
                                     :allowed-types="['image/jpeg', 'image/png', 'image/webp', '.jpg', '.jpeg', '.png', '.webp']"
                                     :max-size-mb="5"
                                     :error="errors.proof_photo"
+                                    :show-preview="false"
                                     @change="handlePhotoChange"
                                     @clear="handlePhotoClear"
                                 />
