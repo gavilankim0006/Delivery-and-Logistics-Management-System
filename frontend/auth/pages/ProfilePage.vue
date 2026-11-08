@@ -168,7 +168,7 @@ async function testSms(event) {
 async function enableNotifications() {
     pushResult.value = '';
     pushError.value = false;
-    const manager = Notifications.default;
+    const manager = Notifications;
     if (!manager?.subscribePush || !props.vapidKey) {
         pushError.value = true;
         pushResult.value = 'Push notifications are not configured.';
@@ -190,7 +190,12 @@ async function enableNotifications() {
 async function sendTestPush() {
     pushResult.value = '';
     pushError.value = false;
-    const manager = Notifications.default;
+    const manager = Notifications;
+    if (!manager?.sendTestPush) {
+        pushError.value = true;
+        pushResult.value = 'Push notifications are not available in this browser.';
+        return;
+    }
     manager.testPushUrl = `${props.baseUrl}auth/test_push`;
     manager.csrfToken = props.csrfToken;
     try {

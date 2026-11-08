@@ -58,34 +58,46 @@ export default (function (window, document) {
             }
 
             const reg = await this.registerServiceWorker();
-            let token = '';
+            if (!reg) {
+                throw new Error('Could not register the push service worker. Check that the service worker URL and scope are available on this site.');
+            }
+            if (!reg.pushManager || !this.vapidKey) {
+                throw new Error('Push notifications are not configured for this site.');
+            }
 
-            if (reg && reg.pushManager && this.vapidKey) {
-                try {
-                    let sub = await reg.pushManager.getSubscription();
-                    if (!sub) {
-                        sub = await reg.pushManager.subscribe({
-                            userVisibleOnly: true,
-                            applicationServerKey: urlBase64ToUint8Array(this.vapidKey)
-                        });
-                    }
-                    if (sub) {
-                        // In FCM / Web Push, the token is the endpoint tail or standard subscription key
-                        const endpointParts = sub.endpoint.split('/');
-                        token = endpointParts[endpointParts.length - 1] || sub.endpoint;
-                    }
-                } catch (pushErr) {
-                    console.warn('Push manager subscription warning:', pushErr);
+            let sub;
+            try {
+                sub = await reg.pushManager.getSubscription();
+                if (!sub) {
+                    sub = await reg.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(this.vapidKey)
+                    });
                 }
+            } catch (pushErr) {
+                throw new Error(`Could not subscribe to push notifications: ${pushErr?.message || 'subscription failed'}`);
+            }
+            if (!sub?.endpoint) {
+                throw new Error('The browser did not return a valid push subscription.');
             }
 
-            // Fallback device token identifier if pushManager gave local endpoint
-            if (!token) {
-                token = 'web-token-' + (navigator.userAgent.replace(/[^a-zA-Z0-9]/g, '').slice(0, 20)) + '-' + Date.now();
-            }
+            // Persist the endpoint and encryption keys required by the Web Push protocol.
+            const token = JSON.stringify(sub.toJSON());
 
             await this.saveToken(token);
             return token;
+        },
+
+        readJsonResponse: async function (response, action) {
+            const text = await response.text();
+            try {
+                return JSON.parse(text);
+            } catch {
+                const detail = text.trim().startsWith('<')
+                    ? 'The server returned an HTML page instead of JSON. Check the request URL and server logs.'
+                    : 'The server returned an invalid response.';
+                throw new Error(`Could not ${action}: ${detail} (HTTP ${response.status}).`);
+            }
         },
 
         saveToken: async function (token) {
@@ -96,12 +108,12 @@ export default (function (window, document) {
                     'X-Requested-With': 'XMLHttpRequest'
                 },
                 body: JSON.stringify({
-                    token: token,
+                    subscription: JSON.parse(token),
                     csrf_token: this.csrfToken
                 })
             });
 
-            const result = await response.json();
+            const result = await this.readJsonResponse(response, 'save notification token');
             if (!response.ok || !result.success) {
                 throw new Error(result.error || 'Failed to save notification token.');
             }
@@ -120,7 +132,7 @@ export default (function (window, document) {
                 })
             });
 
-            const result = await response.json();
+            const result = await this.readJsonResponse(response, 'send test notification');
             if (!response.ok || !result.success) {
                 throw new Error(result.error || result.message || 'Failed to trigger test push.');
             }

@@ -303,6 +303,18 @@ class User_model extends Model
         ]) === 1;
     }
 
+    public function get_fcm_token(int $userId): ?string
+    {
+        $row = $this->getDb()->table('users')
+            ->select('fcm_token')
+            ->where('id', $userId)
+            ->where_null('deleted_at')
+            ->get();
+
+        $token = is_array($row) ? ($row['fcm_token'] ?? null) : null;
+        return is_string($token) && trim($token) !== '' ? $token : null;
+    }
+
     public function get_users(int $limit = 50, int $offset = 0, string $search = '', ?int $roleId = null): array
     {
         [$where, $params] = $this->user_conditions($search, $roleId);

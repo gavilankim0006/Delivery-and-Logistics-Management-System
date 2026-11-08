@@ -8,6 +8,7 @@ $baseDir = dirname($vendorDir);
 return array(
     'AiToolRegistry' => $baseDir . '/app/libraries/AiToolRegistry.php',
     'ApiClient' => $baseDir . '/app/libraries/ApiClient.php',
+    'Attribute' => $vendorDir . '/symfony/polyfill-php80/Resources/stubs/Attribute.php',
     'Composer\\InstalledVersions' => $vendorDir . '/composer/InstalledVersions.php',
     'CourierBookingService' => $baseDir . '/app/libraries/CourierBookingService.php',
     'CourierProviderFactory' => $baseDir . '/app/libraries/CourierProviderFactory.php',
@@ -19,8 +20,10 @@ return array(
     'DeliveryProofService' => $baseDir . '/app/libraries/DeliveryProofService.php',
     'DispatchFulfillmentService' => $baseDir . '/app/libraries/DispatchFulfillmentService.php',
     'DispatchRecoveryService' => $baseDir . '/app/libraries/DispatchRecoveryService.php',
+    'EmailService' => $baseDir . '/app/libraries/EmailService.php',
     'FirebasePushService' => $baseDir . '/app/libraries/FirebasePushService.php',
     'GoogleMapsService' => $baseDir . '/app/libraries/GoogleMapsService.php',
+    'JobApplicationDocumentService' => $baseDir . '/app/libraries/JobApplicationDocumentService.php',
     'LalamoveCourierDriver' => $baseDir . '/app/libraries/LalamoveCourierDriver.php',
     'MockCourierDriver' => $baseDir . '/app/libraries/MockCourierDriver.php',
     'OpenAiService' => $baseDir . '/app/libraries/OpenAiService.php',
@@ -28,5 +31,9 @@ return array(
     'PayMongoService' => $baseDir . '/app/libraries/PayMongoService.php',
     'PayMongoWebhookProcessor' => $baseDir . '/app/libraries/PayMongoWebhookProcessor.php',
     'PaymentCheckoutService' => $baseDir . '/app/libraries/PaymentCheckoutService.php',
+    'PhpToken' => $vendorDir . '/symfony/polyfill-php80/Resources/stubs/PhpToken.php',
     'SemaphoreService' => $baseDir . '/app/libraries/SemaphoreService.php',
+    'Stringable' => $vendorDir . '/symfony/polyfill-php80/Resources/stubs/Stringable.php',
+    'UnhandledMatchError' => $vendorDir . '/symfony/polyfill-php80/Resources/stubs/UnhandledMatchError.php',
+    'ValueError' => $vendorDir . '/symfony/polyfill-php80/Resources/stubs/ValueError.php',
 );

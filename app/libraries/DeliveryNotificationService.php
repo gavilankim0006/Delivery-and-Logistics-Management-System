@@ -2,22 +2,22 @@
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
 require_once APP_DIR . 'libraries/SemaphoreService.php';
-require_once APP_DIR . 'libraries/FirebasePushService.php';
+require_once APP_DIR . 'libraries/BrowserPushService.php';
 require_once APP_DIR . 'libraries/EmailService.php';
 
 class DeliveryNotificationService
 {
     private $db;
     private ?SemaphoreService $sms;
-    private ?FirebasePushService $push;
+    private $push;
     private ?EmailService $email;
 
-    public function __construct($db = null, ?SemaphoreService $sms = null, ?FirebasePushService $push = null, ?EmailService $email = null)
+    public function __construct($db = null, ?SemaphoreService $sms = null, $push = null, ?EmailService $email = null)
     {
         $lava = function_exists('lava_instance') ? lava_instance() : null;
         $this->db = $db ?? ($lava ? $lava->db : null);
         $this->sms = $sms ?? new SemaphoreService();
-        $this->push = $push ?? new FirebasePushService();
+        $this->push = $push ?? new BrowserPushService();
         $this->email = $email ?? new EmailService();
     }
 
@@ -63,13 +63,14 @@ class DeliveryNotificationService
             $enqueued = true;
         }
 
-        // Enqueue push if opted in and FCM token present
-        if ((int)($row['push_opt_in'] ?? 0) === 1 && trim((string)($row['fcm_token'] ?? '')) !== '') {
+        // Enqueue browser push only when a serialized Web Push subscription is present.
+        $subscription = json_decode((string)($row['fcm_token'] ?? ''), true);
+        if ((int)($row['push_opt_in'] ?? 0) === 1 && is_array($subscription) && !empty($subscription['endpoint']) && !empty($subscription['keys']['p256dh']) && !empty($subscription['keys']['auth'])) {
             $this->db->raw(
                 "INSERT IGNORE INTO delivery_notification_outbox
                  (order_id, user_id, status_code, channel, recipient, message, status, created_at)
                  VALUES (?, ?, ?, 'push', ?, ?, 'pending', ?)",
-                [$orderId, (int)$row['user_id'], $status, $row['fcm_token'], $message, $now]
+                [$orderId, (int)$row['user_id'], $status, json_encode($subscription, JSON_UNESCAPED_SLASHES), $message, $now]
             );
             $enqueued = true;
         }
@@ -153,12 +154,13 @@ class DeliveryNotificationService
             }
             try {
                 if ($channel === 'push') {
-                    $response = $this->push->sendToToken(
+                    $response = $this->push->sendToSubscription(
                         (string)$row['recipient'],
                         'Delivery Update',
-                        (string)$row['message']
+                        (string)$row['message'],
+                        ['type' => 'delivery_update', 'url' => base_url('orders/' . $orderId)]
                     );
-                    if (!empty($response['invalid_token'])) {
+                    if (!empty($response['invalid_subscription'])) {
                         $this->clearStaleToken((string)$row['recipient']);
                     }
                     $sent = !empty($response['sent']);
@@ -227,11 +229,11 @@ class DeliveryNotificationService
     /**
      * Clear a stale FCM token from the users table so it isn't retried.
      */
-    private function clearStaleToken(string $fcmToken): void
+    private function clearStaleToken(string $subscriptionJson): void
     {
         $this->db->raw(
             "UPDATE users SET fcm_token = NULL, updated_at = ? WHERE fcm_token = ?",
-            [date('Y-m-d H:i:s'), $fcmToken]
+            [date('Y-m-d H:i:s'), $subscriptionJson]
         );
     }
 }

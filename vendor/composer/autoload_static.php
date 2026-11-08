@@ -6,9 +6,120 @@ namespace Composer\Autoload;
 
 class ComposerStaticInit3681e8549300b0315fa4ed2430edc01f
 {
+    public static $files = array (
+        '6e3fae29631ef280660b3cdad06f25a8' => __DIR__ . '/..' . '/symfony/deprecation-contracts/function.php',
+        'a4a119a56e50fbb293281d9a48007e0e' => __DIR__ . '/..' . '/symfony/polyfill-php80/bootstrap.php',
+        '7b11c4dc42b3b3023073cb14e519683c' => __DIR__ . '/..' . '/ralouphie/getallheaders/src/getallheaders.php',
+        '37a3dc5111fe8f707ab4c132ef1dbc62' => __DIR__ . '/..' . '/guzzlehttp/guzzle/src/functions_include.php',
+    );
+
+    public static $prefixLengthsPsr4 = array (
+        'S' =>
+        array (
+            'Symfony\\Polyfill\\Php80\\' => 23,
+        ),
+        'P' =>
+        array (
+            'Psr\\Http\\Message\\' => 17,
+            'Psr\\Http\\Client\\' => 16,
+        ),
+        'M' =>
+        array (
+            'Minishlink\\WebPush\\' => 19,
+        ),
+        'J' =>
+        array (
+            'Jose\\Component\\Signature\\Algorithm\\' => 35,
+            'Jose\\Component\\Signature\\' => 25,
+            'Jose\\Component\\KeyManagement\\' => 29,
+            'Jose\\Component\\Core\\Util\\Ecc\\' => 29,
+            'Jose\\Component\\Core\\' => 20,
+        ),
+        'G' =>
+        array (
+            'GuzzleHttp\\Psr7\\' => 16,
+            'GuzzleHttp\\Promise\\' => 19,
+            'GuzzleHttp\\' => 11,
+        ),
+        'F' =>
+        array (
+            'FG\\' => 3,
+        ),
+        'B' =>
+        array (
+            'Brick\\Math\\' => 11,
+            'Base64Url\\' => 10,
+        ),
+    );
+
+    public static $prefixDirsPsr4 = array (
+        'Symfony\\Polyfill\\Php80\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/symfony/polyfill-php80',
+        ),
+        'Psr\\Http\\Message\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/psr/http-factory/src',
+            1 => __DIR__ . '/..' . '/psr/http-message/src',
+        ),
+        'Psr\\Http\\Client\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/psr/http-client/src',
+        ),
+        'Minishlink\\WebPush\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/minishlink/web-push/src',
+        ),
+        'Jose\\Component\\Signature\\Algorithm\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/web-token/jwt-signature-algorithm-ecdsa',
+        ),
+        'Jose\\Component\\Signature\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/web-token/jwt-signature',
+        ),
+        'Jose\\Component\\KeyManagement\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/web-token/jwt-key-mgmt',
+        ),
+        'Jose\\Component\\Core\\Util\\Ecc\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/web-token/jwt-util-ecc',
+        ),
+        'Jose\\Component\\Core\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/web-token/jwt-core',
+        ),
+        'GuzzleHttp\\Psr7\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/guzzlehttp/psr7/src',
+        ),
+        'GuzzleHttp\\Promise\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/guzzlehttp/promises/src',
+        ),
+        'GuzzleHttp\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/guzzlehttp/guzzle/src',
+        ),
+        'FG\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/fgrosse/phpasn1/lib',
+        ),
+        'Brick\\Math\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/brick/math/src',
+        ),
+        'Base64Url\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/spomky-labs/base64url/src',
+        ),
+    );
+
     public static $classMap = array (
         'AiToolRegistry' => __DIR__ . '/../..' . '/app/libraries/AiToolRegistry.php',
         'ApiClient' => __DIR__ . '/../..' . '/app/libraries/ApiClient.php',
+        'Attribute' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/Attribute.php',
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
         'CourierBookingService' => __DIR__ . '/../..' . '/app/libraries/CourierBookingService.php',
         'CourierProviderFactory' => __DIR__ . '/../..' . '/app/libraries/CourierProviderFactory.php',
@@ -20,8 +131,10 @@ class ComposerStaticInit3681e8549300b0315fa4ed2430edc01f
         'DeliveryProofService' => __DIR__ . '/../..' . '/app/libraries/DeliveryProofService.php',
         'DispatchFulfillmentService' => __DIR__ . '/../..' . '/app/libraries/DispatchFulfillmentService.php',
         'DispatchRecoveryService' => __DIR__ . '/../..' . '/app/libraries/DispatchRecoveryService.php',
+        'EmailService' => __DIR__ . '/../..' . '/app/libraries/EmailService.php',
         'FirebasePushService' => __DIR__ . '/../..' . '/app/libraries/FirebasePushService.php',
         'GoogleMapsService' => __DIR__ . '/../..' . '/app/libraries/GoogleMapsService.php',
+        'JobApplicationDocumentService' => __DIR__ . '/../..' . '/app/libraries/JobApplicationDocumentService.php',
         'LalamoveCourierDriver' => __DIR__ . '/../..' . '/app/libraries/LalamoveCourierDriver.php',
         'MockCourierDriver' => __DIR__ . '/../..' . '/app/libraries/MockCourierDriver.php',
         'OpenAiService' => __DIR__ . '/../..' . '/app/libraries/OpenAiService.php',
@@ -29,12 +142,18 @@ class ComposerStaticInit3681e8549300b0315fa4ed2430edc01f
         'PayMongoService' => __DIR__ . '/../..' . '/app/libraries/PayMongoService.php',
         'PayMongoWebhookProcessor' => __DIR__ . '/../..' . '/app/libraries/PayMongoWebhookProcessor.php',
         'PaymentCheckoutService' => __DIR__ . '/../..' . '/app/libraries/PaymentCheckoutService.php',
+        'PhpToken' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/PhpToken.php',
         'SemaphoreService' => __DIR__ . '/../..' . '/app/libraries/SemaphoreService.php',
+        'Stringable' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/Stringable.php',
+        'UnhandledMatchError' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/UnhandledMatchError.php',
+        'ValueError' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/ValueError.php',
     );
 
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
+            $loader->prefixLengthsPsr4 = ComposerStaticInit3681e8549300b0315fa4ed2430edc01f::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit3681e8549300b0315fa4ed2430edc01f::$prefixDirsPsr4;
             $loader->classMap = ComposerStaticInit3681e8549300b0315fa4ed2430edc01f::$classMap;
 
         }, null, ClassLoader::class);

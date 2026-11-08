@@ -3,7 +3,8 @@
     "description": "OmniRoute Delivery & Logistics Platform on LavaLust Framework",
     "type": "project",
     "require": {
-        "php": ">=8.0"
+        "php": ">=8.0",
+        "minishlink/web-push": "8.0"
     },
     "autoload": {
         "classmap": [

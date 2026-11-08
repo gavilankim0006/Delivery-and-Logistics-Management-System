@@ -387,7 +387,7 @@ class Auth extends Controller
     }
 
     /**
-     * AJAX endpoint to save client FCM token
+     * AJAX endpoint to save a browser Web Push subscription.
      */
     public function save_token()
     {
@@ -406,15 +406,20 @@ class Auth extends Controller
             echo json_encode(['success' => false, 'error' => 'Invalid security token.']);
             exit;
         }
-        $token = trim($payload['token'] ?? '');
-
-        if (empty($token)) {
+        $subscription = $payload['subscription'] ?? null;
+        if (!is_array($subscription) || empty($subscription['endpoint']) || empty($subscription['keys']['p256dh']) || empty($subscription['keys']['auth'])) {
             http_response_code(422);
-            echo json_encode(['error' => 'Token is required']);
+            echo json_encode(['success' => false, 'error' => 'A valid browser push subscription is required.']);
+            exit;
+        }
+        $token = json_encode($subscription, JSON_UNESCAPED_SLASHES);
+        if ($token === false || strlen($token) > 4096) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'error' => 'Browser push subscription is invalid or too large.']);
             exit;
         }
 
-        $saved = $this->User_model->save_fcm_token(auth_id(), $token);
+        $saved = $this->User_model->save_fcm_token((int) auth_id(), $token);
         echo json_encode(['success' => (bool)$saved]);
         exit;
     }
@@ -440,26 +445,30 @@ class Auth extends Controller
             exit;
         }
 
-        $token = $this->User_model->get_fcm_token(auth_id());
-        if (!$token) {
+        $subscription = $this->User_model->get_fcm_token((int) auth_id());
+        if (!$subscription) {
             http_response_code(404);
-            echo json_encode(['success' => false, 'error' => 'No active device registered. Click "Enable browser notifications" first.']);
+            echo json_encode(['success' => false, 'error' => 'No active browser subscription is registered. Click "Enable browser notifications" first.']);
             exit;
         }
 
-        $this->call->library('FirebaseService');
-        $sent = $this->firebaseservice->sendToDevice(
-            $token,
+        $this->call->library('BrowserPushService');
+        $push = new BrowserPushService();
+        $result = $push->sendToSubscription(
+            $subscription,
             'Dispatch Test Notification',
             'Browser notifications are working correctly for your account.',
             ['type' => 'test', 'url' => base_url('profile')]
         );
 
-        if ($sent) {
+        if (!empty($result['sent'])) {
             echo json_encode(['success' => true, 'message' => 'Test notification delivered successfully.']);
         } else {
-            http_response_code(502);
-            echo json_encode(['success' => false, 'error' => 'Firebase delivery failed. Check server logs or re-enable notifications.']);
+            http_response_code(!empty($result['disabled']) ? 503 : 502);
+            echo json_encode([
+                'success' => false,
+                'error' => $result['error'] ?? 'Browser push delivery failed.',
+            ]);
         }
         exit;
     }

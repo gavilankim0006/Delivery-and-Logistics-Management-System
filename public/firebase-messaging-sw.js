@@ -15,9 +15,9 @@ self.addEventListener('push', (event) => {
     let payload = {
         title: 'Dispatch Delivery Update',
         body: 'You have a new delivery status update.',
-        icon: '/SIAproject/public/favicon.ico',
-        badge: '/SIAproject/public/favicon.ico',
-        data: { url: '/SIAproject/orders' }
+        icon: new URL('favicon.ico', self.registration.scope).href,
+        badge: new URL('favicon.ico', self.registration.scope).href,
+        data: { url: new URL('orders', self.registration.scope).href }
     };
 
     if (event.data) {
@@ -56,7 +56,7 @@ self.addEventListener('notificationclick', (event) => {
     event.notification.close();
     const targetUrl = (event.notification.data && event.notification.data.url)
         ? event.notification.data.url
-        : '/SIAproject/orders';
+        : new URL('orders', self.registration.scope).href;
 
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
