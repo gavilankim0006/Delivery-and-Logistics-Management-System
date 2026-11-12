@@ -27,5 +27,6 @@ $orderListProps = [
     data-props="<?= e(json_encode($orderListProps, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>">
     <noscript><div class="container py-4 page-shell"><div class="alert alert-warning" role="status">Enable JavaScript to view orders.</div></div></noscript>
 </div>
-<script type="module" src="<?= e(base_url('build/orders.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
+<?php $ordersBundlePath = dirname(__DIR__, 2) . '/../public/build/orders.js'; $ordersBundleVersion = is_file($ordersBundlePath) ? '?v=' . (string)filemtime($ordersBundlePath) : ''; ?>
+<script type="module" src="<?= e(base_url('build/orders.js' . $ordersBundleVersion)) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
 <?php $this->call->view('templates/footer'); ?>

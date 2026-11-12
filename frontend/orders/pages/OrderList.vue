@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import TextInput from '../../shared/TextInput.vue';
 import SelectDropdown from '../../shared/SelectDropdown.vue';
 
@@ -14,6 +14,64 @@ const props = defineProps({
     baseUrl: { type: String, default: '/' },
     today: { type: String, default: '' },
     flashes: { type: Array, default: () => [] }
+});
+
+const orders = ref([...props.orders]);
+const totalOrders = ref(props.totalOrders);
+const totalPages = ref(props.totalPages);
+let refreshTimer = null;
+let refreshing = false;
+let stopped = false;
+
+function pollingUrl() {
+    const params = new URLSearchParams();
+    if (props.filters.status) params.set('status', props.filters.status);
+    if (props.filters.date) params.set('date', props.filters.date);
+    if (props.filters.search) params.set('search', props.filters.search);
+    params.set('page', String(props.page));
+    return `${props.baseUrl}orders/data?${params.toString()}`;
+}
+
+async function refreshOrders() {
+    if (stopped || refreshing || document.hidden) return;
+    refreshing = true;
+    try {
+        const response = await fetch(pollingUrl(), {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+            cache: 'no-store'
+        });
+        if (response.ok) {
+            const payload = await response.json();
+            if (payload.success && payload.data) {
+                orders.value = Array.isArray(payload.data.orders) ? payload.data.orders : [];
+                totalOrders.value = Number(payload.data.totalOrders || 0);
+                totalPages.value = Number(payload.data.totalPages || 1);
+            }
+        }
+    } catch {
+        // Keep the current list; the next interval will retry.
+    } finally {
+        refreshing = false;
+    }
+    if (!stopped) refreshTimer = window.setTimeout(refreshOrders, 20000);
+}
+
+function handleVisibilityChange() {
+    if (stopped || document.hidden) return;
+    window.clearTimeout(refreshTimer);
+    refreshOrders();
+}
+
+onMounted(() => {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    refreshTimer = window.setTimeout(refreshOrders, 20000);
+});
+
+onUnmounted(() => {
+    stopped = true;
+    window.clearTimeout(refreshTimer);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
 
 const statuses = [
@@ -77,7 +135,7 @@ function pageUrl(number) {
 
 // Keep the page strip compact: first, last, and a window around the current page.
 const pageNumbers = computed(() => {
-    const total = props.totalPages;
+    const total = totalPages.value;
     const current = props.page;
     if (total <= 7) {
         return Array.from({ length: total }, (_, index) => index + 1);

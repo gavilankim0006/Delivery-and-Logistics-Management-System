@@ -412,6 +412,12 @@ class Auth extends Controller
             }
             $_SESSION['user']['name'] = $name;
             $_SESSION['user']['phone'] = $phone;
+            if (auth_role() === 'customer') {
+                $_SESSION['user']['sms_opt_in'] = $updateData['sms_opt_in'];
+                $_SESSION['user']['delivery_status_sms_opt_in'] = $updateData['delivery_status_sms_opt_in'];
+                $_SESSION['user']['push_opt_in'] = $updateData['push_opt_in'];
+                $_SESSION['user']['email_notifications_opt_in'] = $updateData['email_notifications_opt_in'];
+            }
 
             flash('success', 'Profile updated successfully.');
             header('Location: ' . base_url('profile'));
@@ -502,6 +508,12 @@ class Auth extends Controller
         }
         $_SESSION['user']['name'] = $name;
         $_SESSION['user']['phone'] = $phone;
+        if (auth_role() === 'customer') {
+            $_SESSION['user']['sms_opt_in'] = $updateData['sms_opt_in'];
+            $_SESSION['user']['delivery_status_sms_opt_in'] = $updateData['delivery_status_sms_opt_in'];
+            $_SESSION['user']['push_opt_in'] = $updateData['push_opt_in'];
+            $_SESSION['user']['email_notifications_opt_in'] = $updateData['email_notifications_opt_in'];
+        }
 
         $updated = $this->User_model->find_by_id(auth_id());
         $this->api->respond(['success' => true, 'data' => ['user' => $updated, 'role' => auth_role()], 'message' => 'Profile updated successfully.']);

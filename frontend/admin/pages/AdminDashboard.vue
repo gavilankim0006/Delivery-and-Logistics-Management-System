@@ -1,12 +1,70 @@
 <script setup>
+import { onMounted, onUnmounted, ref } from 'vue';
+
 const props = defineProps({
     metrics: { type: Object, default: () => ({}) },
     recentOrders: { type: Array, default: () => [] },
     recentLogs: { type: Array, default: () => [] },
-    links: { type: Object, default: () => ({}) }
+    links: { type: Object, default: () => ({}) },
+    dataUrl: { type: String, default: '' }
 });
+
+const metrics = ref({ ...props.metrics });
+const recentOrders = ref([...props.recentOrders]);
+const recentLogs = ref([...props.recentLogs]);
+let refreshTimer = null;
+let refreshing = false;
+let stopped = false;
+
+async function refreshDashboard() {
+    if (stopped || refreshing || document.hidden || !props.dataUrl) return;
+    refreshing = true;
+    try {
+        const response = await fetch(props.dataUrl, {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+            cache: 'no-store'
+        });
+        if (response.ok) {
+            const payload = await response.json();
+            if (payload.success && payload.data) {
+                metrics.value = {
+                    ordersToday: Number(payload.data.ordersToday || 0),
+                    monthRevenue: Number(payload.data.monthRevenue || 0),
+                    failedPayments: Number(payload.data.failedPayments || 0)
+                };
+                recentOrders.value = Array.isArray(payload.data.recentOrders) ? payload.data.recentOrders : [];
+                recentLogs.value = Array.isArray(payload.data.recentLogs) ? payload.data.recentLogs : [];
+            }
+        }
+    } catch {
+        // Keep the last known data; the next interval will retry.
+    } finally {
+        refreshing = false;
+    }
+    if (!stopped) refreshTimer = window.setTimeout(refreshDashboard, 30000);
+}
+
+function handleVisibilityChange() {
+    if (stopped || document.hidden) return;
+    window.clearTimeout(refreshTimer);
+    refreshDashboard();
+}
+
+onMounted(() => {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    refreshTimer = window.setTimeout(refreshDashboard, 30000);
+});
+
+onUnmounted(() => {
+    stopped = true;
+    window.clearTimeout(refreshTimer);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+});
+
 const number = (value) => new Intl.NumberFormat().format(Number(value || 0));
 const money = (value) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'PHP' }).format(Number(value || 0));
+const statusLabel = (value) => String(value || '').replaceAll('_', ' ');
 const endpointLabel = (value) => {
     const raw = String(value || 'API request');
     try {
@@ -215,7 +273,7 @@ const endpointLabel = (value) => {
                                 <tr v-for="order in recentOrders" :key="order.id">
                                     <td><a :href="`${links.orderPrefix}${order.id}`">{{ order.order_no }}</a></td>
                                     <td>{{ order.customer_name }}</td>
-                                    <td><span class="badge text-bg-light">{{ order.status }}</span></td>
+                                    <td><span class="badge text-bg-light text-capitalize">{{ statusLabel(order.status) }}</span></td>
                                     <td>{{ order.rider_name || '—' }}</td>
                                 </tr>
                             </tbody>

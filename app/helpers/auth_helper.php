@@ -233,6 +233,10 @@ if (!function_exists('auth_login')) {
             'email' => $user['email'],
             'phone' => $user['phone'] ?? null,
             'customer_id' => $user['customer_id'] ?? null,
+            'sms_opt_in' => (int)($user['sms_opt_in'] ?? 1),
+            'delivery_status_sms_opt_in' => (int)($user['delivery_status_sms_opt_in'] ?? 1),
+            'push_opt_in' => (int)($user['push_opt_in'] ?? 1),
+            'email_notifications_opt_in' => (int)($user['email_notifications_opt_in'] ?? 1),
         ];
     }
 }

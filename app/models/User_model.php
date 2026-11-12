@@ -15,7 +15,7 @@ class User_model extends Model
     public function find_by_email(string $email): ?array
     {
         $row = $this->getDb()->table('users')
-            ->select('users.id, users.role_id, users.name, users.email, users.phone, users.password, users.status, roles.name AS role_name, customers.id AS customer_id, customers.company_name')
+            ->select('users.id, users.role_id, users.name, users.email, users.phone, users.password, users.status, users.sms_opt_in, users.delivery_status_sms_opt_in, users.push_opt_in, users.email_notifications_opt_in, roles.name AS role_name, customers.id AS customer_id, customers.company_name')
             ->inner_join('roles', 'users.role_id = roles.id')
             ->left_join('customers', 'customers.user_id = users.id')
             ->where('users.email', $email)
@@ -27,7 +27,7 @@ class User_model extends Model
     public function find_by_id(int $id): ?array
     {
         $row = $this->getDb()->table('users')
-            ->select('users.id, users.role_id, users.name, users.email, users.phone, users.password, users.status, users.created_at, roles.name AS role_name, customers.id AS customer_id, customers.company_name')
+            ->select('users.id, users.role_id, users.name, users.email, users.phone, users.password, users.status, users.created_at, users.sms_opt_in, users.delivery_status_sms_opt_in, users.push_opt_in, users.email_notifications_opt_in, roles.name AS role_name, customers.id AS customer_id, customers.company_name')
             ->inner_join('roles', 'users.role_id = roles.id')
             ->left_join('customers', 'customers.user_id = users.id')
             ->where('users.id', $id)
@@ -65,6 +65,10 @@ class User_model extends Model
                 'email' => $email,
                 'phone' => trim($userData['phone'] ?? ''),
                 'password' => password_hash($userData['password'], PASSWORD_BCRYPT),
+                'sms_opt_in' => 1,
+                'delivery_status_sms_opt_in' => 1,
+                'push_opt_in' => 1,
+                'email_notifications_opt_in' => 1,
                 'status' => 'active',
                 'deleted_at' => null,
                 'created_at' => date('Y-m-d H:i:s'),

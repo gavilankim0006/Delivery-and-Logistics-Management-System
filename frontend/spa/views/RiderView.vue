@@ -233,7 +233,11 @@ async function complete() {
     completion.recipient_name = '';
     completion.note = '';
     proofFile.value = null;
-    await loadOrder();
+    proofRecorded.value = true;
+    if (order.value) {
+      order.value = { ...order.value, status: 'delivered' };
+    }
+    loadOrders();
   } catch (err) {
     error.value = err.message;
   } finally {

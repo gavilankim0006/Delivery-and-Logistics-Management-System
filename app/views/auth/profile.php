@@ -11,9 +11,9 @@ $vueUser = [
     'email' => (string)($user['email'] ?? ''),
     'phone' => (string)($user['phone'] ?? ''),
     'role_name' => (string)($user['role_name'] ?? 'Customer'),
-    'sms_opt_in' => (int)($user['sms_opt_in'] ?? 0),
-    'delivery_status_sms_opt_in' => (int)($user['delivery_status_sms_opt_in'] ?? 0),
-    'push_opt_in' => (int)($user['push_opt_in'] ?? 0),
+    'sms_opt_in' => (int)($user['sms_opt_in'] ?? 1),
+    'delivery_status_sms_opt_in' => (int)($user['delivery_status_sms_opt_in'] ?? 1),
+    'push_opt_in' => (int)($user['push_opt_in'] ?? 1),
     'email_notifications_opt_in' => (int)($user['email_notifications_opt_in'] ?? 1)
 ];
 ?>

@@ -14,6 +14,9 @@ const props = defineProps({
     flashes: { type: Array, default: () => [] }
 });
 
+const liveOrder = ref(props.order);
+const order = computed(() => liveOrder.value);
+
 const statusLabels = {
     draft: 'Draft',
     pending_payment: 'Pending payment',
@@ -56,17 +59,18 @@ const trackerProgress = {
     delivered: 4
 };
 
-const currentProgress = computed(() => trackerProgress[props.order.status] ?? -1);
+const currentProgress = computed(() => trackerProgress[order.value.status] ?? -1);
 
-const trackerTimes = computed(() => (props.order.timeline || []).reduce((times, entry) => {
+const trackerTimes = computed(() => (order.value.timeline || []).reduce((times, entry) => {
     const stage = trackerProgress[entry.to_status];
     if (stage !== undefined) times[stage] = entry.created_at;
     return times;
 }, {}));
 
-const lastReached = computed(() => (props.order.timeline || []).reduce((last, entry) => Math.max(last, trackerProgress[entry.to_status] ?? 0), trackerProgress[props.order.status] ?? 0));
+const lastReached = computed(() => (order.value.timeline || []).reduce((last, entry) => Math.max(last, trackerProgress[entry.to_status] ?? 0), trackerProgress[order.value.status] ?? 0));
 
-const showCancel = computed(() => !['picked_up', 'delivered', 'cancelled', 'failed'].includes(props.order.status));
+const showCancel = computed(() => !['picked_up', 'delivered', 'cancelled', 'failed'].includes(order.value.status));
+const showRiderLocation = computed(() => props.riderLocationEnabled && ['rider_assigned', 'picked_up'].includes(order.value.status));
 
 const cancelReason = ref('');
 const isCancelling = ref(false);
@@ -74,10 +78,47 @@ const isCancelling = ref(false);
 const locationText = ref('Checking for a recent rider-shared update…');
 const locationLink = ref('');
 let locationTimer;
+let statusTimer;
+let statusRefreshing = false;
 let stopped = false;
 
+async function refreshOrder() {
+    if (stopped || statusRefreshing || document.hidden) return;
+    const orderId = Number(order.value?.id);
+    if (!orderId) return;
+    statusRefreshing = true;
+    try {
+        const response = await fetch(`${props.baseUrl}orders/${orderId}/data`, {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+            cache: 'no-store'
+        });
+        if (response.ok) {
+            const payload = await response.json();
+            if (payload.success && payload.data?.order) {
+                liveOrder.value = payload.data.order;
+            }
+        }
+    } catch {
+        // Keep the current view; the next interval will retry.
+    } finally {
+        statusRefreshing = false;
+    }
+    if (!stopped && !['delivered', 'cancelled', 'failed'].includes(order.value?.status)) {
+        statusTimer = window.setTimeout(refreshOrder, 15000);
+    }
+}
+
+function handleVisibilityChange() {
+    if (stopped || document.hidden) return;
+    window.clearTimeout(statusTimer);
+    window.clearTimeout(locationTimer);
+    refreshOrder();
+    if (showRiderLocation.value) refreshLocation();
+}
+
 function action(path) {
-    return `${props.baseUrl}orders/${Number(props.order.id)}/${path}`;
+    return `${props.baseUrl}orders/${Number(order.value.id)}/${path}`;
 }
 
 function money(value) {
@@ -96,7 +137,7 @@ function date(value, format = 'medium') {
 }
 
 function postForm(path) {
-    return `${props.baseUrl}orders/${Number(props.order.id)}/${path}`;
+    return `${props.baseUrl}orders/${Number(order.value.id)}/${path}`;
 }
 
 function confirmDemoPayment(event) {
@@ -114,7 +155,7 @@ function handleCancelSubmit(event) {
 }
 
 async function refreshLocation() {
-    if (stopped || document.hidden) return;
+    if (stopped || document.hidden || !showRiderLocation.value) return;
     try {
         const response = await fetch(action('location'), {
             credentials: 'same-origin',
@@ -148,8 +189,9 @@ async function refreshLocation() {
 }
 
 onMounted(() => {
-    if (props.riderLocationEnabled) {
-        document.addEventListener('visibilitychange', refreshLocation);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    refreshOrder();
+    if (showRiderLocation.value) {
         refreshLocation();
     }
 });
@@ -157,7 +199,8 @@ onMounted(() => {
 onUnmounted(() => {
     stopped = true;
     window.clearTimeout(locationTimer);
-    document.removeEventListener('visibilitychange', refreshLocation);
+    window.clearTimeout(statusTimer);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
 </script>
 
@@ -385,7 +428,7 @@ onUnmounted(() => {
             </div>
         </section>
 
-        <section v-if="riderLocationEnabled" class="surface p-3 p-md-4 mt-4" aria-labelledby="rider-location-heading">
+        <section v-if="showRiderLocation" class="surface p-3 p-md-4 mt-4" aria-labelledby="rider-location-heading">
             <h2 class="h5" id="rider-location-heading">Rider-shared location</h2>
             <p class="mb-0" role="status" aria-live="polite">
                 {{ locationText }}

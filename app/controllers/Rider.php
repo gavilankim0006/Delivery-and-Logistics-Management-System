@@ -173,12 +173,18 @@ class Rider extends Controller
                 $_FILES['proof_photo'] ?? [],
                 $this->Order_model
             );
-            flash('success', 'Delivery completed and proof recorded.');
+            flash('success', 'Delivery completed and proof recorded. The order now shows as Delivered for the customer and admin.');
+            redirect('rider');
+            return;
+        } catch (InvalidArgumentException | DomainException $e) {
+            flash('error', $e->getMessage());
         } catch (Throwable $e) {
             error_log('Rider delivery completion failed for order ' . $id . ': ' . $e->getMessage());
-            flash('error', 'Delivery was not completed. Check the photo, recipient details, and assignment, then try again.');
+            flash('error', 'Delivery was not completed due to a server error. Please try again.');
         }
-        redirect('rider/orders/' . $id);
+
+        $delivery = $this->Rider_model->get_delivery_for_user($id, (int)auth_id());
+        redirect($delivery ? 'rider/orders/' . $id : 'rider');
     }
 
     public function data(): void
@@ -263,10 +269,12 @@ class Rider extends Controller
                 $_FILES['proof_photo'] ?? [],
                 $this->Order_model
             );
-            $this->api->respond(['success' => true, 'message' => 'Delivery completed and proof recorded.']);
+            $this->api->respond(['success' => true, 'message' => 'Delivery completed and proof recorded. The order now shows as Delivered for the customer and admin.']);
+        } catch (\InvalidArgumentException | \DomainException $e) {
+            $this->api->respond(['success' => false, 'error' => $e->getMessage()], 400);
         } catch (\Throwable $e) {
             error_log('Rider SPA completion failed for order ' . $id . ': ' . $e->getMessage());
-            $this->api->respond(['success' => false, 'error' => 'Delivery was not completed. Check the photo, recipient details, and assignment, then try again.'], 400);
+            $this->api->respond(['success' => false, 'error' => 'Delivery was not completed due to a server error. Please try again.'], 400);
         }
     }
 }

@@ -106,9 +106,9 @@ const form = reactive({
   phone: '',
   password: '',
   password_confirm: '',
-  sms_opt_in: false,
-  delivery_status_sms_opt_in: false,
-  push_opt_in: false,
+  sms_opt_in: true,
+  delivery_status_sms_opt_in: true,
+  push_opt_in: true,
   email_notifications_opt_in: true
 });
 
@@ -126,9 +126,9 @@ async function load() {
       phone: user.value?.phone || '',
       password: '',
       password_confirm: '',
-      sms_opt_in: Boolean(user.value?.sms_opt_in),
-      delivery_status_sms_opt_in: Boolean(user.value?.delivery_status_sms_opt_in),
-      push_opt_in: Boolean(user.value?.push_opt_in),
+      sms_opt_in: user.value?.sms_opt_in === undefined ? true : Boolean(user.value.sms_opt_in),
+      delivery_status_sms_opt_in: user.value?.delivery_status_sms_opt_in === undefined ? true : Boolean(user.value.delivery_status_sms_opt_in),
+      push_opt_in: user.value?.push_opt_in === undefined ? true : Boolean(user.value.push_opt_in),
       email_notifications_opt_in: user.value?.email_notifications_opt_in === undefined ? true : Boolean(user.value.email_notifications_opt_in)
     });
   } catch (err) {

@@ -27,6 +27,7 @@ $dashboardProps = [
         'orderPrefix' => base_url('orders/'),
         'logs' => base_url('admin/logs'),
     ],
+    'dataUrl' => base_url('admin/data'),
 ];
 ?>
 <div
@@ -36,5 +37,6 @@ $dashboardProps = [
 >
     <noscript><div class="container py-4 page-shell"><div class="alert alert-warning" role="status">Enable JavaScript to view the admin dashboard.</div></div></noscript>
 </div>
-<script type="module" src="<?= e(base_url('build/admin.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
+<?php $adminBundlePath = dirname(__DIR__, 3) . '/public/build/admin.js'; $adminBundleVersion = is_file($adminBundlePath) ? '?v=' . (string)filemtime($adminBundlePath) : ''; ?>
+<script type="module" src="<?= e(base_url('build/admin.js' . $adminBundleVersion)) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
 <?php $this->call->view('templates/footer'); ?>

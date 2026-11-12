@@ -304,15 +304,15 @@ async function sendTestPush() {
                             <div class="mt-2"><button type="button" class="btn btn-outline-secondary btn-sm" @click="testEmail">Send test email notification</button></div>
                         </div>
                         <div class="form-check mb-2">
-                            <input id="sms_opt_in" class="form-check-input" type="checkbox" name="sms_opt_in" value="1" :checked="Number(user.sms_opt_in ?? 0) === 1">
+                            <input id="sms_opt_in" class="form-check-input" type="checkbox" name="sms_opt_in" value="1" :checked="Number(user.sms_opt_in ?? 1) === 1">
                             <label class="form-check-label" for="sms_opt_in">Receive critical account SMS alerts.</label>
                         </div>
                         <div class="form-check mb-3">
-                            <input id="delivery_status_sms_opt_in" class="form-check-input" type="checkbox" name="delivery_status_sms_opt_in" value="1" :checked="Number(user.delivery_status_sms_opt_in ?? 0) === 1">
+                            <input id="delivery_status_sms_opt_in" class="form-check-input" type="checkbox" name="delivery_status_sms_opt_in" value="1" :checked="Number(user.delivery_status_sms_opt_in ?? 1) === 1">
                             <label class="form-check-label" for="delivery_status_sms_opt_in">Receive package milestone SMS notifications.</label>
                         </div>
                         <div class="form-check mb-3">
-                            <input id="push_opt_in" class="form-check-input" type="checkbox" name="push_opt_in" value="1" :checked="Number(user.push_opt_in ?? 0) === 1">
+                            <input id="push_opt_in" class="form-check-input" type="checkbox" name="push_opt_in" value="1" :checked="Number(user.push_opt_in ?? 1) === 1">
                             <label class="form-check-label" for="push_opt_in">Receive real-time web push notifications on this device.</label>
                             <div class="mt-2 d-flex gap-2">
                                 <button type="button" class="btn btn-outline-primary btn-sm" @click="enableNotifications">Enable browser notifications</button>
