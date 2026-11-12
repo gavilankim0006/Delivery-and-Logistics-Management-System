@@ -8,6 +8,8 @@ class Careers extends Controller
         parent::__construct();
         $this->call->helper('auth');
         $this->call->model('Job_application_model');
+        $this->call->model('User_model');
+        $this->call->model('Rider_model');
         $this->JobApplicationDocumentService = $this->call->library('JobApplicationDocumentService');
     }
 
@@ -17,6 +19,78 @@ class Careers extends Controller
             redirect('applicant/login');
             return;
         }
+
+        $currentUserId = (int)auth_id();
+        $currentUser = $this->User_model->find_by_id($currentUserId);
+
+        // 1. If user in DB is already staff/rider, refresh session and redirect to their work dashboard
+        if ($currentUser && in_array($currentUser['role_name'], ['admin', 'dispatcher', 'rider'], true)) {
+            auth_login($currentUser);
+            switch ($currentUser['role_name']) {
+                case 'rider':
+                    redirect('rider');
+                    return;
+                case 'dispatcher':
+                    redirect('dispatch');
+                    return;
+                case 'admin':
+                    redirect('admin');
+                    return;
+            }
+        }
+
+        // 2. Check if this applicant has an approved application
+        $userEmail = strtolower(trim((string)(auth_user()['email'] ?? '')));
+        $approvedApp = $this->db->raw(
+            "SELECT * FROM job_applications WHERE (user_id = ? OR email = ?) AND status = 'approved' ORDER BY id DESC LIMIT 1",
+            [$currentUserId, $userEmail]
+        )->fetch(PDO::FETCH_ASSOC);
+
+        if ($approvedApp) {
+            $roleApplied = strtolower(trim((string)($approvedApp['role_applied'] ?? 'rider')));
+            $targetRoleId = ($roleApplied === 'dispatcher') ? 2 : 4;
+            $targetRole = ($roleApplied === 'dispatcher') ? 'dispatcher' : 'rider';
+
+            // Ensure rider record exists in riders table if role is rider
+            if ($roleApplied === 'rider') {
+                $riderRow = $this->db->raw('SELECT id FROM riders WHERE user_id = ? AND deleted_at IS NULL LIMIT 1', [$currentUserId])->fetch(PDO::FETCH_ASSOC);
+                if (!$riderRow) {
+                    $this->Rider_model->create([
+                        'user_id'      => $currentUserId,
+                        'name'         => $approvedApp['full_name'],
+                        'phone'        => $approvedApp['phone'],
+                        'vehicle_type' => 'Motorcycle',
+                        'plate_number' => 'PENDING-' . $currentUserId,
+                        'status'       => 'available'
+                    ]);
+                }
+            }
+
+            // Upgrade role in users table
+            $this->User_model->update_user($currentUserId, [
+                'role_id' => $targetRoleId,
+                'status'  => 'active'
+            ]);
+
+            if (empty($approvedApp['user_id'])) {
+                $this->db->raw('UPDATE job_applications SET user_id = ? WHERE id = ?', [$currentUserId, (int)$approvedApp['id']]);
+            }
+
+            $refreshed = $this->User_model->find_by_id($currentUserId);
+            if ($refreshed) {
+                auth_login($refreshed);
+            }
+
+            flash('success', 'Your ' . ucfirst($targetRole) . ' application has been approved! Welcome to the team.');
+            redirect($targetRole === 'dispatcher' ? 'dispatch' : 'rider');
+            return;
+        }
+
+        // Check for pending application
+        $pendingApp = $this->db->raw(
+            "SELECT id, role_applied, full_name, email, created_at, status FROM job_applications WHERE (user_id = ? OR email = ?) AND status = 'pending' ORDER BY id DESC LIMIT 1",
+            [$currentUserId, $userEmail]
+        )->fetch(PDO::FETCH_ASSOC);
 
         $formData = [
             'full_name' => '',
@@ -33,6 +107,9 @@ class Careers extends Controller
 
         if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             if (!verify_csrf()) {
+                if (is_json_request()) {
+                    json_response(['success' => false, 'error' => 'Invalid security token. Please try again.'], 403);
+                }
                 flash('error', 'Invalid security token. Please try again.');
                 redirect('careers/apply');
                 return;
@@ -124,6 +201,9 @@ class Careers extends Controller
             }
 
             if (!empty($errors)) {
+                if (is_json_request()) {
+                    json_response(['success' => false, 'errors' => $errors], 422);
+                }
                 $this->call->view('careers/apply', [
                     'page_title' => 'Apply to join Dispatch',
                     'form_data' => $formData,
@@ -136,6 +216,9 @@ class Careers extends Controller
                 $uploaded = $this->JobApplicationDocumentService->store($_FILES['id_document'] ?? []);
             } catch (Exception $e) {
                 $errors['id_document'] = $e->getMessage() ?: 'Document upload rejected. Provide a valid JPEG, PNG, WebP, or PDF under 8 MB.';
+                if (is_json_request()) {
+                    json_response(['success' => false, 'errors' => $errors], 422);
+                }
                 $this->call->view('careers/apply', [
                     'page_title' => 'Apply to join Dispatch',
                     'form_data' => $formData,
@@ -182,7 +265,11 @@ class Careers extends Controller
                 return;
             }
 
-            flash('success', 'Application received. Our recruitment team will review your details.');
+            $msg = 'Application received. Our recruitment team will review your details.';
+            if (is_json_request()) {
+                json_response(['success' => true, 'message' => $msg]);
+            }
+            flash('success', $msg);
             redirect('careers/apply');
             return;
         }
@@ -191,6 +278,7 @@ class Careers extends Controller
             'page_title' => 'Apply to join Dispatch',
             'form_data' => $formData,
             'errors' => $errors,
+            'pending_application' => $pendingApp ?: null,
         ]);
     }
 }

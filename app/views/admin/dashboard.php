@@ -34,15 +34,7 @@ $dashboardProps = [
     data-page="dashboard"
     data-props="<?= e(json_encode($dashboardProps, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?: '{}') ?>"
 >
-    <div class="container page-shell py-4">
-        <header class="page-header mb-4"><h1 class="page-title">Admin dashboard</h1></header>
-        <div class="dashboard-fallback">
-            <span class="visually-hidden">Orders today: <?= number_format((int)$orders_today) ?></span>
-            <span class="visually-hidden">Paid revenue this month: ₱<?= number_format((float)$month_revenue, 2) ?></span>
-            <span class="visually-hidden">Failed payments: <?= number_format((int)$failed_payments) ?></span>
-        </div>
-        <p class="text-muted" role="status">Loading dashboard…</p>
-    </div>
+    <noscript><div class="container py-4 page-shell"><div class="alert alert-warning" role="status">Enable JavaScript to view the admin dashboard.</div></div></noscript>
 </div>
 <script type="module" src="<?= e(base_url('build/admin.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
 <?php $this->call->view('templates/footer'); ?>

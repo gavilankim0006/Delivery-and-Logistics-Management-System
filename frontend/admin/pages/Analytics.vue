@@ -32,15 +32,21 @@ const shortDate = (value) => {
     const date = new Date(`${value}T00:00:00`);
     return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date);
 };
+const outcomeTone = (status) => {
+    if (status === 'delivered') return 'is-success';
+    if (status === 'cancelled' || status === 'failed') return 'is-danger';
+    if (status === 'pending_payment' || status === 'draft') return 'is-pending';
+    return 'is-route';
+};
 </script>
 
 <template>
     <main class="container page-shell analytics-page py-4">
         <header class="analytics-header">
             <div>
-                <p class="analytics-kicker">Dispatch / Intelligence</p>
+                <p class="ds-eyebrow">Administration</p>
                 <h1 class="page-title">Analytics</h1>
-                <p class="analytics-intro">A clear view of order demand, delivery outcomes, and paid revenue.</p>
+                <p class="page-description">Delivery volume, outcomes and top routes for the selected date range.</p>
             </div>
             <a class="btn btn-secondary" :href="links.reports">Open detailed reports</a>
         </header>
@@ -54,11 +60,27 @@ const shortDate = (value) => {
 
         <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
 
-        <section class="analytics-kpis" aria-label="Performance summary">
-            <article class="kpi-card"><span>Orders</span><strong>{{ number(summary.order_count) }}</strong><small>Created in this period</small></article>
-            <article class="kpi-card"><span>Paid revenue</span><strong>{{ money(summary.paid_revenue) }}</strong><small>Successful payments</small></article>
-            <article class="kpi-card"><span>Delivered</span><strong>{{ number(summary.delivered_count) }}</strong><small>Completed orders</small></article>
-            <article class="kpi-card"><span>Unsuccessful</span><strong>{{ number(summary.unsuccessful_count) }}</strong><small>Failed or cancelled orders</small></article>
+        <section class="ds-stat-grid analytics-kpis" aria-label="Performance summary">
+            <article class="surface ds-metric-card">
+                <span class="ds-metric-card__label"><i class="bi bi-box-seam" aria-hidden="true"></i> Orders</span>
+                <span class="ds-metric-card__value">{{ number(summary.order_count) }}</span>
+                <span class="ds-metric-card__hint">Created in this period</span>
+            </article>
+            <article class="surface ds-metric-card">
+                <span class="ds-metric-card__label"><i class="bi bi-cash-stack" aria-hidden="true"></i> Paid revenue</span>
+                <span class="ds-metric-card__value">{{ money(summary.paid_revenue) }}</span>
+                <span class="ds-metric-card__hint">Successful payments</span>
+            </article>
+            <article class="surface ds-metric-card">
+                <span class="ds-metric-card__label"><i class="bi bi-check2-circle" aria-hidden="true"></i> Delivered</span>
+                <span class="ds-metric-card__value">{{ number(summary.delivered_count) }}</span>
+                <span class="ds-metric-card__hint">Completed orders</span>
+            </article>
+            <article class="surface ds-metric-card">
+                <span class="ds-metric-card__label"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i> Unsuccessful</span>
+                <span class="ds-metric-card__value">{{ number(summary.unsuccessful_count) }}</span>
+                <span class="ds-metric-card__hint">Failed or cancelled orders</span>
+            </article>
         </section>
 
         <section class="analytics-panel trend-panel" aria-labelledby="order-trend-title">
@@ -90,7 +112,7 @@ const shortDate = (value) => {
                 <div v-if="outcomes.length" class="outcome-list">
                     <div v-for="item in outcomes" :key="item.status" class="outcome-row">
                         <div class="outcome-label"><span>{{ item.label }}</span><strong>{{ number(item.count) }}</strong></div>
-                        <div class="outcome-track" role="img" :aria-label="`${item.label}: ${item.count} orders`"><span :style="{ width: `${item.percent}%` }"></span></div>
+                        <div class="outcome-track" :class="outcomeTone(item.status)" role="img" :aria-label="`${item.label}: ${item.count} orders`"><span :style="{ width: `${item.percent}%` }"></span></div>
                     </div>
                 </div>
                 <p v-else class="analytics-empty" role="status">No delivery outcomes to show yet.</p>

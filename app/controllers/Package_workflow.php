@@ -76,6 +76,9 @@ class Package_workflow extends Controller
                 'active_handoff' => $activeHandoff,
                 'messages' => $activeMessages,
                 'customer_id' => $id,
+                'eligible_orders' => $eligibleOrders,
+                'preset_order_id' => (int)($_GET['order_id'] ?? 0),
+                'csrf_token' => csrf_token(),
             ]);
         }
 

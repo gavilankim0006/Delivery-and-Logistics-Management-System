@@ -1,0 +1,1 @@
+import{_ as o}from"./_plugin-vue_export-helper-DlAUqK2U.js";import{o as s,c as a,a as t}from"./runtime-dom.esm-bundler-CwgbBz8U.js";const n={},r={class:"container py-4"};function c(i,e){return s(),a("main",r,e[0]||(e[0]=[t("h1",{class:"h3"},"Page not found",-1),t("p",{class:"text-muted"},"This route is not available yet.",-1)]))}const d=o(n,[["render",c]]);export{d as default};

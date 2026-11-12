@@ -191,12 +191,29 @@ if ( ! function_exists('_exception_handler'))
 			$logger = load_class('logger', 'kernel');
 			$logger->log('error', get_class($e), $e->getMessage(), $e->getFile(), $e->getLine());
 		}
-		if(strtolower(config_item('environment') == 'development'))
+
+		$is_json = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+			|| (!empty($_SERVER['HTTP_ACCEPT']) && stripos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
+			|| (function_exists('headers_list') && array_filter(headers_list(), fn($h) => stripos($h, 'application/json') !== false));
+
+		if ($is_json) {
+			if (!headers_sent()) {
+				header('Content-Type: application/json');
+				http_response_code(500);
+			}
+			echo json_encode([
+				'success' => false,
+				'error' => $e->getMessage(),
+				'exception' => get_class($e)
+			]);
+			exit();
+		}
+
+		if(strtolower(config_item('environment')) == 'development')
 		{
 			$exception = load_class('Errors', 'kernel');
 			$exception->show_exception($e);
 		}
-		
 	}
 }
 
@@ -208,10 +225,20 @@ if ( ! function_exists('_error_handler'))
 	 * @param  string $errstr
 	 * @param  string $errfile
 	 * @param  int $errline
-	 * @return string
+	 * @return string|bool
 	 */
 	function _error_handler($severity, $errstr, $errfile, $errline)
 	{
+		// Respect @ error-suppression operator and error_reporting bitmask
+		if (!(error_reporting() & $severity)) {
+			return false;
+		}
+
+		// Deprecation notices should never halt execution
+		if ($severity === E_DEPRECATED || $severity === E_USER_DEPRECATED) {
+			return true;
+		}
+
 		// Map of PHP error levels
 		$error_levels = [
 			E_ERROR             => 'E_ERROR',
@@ -242,7 +269,23 @@ if ( ! function_exists('_error_handler'))
 			$logger->log('error', $severity_name, $errstr, $errfile, $errline);
 		}
 
-		if (strtolower(config_item('environment')) == 'development') { 
+		$is_json = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+			|| (!empty($_SERVER['HTTP_ACCEPT']) && stripos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
+			|| (function_exists('headers_list') && array_filter(headers_list(), fn($h) => stripos($h, 'application/json') !== false));
+
+		if ($is_json) {
+			if (strtolower(config_item('environment')) == 'development') {
+				if (!headers_sent()) {
+					header('Content-Type: application/json');
+					http_response_code(500);
+				}
+				echo json_encode(['success' => false, 'error' => "PHP {$severity_name}: {$errstr} in {$errfile} on line {$errline}"]);
+				exit();
+			}
+			return false;
+		}
+
+		if (strtolower(config_item('environment')) == 'development') {
 			$error = load_class('Errors', 'kernel');
 			$error->show_php_error($severity_name, $errstr, $errfile, $errline);
 		}

@@ -302,7 +302,7 @@ defineExpose({
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: #000;
+    background-color: var(--ink, #172B3A);
     border-radius: var(--r-sm, 6px);
 }
 

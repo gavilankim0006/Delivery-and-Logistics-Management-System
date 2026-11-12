@@ -135,6 +135,26 @@ class Rider extends Controller
         echo json_encode(['success' => true, 'received_at' => $now]);
     }
 
+    public function pickup(int $id): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf()) {
+            http_response_code(400);
+            flash('error', 'Invalid request or security token.');
+            redirect('rider/orders/' . $id);
+            return;
+        }
+
+        try {
+            (new DispatchFulfillmentService($this->db, $this->Order_model))
+                ->updateRiderStatus($id, (int)auth_id(), 'picked_up');
+            flash('success', 'Pickup recorded successfully.');
+        } catch (\Throwable $e) {
+            error_log('Rider pickup failed for order ' . $id . ': ' . $e->getMessage());
+            flash('error', 'Pickup was not recorded: ' . $e->getMessage());
+        }
+        redirect('rider/orders/' . $id);
+    }
+
     public function complete(int $id): void
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf()) {
@@ -161,22 +181,93 @@ class Rider extends Controller
         redirect('rider/orders/' . $id);
     }
 
-    public function pickup(int $id): void
+    public function data(): void
     {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf()) {
-            http_response_code(400);
-            flash('error', 'Invalid request or security token.');
-            redirect('rider');
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
             return;
         }
+        $rider = $this->Rider_model->find_for_user((int)auth_id());
+        $orders = $rider ? $this->Rider_model->get_active_orders((int)auth_id()) : [];
+        $this->api->respond([
+            'success' => true,
+            'data' => [
+                'portal_linked' => $rider !== null,
+                'rider' => $rider,
+                'orders' => $orders
+            ]
+        ]);
+    }
 
+    public function show_data(int $id): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+        $order = $this->Rider_model->get_delivery_for_user($id, (int)auth_id());
+        if (!$order) {
+            $this->api->respond(['success' => false, 'error' => 'Delivery not found.'], 404);
+            return;
+        }
+        $proof = (new DeliveryProofService($this->db))->getForOrder($id);
+        $this->api->respond([
+            'success' => true,
+            'data' => [
+                'order' => $order,
+                'proof_recorded' => $proof !== null
+            ]
+        ]);
+    }
+
+    public function api_pickup(int $id): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+        if (!verify_csrf()) {
+            $this->api->respond(['success' => false, 'error' => 'Invalid security token.'], 400);
+            return;
+        }
         try {
             (new DispatchFulfillmentService($this->db, $this->Order_model))
                 ->updateRiderStatus($id, (int)auth_id(), 'picked_up');
-            flash('success', 'Pickup recorded.');
-        } catch (Throwable $e) {
-            flash('error', 'Pickup was not recorded: ' . $e->getMessage());
+            $this->api->respond(['success' => true, 'message' => 'Pickup recorded.']);
+        } catch (\Throwable $e) {
+            error_log('Rider SPA pickup failed for order ' . $id . ': ' . $e->getMessage());
+            $this->api->respond(['success' => false, 'error' => 'Pickup was not recorded: ' . $e->getMessage()], 400);
         }
-        redirect('rider/orders/' . $id);
+    }
+
+    public function api_complete(int $id): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+        if (!verify_csrf()) {
+            $this->api->respond(['success' => false, 'error' => 'Invalid security token.'], 400);
+            return;
+        }
+        try {
+            (new DeliveryProofService($this->db))->completeWithProof(
+                $id,
+                (int)auth_id(),
+                (string)($_POST['recipient_name'] ?? ''),
+                (string)($_POST['note'] ?? ''),
+                $_FILES['proof_photo'] ?? [],
+                $this->Order_model
+            );
+            $this->api->respond(['success' => true, 'message' => 'Delivery completed and proof recorded.']);
+        } catch (\Throwable $e) {
+            error_log('Rider SPA completion failed for order ' . $id . ': ' . $e->getMessage());
+            $this->api->respond(['success' => false, 'error' => 'Delivery was not completed. Check the photo, recipient details, and assignment, then try again.'], 400);
+        }
     }
 }
+

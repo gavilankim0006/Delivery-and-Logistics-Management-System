@@ -33,9 +33,19 @@ class Admin extends Controller
 
     public function review_package_report(int $id): void
     {
-        $status=(string)($_POST['status']??''); $note=trim((string)($_POST['admin_note']??''));
-        if ($_SERVER['REQUEST_METHOD']!=='POST'||!verify_csrf()||!in_array($status,['open','investigating','resolved','rejected'],true)||mb_strlen($note)>3000||!$this->Package_workflow_model->update_report($id,$status,$note,(int)(auth_user()['id']??0))) flash('error','Invalid report update.');
-        else flash('success','Missing-package report updated.');
+        $status = (string)($_POST['status'] ?? '');
+        $note = trim((string)($_POST['admin_note'] ?? ''));
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf() || !in_array($status, ['open', 'investigating', 'resolved', 'rejected'], true) || mb_strlen($note) > 3000 || !$this->Package_workflow_model->update_report($id, $status, $note, (int)(auth_user()['id'] ?? 0))) {
+            if (is_json_request()) {
+                json_response(['success' => false, 'error' => 'Invalid report update.'], 400);
+            }
+            flash('error', 'Invalid report update.');
+        } else {
+            if (is_json_request()) {
+                json_response(['success' => true, 'message' => 'Missing-package report updated.']);
+            }
+            flash('success', 'Missing-package report updated.');
+        }
         redirect('admin/package-reports');
     }
 
@@ -52,6 +62,9 @@ class Admin extends Controller
     public function review_application(int $id): void
     {
         if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST' || !verify_csrf()) {
+            if (is_json_request()) {
+                json_response(['success' => false, 'error' => 'Invalid request or security token.'], 400);
+            }
             http_response_code(400);
             flash('error', 'Invalid request or security token.');
             redirect('admin/applications');
@@ -60,6 +73,9 @@ class Admin extends Controller
         $status = (string)($_POST['status'] ?? '');
         $note = trim((string)($_POST['admin_note'] ?? ''));
         if (!in_array($status, ['pending', 'approved', 'rejected'], true) || mb_strlen($note) > 3000) {
+            if (is_json_request()) {
+                json_response(['success' => false, 'error' => 'Application review could not be saved. Check decision and note.'], 422);
+            }
             flash('error', 'Application review could not be saved. Check decision and note.');
             redirect('admin/applications');
             return;
@@ -67,6 +83,9 @@ class Admin extends Controller
 
         $application = $this->Job_application_model->find($id);
         if (!$application) {
+            if (is_json_request()) {
+                json_response(['success' => false, 'error' => 'Job application not found.'], 404);
+            }
             flash('error', 'Job application not found.');
             redirect('admin/applications');
             return;
@@ -84,64 +103,86 @@ class Admin extends Controller
             $temporaryPassword = '';
             $isNewAccount = false;
 
-            // Provision user account and rider profile if not yet linked
-            if (!$userId) {
-                $userByEmail = $this->User_model->find_by_email($email);
-                if ($userByEmail) {
-                    $userId = (int)$userByEmail['id'];
-                    $isNewAccount = false;
-
-                    // If existing user had a customer role (3), upgrade to the approved staff role
-                    if ((int)$userByEmail['role_id'] === 3) {
-                        $this->User_model->update_user($userId, [
-                            'role_id' => $roleId,
-                            'status'  => 'active'
-                        ]);
-                    }
-
-                    // Update name to applicant's legal name if different
-                    if ($userByEmail['name'] !== $name && mb_strlen($name) >= 2) {
-                        $this->User_model->update_user($userId, ['name' => $name]);
-                    }
-
-                    // If applicant is a rider, ensure a rider record exists
-                    if ($roleApplied === 'rider') {
-                        $existingRider = $this->Rider_model->find_for_user($userId);
-                        if (!$existingRider) {
-                            $this->Rider_model->create([
-                                'user_id'      => $userId,
-                                'name'         => $name,
-                                'phone'        => $phone,
-                                'vehicle_type' => 'Motorcycle',
-                                'plate_number' => 'PENDING-' . $userId,
-                                'status'       => 'available'
-                            ]);
-                        } elseif ($existingRider['name'] !== $name) {
-                            $this->Rider_model->update_rider((int)$existingRider['id'], ['name' => $name]);
-                        }
-                    }
-                } else {
-                    // Create new user account with secure temporary password
-                    $temporaryPassword = 'Pass#' . bin2hex(random_bytes(4));
-                    $isNewAccount = true;
-
-                    $staffRes = $this->User_model->create_staff([
-                        'name'     => $name,
-                        'email'    => $email,
-                        'phone'    => $phone,
-                        'role_id'  => $roleId,
-                        'password' => $temporaryPassword,
-                        'status'   => 'active'
-                    ]);
-
-                    if (!$staffRes['success']) {
-                        flash('error', 'Could not provision ' . $roleName . ' account: ' . ($staffRes['error'] ?? 'Unknown error'));
-                        redirect('admin/applications');
-                        return;
-                    }
-
-                    $userId = (int)$staffRes['user_id'];
+            // Find existing user account by linked user_id or by email
+            $existingUser = null;
+            if ($userId) {
+                $existingUser = $this->User_model->find_by_id($userId);
+            }
+            if (!$existingUser && !empty($email)) {
+                $existingUser = $this->User_model->find_by_email($email);
+                if ($existingUser) {
+                    $userId = (int)$existingUser['id'];
                 }
+            }
+            if (!$existingUser && !empty($application['email'])) {
+                $notifEmail = strtolower(trim((string)$application['email']));
+                if ($notifEmail !== $email) {
+                    $existingUser = $this->User_model->find_by_email($notifEmail);
+                    if ($existingUser) {
+                        $userId = (int)$existingUser['id'];
+                    }
+                }
+            }
+
+            if ($existingUser) {
+                $userId = (int)$existingUser['id'];
+                $isNewAccount = false;
+
+                // 1. If applicant is a rider, ensure rider record in riders table exists first
+                // (User_model::update_user requires a linked rider record before updating role to 4)
+                if ($roleApplied === 'rider') {
+                    $existingRider = $this->db->raw('SELECT * FROM riders WHERE user_id = ? AND deleted_at IS NULL LIMIT 1', [$userId])->fetch(PDO::FETCH_ASSOC);
+                    if (!$existingRider) {
+                        $riderPlate = !empty($application['id_number']) ? 'APP-' . preg_replace('/[^A-Z0-9]/', '', strtoupper($application['id_number'])) : 'PENDING-' . $userId;
+                        if (strlen($riderPlate) > 30) {
+                            $riderPlate = substr($riderPlate, 0, 30);
+                        }
+                        $this->Rider_model->create([
+                            'user_id'      => $userId,
+                            'name'         => $name,
+                            'phone'        => $phone ?: ($existingUser['phone'] ?? '09000000000'),
+                            'vehicle_type' => 'Motorcycle',
+                            'plate_number' => $riderPlate,
+                            'status'       => 'available'
+                        ]);
+                    } elseif ($existingRider['name'] !== $name) {
+                        $this->Rider_model->update_rider((int)$existingRider['id'], ['name' => $name]);
+                    }
+                }
+
+                // 2. Upgrade user account role to staff role (rider or dispatcher) and activate
+                $updateData = ['status' => 'active'];
+                if ((int)$existingUser['role_id'] !== $roleId) {
+                    $updateData['role_id'] = $roleId;
+                }
+                if ($existingUser['name'] !== $name && mb_strlen($name) >= 2) {
+                    $updateData['name'] = $name;
+                }
+                if (!empty($phone) && empty($existingUser['phone'])) {
+                    $updateData['phone'] = $phone;
+                }
+                $this->User_model->update_user($userId, $updateData);
+            } else {
+                // Create new user account with secure temporary password
+                $temporaryPassword = 'Pass#' . bin2hex(random_bytes(4));
+                $isNewAccount = true;
+
+                $staffRes = $this->User_model->create_staff([
+                    'name'     => $name,
+                    'email'    => $email,
+                    'phone'    => $phone,
+                    'role_id'  => $roleId,
+                    'password' => $temporaryPassword,
+                    'status'   => 'active'
+                ]);
+
+                if (!$staffRes['success']) {
+                    flash('error', 'Could not provision ' . $roleName . ' account: ' . ($staffRes['error'] ?? 'Unknown error'));
+                    redirect('admin/applications');
+                    return;
+                }
+
+                $userId = (int)$staffRes['user_id'];
             }
 
             // Save application decision and associate user ID
@@ -168,6 +209,9 @@ class Admin extends Controller
                 }
             }
 
+            if (is_json_request()) {
+                json_response(['success' => true, 'message' => $msg, 'application' => $application]);
+            }
             flash('success', $msg);
             redirect('admin/applications');
             return;
@@ -183,6 +227,9 @@ class Admin extends Controller
             if ($emailResult['success']) {
                 $msg .= ' Notification email sent to applicant.';
             }
+            if (is_json_request()) {
+                json_response(['success' => true, 'message' => $msg, 'application' => $application]);
+            }
             flash('success', $msg);
             redirect('admin/applications');
             return;
@@ -190,7 +237,11 @@ class Admin extends Controller
 
         // Pending
         $this->Job_application_model->update_status($id, 'pending', (int)auth_id(), $note);
-        flash('success', 'Application marked as pending.');
+        $msg = 'Application marked as pending.';
+        if (is_json_request()) {
+            json_response(['success' => true, 'message' => $msg]);
+        }
+        flash('success', $msg);
         redirect('admin/applications');
     }
 
@@ -294,9 +345,32 @@ class Admin extends Controller
         ]);
     }
 
-    /**
-     * User Management Screen
-     */
+    public function data(): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+        require_role(['admin']);
+        $db = $this->db;
+        $ordersToday = (int)$db->raw("SELECT COUNT(*) AS c FROM orders WHERE created_at >= CURRENT_DATE() AND created_at < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)")->fetch(PDO::FETCH_ASSOC)['c'];
+        $monthRevenue = (float)($db->raw("SELECT COALESCE(SUM(amount), 0) AS revenue FROM payments WHERE status = 'paid' AND paid_at >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01') AND paid_at < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)")->fetch(PDO::FETCH_ASSOC)['revenue'] ?? 0);
+        $failedPayments = (int)$db->raw("SELECT COUNT(*) AS c FROM payments WHERE status = 'failed' AND created_at >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01') AND created_at < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)")->fetch(PDO::FETCH_ASSOC)['c'];
+        $recentOrders = $db->raw("SELECT o.*, u.name AS customer_name, r.name AS rider_name FROM orders o INNER JOIN customers c ON o.customer_id = c.id INNER JOIN users u ON c.user_id = u.id LEFT JOIN riders r ON o.rider_id = r.id ORDER BY o.id DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
+        $recentLogs = $db->table('api_logs')->order_by('id', 'DESC')->limit(5)->get_all();
+        $this->api->respond([
+            'success' => true,
+            'data' => [
+                'ordersToday' => $ordersToday,
+                'monthRevenue' => $monthRevenue,
+                'failedPayments' => $failedPayments,
+                'recentOrders' => $recentOrders ?: [],
+                'recentLogs' => is_array($recentLogs) ? $recentLogs : []
+            ]
+        ]);
+    }
+
     public function users()
     {
         $search = trim($_GET['search'] ?? '');
@@ -383,9 +457,186 @@ class Admin extends Controller
         exit;
     }
 
-    /**
-     * Show one active user account.
-     */
+    public function users_data(): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+        require_role(['admin']);
+        $search = trim($_GET['search'] ?? '');
+        $roleFilter = isset($_GET['role']) && $_GET['role'] !== '' ? (int)$_GET['role'] : null;
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $limit = 20;
+        $offset = ($page - 1) * $limit;
+        $users = $this->User_model->get_users($limit, $offset, $search, $roleFilter);
+        $total = $this->User_model->count_users($search, $roleFilter);
+        $roles = $this->User_model->get_roles();
+        $this->api->respond([
+            'success' => true,
+            'data' => [
+                'users' => $users ?: [],
+                'roles' => $roles ?: [],
+                'total' => (int)$total,
+                'page' => $page,
+                'limit' => $limit,
+                'search' => $search,
+                'roleFilter' => $roleFilter
+            ]
+        ]);
+    }
+
+    public function api_create_user(): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+        require_role(['admin']);
+        require_role(['admin']);
+        if (!verify_csrf()) {
+            $this->api->respond(['success' => false, 'error' => 'Invalid CSRF token.'], 400);
+            return;
+        }
+        $name = trim($_POST['name'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $phone = trim($_POST['phone'] ?? '');
+        $roleId = (int)($_POST['role_id'] ?? 0);
+        $password = $_POST['password'] ?? '';
+        if (empty($name) || empty($email) || empty($password)) {
+            $this->api->respond(['success' => false, 'error' => 'Name, email, and password are required.'], 422);
+            return;
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->api->respond(['success' => false, 'error' => 'Invalid email address format.'], 422);
+            return;
+        }
+        if (mb_strlen($name) < 2 || mb_strlen($name) > 100 || strlen($password) < 8 || !in_array($roleId, [1, 2, 4], true)) {
+            $this->api->respond(['success' => false, 'error' => 'Check the name, role, and password requirements.'], 422);
+            return;
+        }
+        if ($this->User_model->email_in_use($email)) {
+            $this->api->respond(['success' => false, 'error' => 'Email address is already in use.'], 409);
+            return;
+        }
+        $result = $this->User_model->create_staff([
+            'name' => $name,
+            'email' => $email,
+            'phone' => $phone,
+            'role_id' => $roleId,
+            'password' => $password,
+            'status' => 'active'
+        ]);
+        if (!$result['success']) {
+            $this->api->respond(['success' => false, 'error' => $result['error'] ?? 'User creation failed.'], 500);
+            return;
+        }
+        $this->api->respond(['success' => true, 'message' => "User {$name} created successfully."]);
+    }
+
+    public function api_update_user(int $id): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+        require_role(['admin']);
+        if (!verify_csrf()) {
+            $this->api->respond(['success' => false, 'error' => 'Invalid CSRF token.'], 400);
+            return;
+        }
+        $user = $this->User_model->find_by_id($id);
+        if (!$user) {
+            $this->api->respond(['success' => false, 'error' => 'User not found.'], 404);
+            return;
+        }
+        $name = trim($_POST['name'] ?? '');
+        $email = strtolower(trim($_POST['email'] ?? ''));
+        $phone = trim($_POST['phone'] ?? '');
+        $roleId = (int)($_POST['role_id'] ?? 0);
+        $status = $_POST['status'] ?? '';
+        $password = $_POST['password'] ?? '';
+        if (mb_strlen($name) < 2 || mb_strlen($name) > 100 || !filter_var($email, FILTER_VALIDATE_EMAIL)
+            || strlen($phone) > 30 || !in_array($roleId, [1, 2, 3, 4], true)
+            || !in_array($status, ['active', 'inactive'], true)
+            || ($password !== '' && strlen($password) < 8)) {
+            $this->api->respond(['success' => false, 'error' => 'Please correct the user details and try again.'], 422);
+            return;
+        }
+        if ($this->User_model->email_in_use($email, $id)) {
+            $this->api->respond(['success' => false, 'error' => 'That email address is already in use.'], 409);
+            return;
+        }
+        if ($id === auth_id() && ($status !== 'active' || $roleId !== 1)) {
+            $this->api->respond(['success' => false, 'error' => 'You cannot deactivate or remove administrator access from your own account.'], 422);
+            return;
+        }
+        $changes = ['name' => $name, 'email' => $email, 'phone' => $phone, 'role_id' => $roleId, 'status' => $status];
+        if ($password !== '') {
+            $changes['password'] = $password;
+        }
+        if (!$this->User_model->update_user($id, $changes)) {
+            $this->api->respond(['success' => false, 'error' => 'Account update was not completed.'], 500);
+            return;
+        }
+        $this->api->respond(['success' => true, 'message' => 'User details updated.']);
+    }
+
+    public function api_delete_user(int $id): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+        require_role(['admin']);
+        if (!verify_csrf()) {
+            $this->api->respond(['success' => false, 'error' => 'Invalid CSRF token.'], 400);
+            return;
+        }
+        if ($id === auth_id()) {
+            $this->api->respond(['success' => false, 'error' => 'You cannot delete your own administrative account.'], 422);
+            return;
+        }
+        if ($this->User_model->soft_delete_user($id)) {
+            $this->api->respond(['success' => true, 'message' => 'User account removed.']);
+        } else {
+            $this->api->respond(['success' => false, 'error' => 'User account was not removed. Resolve active rider deliveries before removing this account.'], 500);
+        }
+    }
+
+    public function api_toggle_user_status(int $id): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+        require_role(['admin']);
+        if (!verify_csrf()) {
+            $this->api->respond(['success' => false, 'error' => 'Invalid CSRF token.'], 400);
+            return;
+        }
+        $user = $this->User_model->find_by_id($id);
+        if (!$user) {
+            $this->api->respond(['success' => false, 'error' => 'User not found.'], 404);
+            return;
+        }
+        if ($user['id'] == auth_id()) {
+            $this->api->respond(['success' => false, 'error' => 'You cannot deactivate your own administrative account.'], 422);
+            return;
+        }
+        $newStatus = ($user['status'] === 'active') ? 'inactive' : 'active';
+        if ($this->User_model->update_user($id, ['status' => $newStatus])) {
+            $this->api->respond(['success' => true, 'message' => "User {$user['name']} status changed to {$newStatus}.", 'status' => $newStatus]);
+        } else {
+            $this->api->respond(['success' => false, 'error' => 'User status was not changed. Resolve active rider deliveries before deactivation.'], 500);
+        }
+    }
+
     public function show_user(int $id): void
     {
         $user = $this->User_model->find_by_id($id);
@@ -523,9 +774,27 @@ class Admin extends Controller
         exit;
     }
 
-    /**
-     * Rider Management Screen
-     */
+    public function riders_data(): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+        require_role(['admin']);
+        $statusFilter = isset($_GET['status']) && $_GET['status'] !== '' ? $_GET['status'] : null;
+        $riders = $this->Rider_model->get_all($statusFilter);
+        $unlinked = $this->Rider_model->get_unlinked_rider_users();
+        $this->api->respond([
+            'success' => true,
+            'data' => [
+                'riders' => is_array($riders) ? $riders : [],
+                'unlinkedUsers' => is_array($unlinked) ? $unlinked : [],
+                'statusFilter' => $statusFilter
+            ]
+        ]);
+    }
+
     public function riders()
     {
         $statusFilter = isset($_GET['status']) && $_GET['status'] !== '' ? $_GET['status'] : null;
@@ -903,13 +1172,21 @@ class Admin extends Controller
         }
 
         try {
-            $this->call->library('FirebasePushService');
-            $firebase = new FirebasePushService();
-            $res = $firebase->sendToToken($token, 'Dispatch Admin Test', 'This is a test notification from the admin control panel.');
+            $isWebPush = str_starts_with($token, '{');
+            if ($isWebPush) {
+                $this->call->library('BrowserPushService');
+                $push = new BrowserPushService();
+                $res = $push->sendToSubscription($token, 'Dispatch Admin Test', 'This is a test notification from the admin control panel.');
+            } else {
+                $this->call->library('FirebasePushService');
+                $push = new FirebasePushService();
+                $res = $push->sendToToken($token, 'Dispatch Admin Test', 'This is a test notification from the admin control panel.');
+            }
+
             if (!empty($res['sent'])) {
-                flash('success', 'Push notification successfully dispatched via FCM!');
+                flash('success', 'Push notification successfully dispatched!');
             } elseif (!empty($res['disabled'])) {
-                flash('warning', 'Firebase Push is disabled (FIREBASE_PUSH_ENABLED != 1).');
+                flash('warning', 'Push notifications are currently disabled in configuration.');
             } else {
                 flash('error', 'Push dispatch failed: ' . ($res['error'] ?? 'Unknown error'));
             }
@@ -1222,6 +1499,37 @@ class Admin extends Controller
             'report' => $report,
             'report_error' => $reportError,
             'riders' => $riders
+        ]);
+    }
+
+    public function analytics_data(): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+        require_role(['admin']);
+        $normalized = Report_model::normalize_filters('deliveries', $_GET);
+        $filters = $normalized['filters'];
+        $analytics = ['summary' => [], 'daily' => [], 'outcomes' => []];
+        $error = null;
+        if (!$normalized['errors']) {
+            try {
+                $analytics = $this->Report_model->get_analytics_report($filters['from'], $filters['to']);
+            } catch (Throwable $e) {
+                $error = 'Analytics could not be loaded. Check that the database migrations are up to date, then try again.';
+            }
+        }
+        $this->api->respond([
+            'success' => true,
+            'data' => [
+                'filters' => ['from' => (string)($filters['from'] ?? ''), 'to' => (string)($filters['to'] ?? '')],
+                'errors' => $normalized['errors'] ?? [],
+                'analytics' => $analytics,
+                'error' => $error,
+                'links' => ['analytics' => base_url('admin/analytics'), 'reports' => base_url('admin/reports')]
+            ]
         ]);
     }
 

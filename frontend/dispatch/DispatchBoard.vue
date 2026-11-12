@@ -372,7 +372,7 @@ onUnmounted(() => {
 
     <!-- ═══ DESKTOP TABLE VIEW ═══ -->
     <div class="dispatch-table-desktop">
-        <div class="table-responsive dispatch-table-scroll" :style="{ position: 'relative' }">
+        <div class="table-responsive dispatch-table-scroll">
             <!-- Loading overlay for refresh -->
             <div class="dispatch-loading-overlay" :class="{ 'is-visible': refreshing }">
                 <div class="dispatch-loading-spinner"></div>
@@ -393,8 +393,8 @@ onUnmounted(() => {
                 <tbody>
                     <tr v-if="error">
                         <td colspan="7" class="text-center py-4" role="alert">
-                            <div class="dispatch-empty-state" style="padding: var(--s-4);">
-                                <div class="dispatch-empty-icon" style="background: var(--status-danger-bg); color: var(--danger);">
+                            <div class="dispatch-empty-state dispatch-empty-state--compact">
+                                <div class="dispatch-empty-icon dispatch-empty-icon--danger">
                                     <i class="bi bi-wifi-off" aria-hidden="true"></i>
                                 </div>
                                 <h3 class="text-danger">{{ error }}</h3>
@@ -408,7 +408,7 @@ onUnmounted(() => {
                     <tr v-else-if="loading && !orders.length">
                         <td colspan="7" class="text-center py-4 text-muted" role="status">
                             <div class="d-flex align-items-center justify-content-center gap-2">
-                                <div class="dispatch-loading-spinner" style="width: 20px; height: 20px; border-width: 2px;"></div>
+                                <div class="dispatch-loading-spinner dispatch-loading-spinner--sm"></div>
                                 Loading dispatch orders…
                             </div>
                         </td>
@@ -526,7 +526,7 @@ onUnmounted(() => {
     <div class="dispatch-order-cards">
         <!-- Error -->
         <div v-if="error" class="dispatch-empty-state">
-            <div class="dispatch-empty-icon" style="background: var(--status-danger-bg); color: var(--danger);">
+            <div class="dispatch-empty-icon dispatch-empty-icon--danger">
                 <i class="bi bi-wifi-off" aria-hidden="true"></i>
             </div>
             <h3 class="text-danger">{{ error }}</h3>
@@ -569,7 +569,7 @@ onUnmounted(() => {
             <!-- Customer -->
             <div class="mb-2">
                 <div class="fw-medium small">{{ order.customer_name }}</div>
-                <div v-if="order.company_name" class="text-muted" style="font-size: .75rem;">{{ order.company_name }}</div>
+                <div v-if="order.company_name" class="text-muted text-12">{{ order.company_name }}</div>
             </div>
 
             <!-- Route Summary -->
@@ -652,7 +652,7 @@ onUnmounted(() => {
             </div>
 
             <!-- Expanded Actions Panel -->
-            <div v-if="isCardExpanded(order.id) && hasActions(order)" :id="`dispatch-card-actions-${order.id}`" class="mt-3 pt-3" style="border-top: 1px solid var(--line);">
+            <div v-if="isCardExpanded(order.id) && hasActions(order)" :id="`dispatch-card-actions-${order.id}`" class="mt-3 pt-3 dispatch-card-divider">
                 <!-- Fulfillment form -->
                 <div v-if="canChooseFulfillment(order) || canReassignInternal(order) || canRetryInternalAssignment(order)">
                     <span class="form-label d-block small fw-bold mb-2">
@@ -743,4 +743,10 @@ onUnmounted(() => {
 @keyframes spin {
     100% { transform: rotate(360deg); }
 }
+
+.dispatch-table-scroll { position: relative; }
+.dispatch-empty-state--compact { padding: var(--s-4); }
+.dispatch-empty-icon--danger { background: var(--status-danger-bg); color: var(--danger); }
+.dispatch-loading-spinner--sm { width: 20px; height: 20px; border-width: 2px; }
+.dispatch-card-divider { border-top: 1px solid var(--line); }
 </style>

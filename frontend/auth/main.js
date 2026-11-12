@@ -1,8 +1,10 @@
-import { createApp } from 'vue';
 import LoginPage from './pages/LoginPage.vue';
 import RegisterPage from './pages/RegisterPage.vue';
 import ProfilePage from './pages/ProfilePage.vue';
+import ForgotPasswordPage from './pages/ForgotPasswordPage.vue';
+import ResetPasswordPage from './pages/ResetPasswordPage.vue';
 import { mount as mountAddresses } from '../addresses/main.js';
+import { mountPage } from '../shared/mountPage.js';
 
 const root = document.getElementById('vue-auth-root');
 if (document.getElementById('vue-address-root')) mountAddresses();
@@ -11,9 +13,14 @@ if (root) {
     const pages = {
         login: LoginPage,
         register: RegisterPage,
-        profile: ProfilePage
+        profile: ProfilePage,
+        'forgot-password': ForgotPasswordPage,
+        'reset-password': ResetPasswordPage
     };
     const page = pages[root.dataset.page];
+    // Focused auth screens rely on their own centered card, so hide the app shell.
+    const standalone = ['login', 'register', 'forgot-password', 'reset-password'];
+    const focusMode = standalone.includes(root.dataset.page);
 
     if (page) {
         let user = {};
@@ -30,7 +37,7 @@ if (root) {
             oldRegister = {};
         }
 
-        createApp(page, {
+        mountPage(root, page, {
             baseUrl: root.dataset.baseUrl,
             csrfToken: root.dataset.csrfToken,
             errorMessage: root.dataset.errorMessage || '',
@@ -39,7 +46,9 @@ if (root) {
             oldEmail: root.dataset.oldEmail || '',
             loginContext: root.dataset.loginContext || 'customer',
             oldRegister,
-            user
-        }).mount(root);
+            user,
+            token: root.dataset.token || '',
+            tokenValid: root.dataset.tokenValid === '1'
+        }, { hideNav: focusMode, hideFooter: focusMode });
     }
 }

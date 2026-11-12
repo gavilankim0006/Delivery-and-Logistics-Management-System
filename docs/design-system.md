@@ -48,6 +48,28 @@ Use radii `--r-sm: 6px`, `--r-md: 10px` and `--r-pill: 999px`. The spacing steps
 
 Shared semantic view hooks are `.ds-page`, `.ds-page-header`, `.ds-panel`, `.ds-segmented`, `.ds-segment`, `.ds-metric`, `.ds-table`, `.ds-status-chip` and `.ds-notice`. These supplement the baseline Bootstrap `.card` and `.table` defaults; keep semantic hooks consistent across role-specific pages.
 
+### Page-header treatment
+
+Every routed page opens with the same header block: an optional `.ds-eyebrow` kicker (short, uppercase context such as "Administration", "Operations" or "Account") directly above the `.page-title`, followed by a one-line `.page-description`. Keep the kicker to one or two words and the description to a single sentence.
+
+### Cohesion primitives
+
+The shared stylesheet adds a small set of primitives on top of the tokens. Use them before introducing page-specific CSS:
+
+| Hook | Use |
+| --- | --- |
+| `.ds-eyebrow` | Context kicker above a page title; renders a small route-colored dot. |
+| `.ds-section`, `.ds-section-header`, `.ds-section-title`, `.ds-section-hint` | Group related content without nesting panels. |
+| `.ds-metric-card`, `.ds-stat-grid` | Summary statistics (label, value, hint). |
+| `.ds-kv` | Key/value fact lists (`dt`/`dd`) that wrap long values. |
+| `.ds-toolbar` | Filter or action rows that align to the bottom edge. |
+| `.ds-list`, `.ds-list__item` | Hairline-separated rows inside a surface. |
+| `.ds-empty-state` | Consistent empty/404 state with icon, title, message and one action. |
+| `.card--interactive`, `.surface--interactive` | Opt-in hover lift for clickable surfaces. |
+| `.workspace-nav` | Segmented sub-navigation for the Vue hash-route workspace. |
+
+`.ds-status-chip--active` and `.ds-status-chip--inactive` extend the status-chip family for account states. Avoid inline styles and raw color values; reach for a primitive or a token instead.
+
 ### Dispatch workspace
 
 The dispatch board uses the same global palette and shared component tokens as every other role. Its additional styles are limited to workspace layout: a four-part summary filter, a date/status toolbar, a wide table at intermediate widths, and stacked route addresses on narrow screens. It does not add a separate color scheme or override shared status semantics.
@@ -58,7 +80,7 @@ The dispatch board uses the same global palette and shared component tokens as e
 
 ## Standalone page scope
 
-The routed application's standalone 403 and 404 views use the shared Control Tower stylesheet but do not render the authenticated app shell. PHP/database/exception diagnostic templates remain purpose-built so diagnostic content and framework behavior are not obscured. The framework welcome page is not the routed application landing page and is outside this product theme contract.
+The routed application's standalone 403 and 404 views use the shared Control Tower stylesheet but do not render the authenticated app shell. Sign-in, registration, and password-recovery views render a focused, centered card without the app navigation or footer (the shell is suppressed at mount); their card carries the Dispatch wordmark, a route-line accent, an eyebrow, title and description, and a "back to home" link. PHP/database/exception diagnostic templates remain purpose-built so diagnostic content and framework behavior are not obscured. The framework welcome page is not the routed application landing page and is outside this product theme contract.
 
 ## Interaction, accessibility and copy
 

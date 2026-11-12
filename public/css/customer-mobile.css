@@ -8,8 +8,8 @@
     --customer-bottom-nav-height: 62px;
     --customer-touch-target: 44px;
     --customer-card-radius: 14px;
-    --customer-shadow-subtle: 0 2px 8px rgba(15, 23, 42, 0.06);
-    --customer-shadow-floating: 0 -4px 16px rgba(15, 23, 42, 0.08);
+    --customer-shadow-subtle: 0 2px 8px color-mix(in srgb, var(--ink) 6%, transparent);
+    --customer-shadow-floating: 0 -4px 16px color-mix(in srgb, var(--ink) 8%, transparent);
 }
 
 /* ==========================================================================
@@ -109,20 +109,20 @@
         width: 44px;
         height: 44px;
         border-radius: 50%;
-        background: linear-gradient(135deg, var(--route, #087F98) 0%, var(--route-dark, #05687E) 100%);
-        color: #ffffff;
+        background: var(--route);
+        color: var(--surface);
         display: flex;
         align-items: center;
         justify-content: center;
         margin-top: -16px;
-        box-shadow: 0 4px 14px rgba(8, 127, 152, 0.45);
+        box-shadow: 0 4px 14px color-mix(in srgb, var(--route) 45%, transparent);
         font-size: 1.25rem;
         transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
 
     .customer-bottom-nav__item--action:active .customer-bottom-nav__action-btn {
         transform: scale(0.92);
-        box-shadow: 0 2px 8px rgba(8, 127, 152, 0.35);
+        box-shadow: 0 2px 8px color-mix(in srgb, var(--route) 35%, transparent);
     }
 
     .customer-bottom-nav__item--action .customer-bottom-nav__label {
@@ -235,8 +235,8 @@
     .customer-filter-pill.is-active {
         background: var(--route, #087F98);
         border-color: var(--route, #087F98);
-        color: #ffffff;
-        box-shadow: 0 2px 8px rgba(8, 127, 152, 0.28);
+        color: var(--surface);
+        box-shadow: 0 2px 8px color-mix(in srgb, var(--route) 28%, transparent);
     }
 
     .customer-filter-toggle-btn {
@@ -350,12 +350,12 @@
 
     .order-card-dot--pickup {
         background-color: var(--success, #146443);
-        box-shadow: 0 0 0 3px rgba(20, 100, 67, 0.18);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 18%, transparent);
     }
 
     .order-card-dot--dropoff {
-        background-color: var(--danger, #A12C2A);
-        box-shadow: 0 0 0 3px rgba(161, 44, 42, 0.18);
+        background-color: var(--route, #087F98);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--route, #087F98) 18%, transparent);
     }
 
     .order-card-route-text {
@@ -438,7 +438,7 @@
 
     .parcel-size-pill.is-selected {
         border-color: var(--route, #087F98);
-        background: color-mix(in srgb, var(--route, #087F98) 8%, #ffffff);
+        background: color-mix(in srgb, var(--route, #087F98) 8%, var(--surface));
         color: var(--route, #087F98);
         font-weight: 700;
     }
@@ -475,7 +475,7 @@
         right: 0;
         background: var(--surface, #ffffff);
         border-top: 1px solid var(--line, #D3DDE5);
-        box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.08);
+        box-shadow: 0 -4px 16px color-mix(in srgb, var(--ink) 8%, transparent);
         padding: 10px 16px;
         display: flex;
         align-items: center;
@@ -574,7 +574,7 @@
     }
 
     .order-route-card__badge--dropoff {
-        color: var(--danger, #A12C2A);
+        color: var(--route, #087F98);
     }
 
     .order-route-card__address {
@@ -675,12 +675,12 @@
         width: 52px;
         height: 52px;
         border-radius: 50%;
-        background: linear-gradient(135deg, var(--route, #087F98) 0%, var(--route-dark, #05687E) 100%);
-        color: #ffffff;
+        background: var(--route);
+        color: var(--surface);
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 4px 16px rgba(8, 127, 152, 0.45);
+        box-shadow: 0 4px 16px color-mix(in srgb, var(--route) 45%, transparent);
         z-index: 1020;
         font-size: 1.4rem;
         text-decoration: none;
@@ -689,7 +689,7 @@
 
     .customer-fab:hover,
     .customer-fab:focus {
-        color: #ffffff;
+        color: var(--surface);
         text-decoration: none;
     }
 

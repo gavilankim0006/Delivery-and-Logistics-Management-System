@@ -167,6 +167,7 @@ const endpointLabel = (value) => {
     <div class="container page-shell py-4 admin-dashboard">
         <header class="page-header mb-4">
             <div>
+                <p class="ds-eyebrow">Administration</p>
                 <h1 class="page-title">Admin dashboard</h1>
                 <p class="page-description">Today’s order volume, month-to-date payments, and service activity.</p>
             </div>
@@ -229,8 +230,8 @@ const endpointLabel = (value) => {
                         <h2 id="recent-logs-heading" class="h5 mb-0">Latest API logs</h2>
                         <a :href="links.logs" class="btn btn-sm btn-secondary">View logs</a>
                     </div>
-                    <div v-if="recentLogs.length" class="list-group list-group-flush" style="min-width:0; overflow:hidden">
-                        <div v-for="log in recentLogs" :key="log.id" class="list-group-item px-0" style="min-width:0; overflow:hidden">
+                    <div v-if="recentLogs.length" class="list-group list-group-flush min-w-0 overflow-hidden">
+                        <div v-for="log in recentLogs" :key="log.id" class="list-group-item px-0 min-w-0 overflow-hidden">
                             <div class="d-flex flex-column gap-1">
                                 <strong class="admin-log-endpoint">{{ endpointLabel(log.endpoint || log.url) }}</strong>
                                 <span class="small text-muted">{{ log.created_at }}</span>

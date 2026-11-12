@@ -1,5 +1,13 @@
 <template>
   <div class="page-shell messenger-wrapper">
+    <div v-if="flashes && flashes.length" class="container-fluid px-0 mb-3">
+      <div v-for="(flash, index) in flashes" :key="index" class="alert alert-dismissible fade show mb-2" :class="flash.type === 'error' ? 'alert-danger' : `alert-${flash.type}`" role="status">
+        <i class="bi me-2" :class="flash.type === 'error' ? 'bi-exclamation-circle-fill' : (flash.type === 'success' ? 'bi-check-circle-fill' : 'bi-info-circle-fill')" aria-hidden="true"></i>
+        {{ flash.message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    </div>
+
     <!-- Main Messenger Shell -->
     <div
       class="messenger-shell"
@@ -184,6 +192,10 @@ const props = defineProps({
   presetOrderId: {
     type: Number,
     default: 0,
+  },
+  flashes: {
+    type: Array,
+    default: () => [],
   },
 });
 

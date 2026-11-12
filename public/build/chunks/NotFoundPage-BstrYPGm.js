@@ -1,0 +1,1 @@
+import{_ as o,o as s,c as a,a as t}from"./_plugin-vue_export-helper-BntLJStO.js";const n={},c={class:"container py-4"};function r(i,e){return s(),a("main",c,e[0]||(e[0]=[t("h1",{class:"h3"},"Page not found",-1),t("p",{class:"text-muted"},"This route is not available yet.",-1)]))}const _=o(n,[["render",r]]);export{_ as default};

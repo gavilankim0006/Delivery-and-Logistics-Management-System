@@ -269,3 +269,25 @@ if (!function_exists('e')) {
         return htmlspecialchars((string)($val ?? ''), ENT_QUOTES, 'UTF-8');
     }
 }
+
+if (!function_exists('is_json_request')) {
+    function is_json_request(): bool
+    {
+        return (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+            || (isset($_SERVER['HTTP_ACCEPT']) && str_contains(strtolower($_SERVER['HTTP_ACCEPT']), 'application/json'))
+            || (isset($_SERVER['CONTENT_TYPE']) && str_contains(strtolower($_SERVER['CONTENT_TYPE']), 'application/json'))
+            || isset($_GET['ajax'])
+            || isset($_GET['json']);
+    }
+}
+
+if (!function_exists('json_response')) {
+    function json_response(array $data, int $status = 200): void
+    {
+        http_response_code($status);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+        exit;
+    }
+}
+

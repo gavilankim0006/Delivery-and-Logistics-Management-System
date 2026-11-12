@@ -1,4 +1,20 @@
 <?php
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
-$this->call->view('templates/header',['page_title'=>$page_title??'Missing-package reports']); ?>
-<div class="container py-4"><h1>Missing-package reports</h1><?php if(empty($reports)): ?><p>No reports submitted.</p><?php else: ?><div class="table-responsive"><table class="table"><thead><tr><th>Order</th><th>Customer</th><th>Description</th><th>Submitted</th><th>Manage</th></tr></thead><tbody><?php foreach($reports as $r): ?><tr><td><?= e($r['order_no']) ?></td><td><?= e($r['customer_name']) ?> (<?= e($r['email']) ?>)</td><td><?= nl2br(e($r['description'])) ?><br><strong><?= e($r['status']) ?></strong><?php if($r['admin_note']): ?><p><?= nl2br(e($r['admin_note'])) ?></p><?php endif; ?></td><td><?= e($r['created_at']) ?></td><td><form method="post" action="<?= e(base_url('admin/package-reports/'.(int)$r['id'])) ?>"><?= csrf_field() ?><select name="status" class="form-select mb-2"><?php foreach(['open','investigating','resolved','rejected'] as $s): ?><option value="<?= $s ?>"<?= $r['status']===$s?' selected':'' ?>><?= ucfirst($s) ?></option><?php endforeach; ?></select><textarea name="admin_note" maxlength="3000" class="form-control mb-2" placeholder="Admin note"><?= e($r['admin_note']??'') ?></textarea><button class="btn btn-primary">Save</button></form></td></tr><?php endforeach; ?></tbody></table></div><?php endif; ?></div><?php $this->call->view('templates/footer'); ?>
+$reports = $reports ?? [];
+$flashes = [];
+foreach (['success', 'error', 'warning', 'info'] as $flashType) {
+    if ($message = flash($flashType)) {
+        $flashes[] = ['type' => $flashType, 'message' => $message];
+    }
+}
+$props = [
+    'reports' => $reports,
+    'csrfToken' => csrf_token(),
+    'baseUrl' => base_url(),
+    'flashes' => $flashes,
+];
+?>
+<?php $this->call->view('templates/header', ['page_title' => $page_title ?? 'Missing-package reports']); ?>
+<div id="vue-admin-root" data-page="package-reports" data-props="<?= e(json_encode($props, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?: '{}') ?>"></div>
+<script type="module" src="<?= e(base_url('build/admin.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
+<?php $this->call->view('templates/footer'); ?>

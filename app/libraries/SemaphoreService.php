@@ -25,10 +25,17 @@ class SemaphoreService
         if (!$enabled && getenv('SEMAPHORE_ENABLED') !== '1') {
             return ['sent' => false, 'disabled' => true];
         }
-        if ($this->apiKey === '' || !preg_match('/^\+?[0-9][0-9 ()-]{6,28}$/', $number)) {
-            throw new RuntimeException('Semaphore is enabled but credentials or recipient phone are invalid.');
+        $cleanedNumber = preg_replace('/[^0-9]/', '', $number);
+        if (str_starts_with($cleanedNumber, '639') && strlen($cleanedNumber) === 12) {
+            $cleanedNumber = '09' . substr($cleanedNumber, 3);
+        } elseif (str_starts_with($cleanedNumber, '9') && strlen($cleanedNumber) === 10) {
+            $cleanedNumber = '0' . $cleanedNumber;
         }
-        $fields = ['apikey' => $this->apiKey, 'number' => $number, 'message' => $message];
+        if ($this->apiKey === '' || !preg_match('/^09\d{9}$/', $cleanedNumber)) {
+            $reason = ($this->apiKey === '') ? 'Semaphore API key is not configured.' : "Phone number '{$number}' normalized to '{$cleanedNumber}', which is not a valid Philippine mobile number (must be 09XXXXXXXXX).";
+            throw new RuntimeException($reason);
+        }
+        $fields = ['apikey' => $this->apiKey, 'number' => $cleanedNumber, 'message' => $message];
         if ($this->senderName !== '') {
             $fields['sendername'] = $this->senderName;
         }
@@ -45,11 +52,24 @@ class SemaphoreService
         }
         $decoded = is_array($response['body']) ? $response['body'] : json_decode((string)$response['body'], true);
         if ((int)$response['status'] < 200 || (int)$response['status'] >= 300 || !is_array($decoded)) {
-            throw new RuntimeException('Semaphore SMS request failed.');
+            $errorDetail = 'Semaphore SMS request failed (HTTP ' . $response['status'] . ').';
+            if (is_array($decoded)) {
+                if (isset($decoded['message'])) {
+                    $errorDetail = (string)$decoded['message'];
+                } elseif (isset($decoded['error'])) {
+                    $errorDetail = is_string($decoded['error']) ? $decoded['error'] : json_encode($decoded['error']);
+                } elseif (isset($decoded[0]['message'])) {
+                    $errorDetail = (string)$decoded[0]['message'];
+                }
+            } elseif (!empty($response['body'])) {
+                $errorDetail .= ' ' . strip_tags((string)$response['body']);
+            }
+            throw new RuntimeException($errorDetail);
         }
         if (isset($decoded[0]) && is_array($decoded[0])
             && in_array(strtolower((string)($decoded[0]['status'] ?? '')), ['failed', 'refunded'], true)) {
-            throw new RuntimeException('Semaphore did not accept the SMS message.');
+            $statusReason = $decoded[0]['message'] ?? $decoded[0]['status'] ?? 'not accepted';
+            throw new RuntimeException('Semaphore did not accept the SMS message: ' . $statusReason);
         }
         return ['sent' => true, 'response' => $decoded];
     }

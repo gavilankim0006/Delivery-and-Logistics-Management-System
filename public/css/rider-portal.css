@@ -6,19 +6,19 @@
 
 /* ---------- Variables ---------- */
 :root {
-    --rider-pickup-bg: #e8f5e9;
-    --rider-pickup-ink: #2e7d32;
-    --rider-pickup-border: #a5d6a7;
-    --rider-dropoff-bg: #e3f2fd;
-    --rider-dropoff-ink: #1565c0;
-    --rider-dropoff-border: #90caf9;
-    --rider-card-shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
-    --rider-card-hover-shadow: 0 4px 12px rgba(0,0,0,.1);
-    --rider-stepper-complete: #4caf50;
-    --rider-stepper-active: var(--bs-primary, #0d6efd);
-    --rider-stepper-pending: #dee2e6;
-    --rider-pulse-color: rgba(220, 53, 69, .35);
-    --rider-sticky-shadow: 0 -2px 12px rgba(0,0,0,.08);
+    --rider-pickup-bg: var(--status-success-bg);
+    --rider-pickup-ink: var(--success);
+    --rider-pickup-border: color-mix(in srgb, var(--success) 35%, var(--line));
+    --rider-dropoff-bg: var(--status-blue-bg);
+    --rider-dropoff-ink: var(--route-dark);
+    --rider-dropoff-border: color-mix(in srgb, var(--route) 30%, var(--line));
+    --rider-card-shadow: var(--shadow-card);
+    --rider-card-hover-shadow: var(--shadow-card-hover);
+    --rider-stepper-complete: var(--success);
+    --rider-stepper-active: var(--route);
+    --rider-stepper-pending: var(--line);
+    --rider-pulse-color: color-mix(in srgb, var(--danger) 35%, transparent);
+    --rider-sticky-shadow: 0 -2px 12px rgb(23 43 58 / 10%);
     --rider-transition: .25s cubic-bezier(.4,0,.2,1);
 }
 
@@ -33,8 +33,8 @@
 
 /* ---------- Delivery Cards ---------- */
 .rider-delivery-card {
-    background: var(--surface, #fff);
-    border: 1px solid var(--line, #e9ecef);
+    background: var(--surface);
+    border: 1px solid var(--line);
     border-radius: .75rem;
     box-shadow: var(--rider-card-shadow);
     padding: 1rem;
@@ -102,8 +102,8 @@
     margin-left: 13px;
     background: repeating-linear-gradient(
         to bottom,
-        var(--line, #dee2e6) 0px,
-        var(--line, #dee2e6) 3px,
+        var(--line) 0px,
+        var(--line) 3px,
         transparent 3px,
         transparent 6px
     );
@@ -114,11 +114,11 @@
     justify-content: space-between;
     gap: .5rem;
     padding-top: .75rem;
-    border-top: 1px solid var(--line, #e9ecef);
+    border-top: 1px solid var(--line);
 }
 .rider-card-time {
     font-size: .75rem;
-    color: #6c757d;
+    color: var(--ink-2);
 }
 .rider-card-action {
     min-height: 44px;
@@ -149,7 +149,7 @@
 }
 .rider-empty-icon {
     font-size: 3rem;
-    color: #adb5bd;
+    color: var(--ink-3);
     margin-bottom: 1rem;
     display: block;
 }
@@ -159,7 +159,7 @@
     margin-bottom: .5rem;
 }
 .rider-empty-state p {
-    color: #6c757d;
+    color: var(--ink-2);
     max-width: 28rem;
     margin: 0 auto;
 }
@@ -191,8 +191,8 @@
     font-size: .75rem;
     font-weight: 700;
     border: 2px solid var(--rider-stepper-pending);
-    background: var(--surface, #fff);
-    color: #adb5bd;
+    background: var(--surface);
+    color: var(--ink-3);
     transition: all var(--rider-transition);
     position: relative;
     z-index: 1;
@@ -200,25 +200,25 @@
 .rider-stepper-step--complete .rider-stepper-dot {
     background: var(--rider-stepper-complete);
     border-color: var(--rider-stepper-complete);
-    color: #fff;
+    color: var(--surface);
 }
 .rider-stepper-step--active .rider-stepper-dot {
     background: var(--rider-stepper-active);
     border-color: var(--rider-stepper-active);
-    color: #fff;
-    box-shadow: 0 0 0 4px rgba(13, 110, 253, .2);
+    color: var(--surface);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--route) 25%, transparent);
 }
 .rider-stepper-label {
     font-size: .7rem;
     font-weight: 600;
-    color: #adb5bd;
+    color: var(--ink-3);
     text-transform: uppercase;
     letter-spacing: .04em;
     white-space: nowrap;
 }
 .rider-stepper-step--complete .rider-stepper-label,
 .rider-stepper-step--active .rider-stepper-label {
-    color: var(--bs-body-color, #212529);
+    color: var(--ink);
 }
 .rider-stepper-line {
     flex: 1 1 auto;
@@ -246,8 +246,8 @@
     width: 2px;
     background: repeating-linear-gradient(
         to bottom,
-        var(--line, #dee2e6) 0px,
-        var(--line, #dee2e6) 4px,
+        var(--line) 0px,
+        var(--line) 4px,
         transparent 4px,
         transparent 8px
     );
@@ -299,16 +299,16 @@
 }
 .rider-route-contact {
     font-size: .85rem;
-    color: #6c757d;
+    color: var(--ink-2);
 }
 .rider-route-notes {
-    background: #f8f9fa;
-    border: 1px solid var(--line, #dee2e6);
+    background: var(--paper);
+    border: 1px solid var(--line);
     border-radius: var(--r-sm, 6px);
     padding: .5rem .75rem;
     margin-top: .5rem;
     font-size: .8rem;
-    color: #495057;
+    color: var(--ink-2);
 }
 .rider-route-stop--pickup .rider-route-notes { border-left-color: var(--rider-pickup-border); }
 .rider-route-stop--dropoff .rider-route-notes { border-left-color: var(--rider-dropoff-border); }
@@ -331,15 +331,15 @@
     font-size: .8rem;
     font-weight: 600;
     text-decoration: none;
-    border: 1px solid var(--line, #dee2e6);
-    background: var(--surface, #fff);
-    color: var(--bs-body-color, #212529);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
     transition: all var(--rider-transition);
 }
 .rider-contact-btn:hover {
-    background: #f8f9fa;
-    border-color: #adb5bd;
-    color: var(--bs-body-color, #212529);
+    background: var(--paper);
+    border-color: var(--ink-3);
+    color: var(--ink);
 }
 .rider-contact-btn--call {
     border-color: var(--rider-pickup-border);
@@ -358,14 +358,14 @@
     bottom: 0;
     left: 0;
     right: 0;
-    background: var(--surface, #fff);
+    background: var(--surface);
     box-shadow: var(--rider-sticky-shadow);
     padding: .75rem 1rem;
     z-index: 1030;
     display: flex;
     align-items: center;
     gap: .75rem;
-    border-top: 1px solid var(--line, #e9ecef);
+    border-top: 1px solid var(--line);
     transform: translateY(0);
     transition: transform var(--rider-transition);
 }
@@ -382,7 +382,7 @@
 }
 .rider-sticky-bar-status {
     font-size: .7rem;
-    color: #6c757d;
+    color: var(--ink-2);
 }
 .rider-sticky-bar .btn {
     flex-shrink: 0;
@@ -411,8 +411,8 @@
 }
 .rider-location-panel {
     border-radius: .75rem;
-    border: 1px solid var(--line, #e9ecef);
-    background: var(--surface, #fff);
+    border: 1px solid var(--line);
+    background: var(--surface);
     padding: 1rem;
     margin-top: 1rem;
 }
@@ -421,7 +421,7 @@
     align-items: center;
     gap: .5rem;
     font-size: .8rem;
-    color: #6c757d;
+    color: var(--ink-2);
     margin-bottom: .75rem;
 }
 .rider-location-status i {
@@ -459,7 +459,7 @@
     flex: 1 1 0;
     height: 4px;
     border-radius: 2px;
-    background: #e9ecef;
+    background: var(--line);
     transition: background var(--rider-transition);
 }
 .rider-form-progress-step--done {
@@ -474,7 +474,7 @@
     height: 0;
     overflow: hidden;
     transition: height .2s ease;
-    color: #6c757d;
+    color: var(--ink-2);
     font-size: .8rem;
 }
 .rider-ptr-indicator i {
@@ -499,7 +499,7 @@
     text-align: center;
     padding: 1rem 0 .5rem;
     font-size: .75rem;
-    color: #adb5bd;
+    color: var(--ink-3);
 }
 
 /* ---------- Completion success animation ---------- */

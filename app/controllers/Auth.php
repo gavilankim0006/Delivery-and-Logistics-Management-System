@@ -29,6 +29,11 @@ class Auth extends Controller
         $loginPath = $forApplicant ? 'applicant/login' : 'login';
         if (auth_check()) {
             if ($forApplicant) {
+                // If user is already staff/rider, redirect directly to their dashboard
+                if (in_array(auth_role(), ['admin', 'dispatcher', 'rider'], true)) {
+                    $this->redirect_by_role(auth_role());
+                    return;
+                }
                 redirect('careers/apply');
                 return;
             }
@@ -67,9 +72,53 @@ class Auth extends Controller
             $user = $this->User_model->authenticate($email, $password);
             if ($user) {
                 login_throttle_clear($throttleKey);
+
+                // Auto-sync: If user currently has customer role (3), check if an approved job application exists
+                if ((int)$user['role_id'] === 3) {
+                    $userEmailLower = strtolower(trim((string)$user['email']));
+                    $approvedApp = $this->db->raw(
+                        "SELECT * FROM job_applications WHERE (user_id = ? OR email = ?) AND status = 'approved' ORDER BY id DESC LIMIT 1",
+                        [(int)$user['id'], $userEmailLower]
+                    )->fetch(PDO::FETCH_ASSOC);
+
+                    if ($approvedApp) {
+                        $roleApplied = strtolower(trim((string)($approvedApp['role_applied'] ?? 'rider')));
+                        $targetRoleId = ($roleApplied === 'dispatcher') ? 2 : 4;
+                        if ($roleApplied === 'rider') {
+                            $existingRider = $this->db->raw('SELECT id FROM riders WHERE user_id = ? AND deleted_at IS NULL LIMIT 1', [(int)$user['id']])->fetch(PDO::FETCH_ASSOC);
+                            if (!$existingRider) {
+                                $this->call->model('Rider_model');
+                                $this->Rider_model->create([
+                                    'user_id'      => (int)$user['id'],
+                                    'name'         => $approvedApp['full_name'],
+                                    'phone'        => $approvedApp['phone'],
+                                    'vehicle_type' => 'Motorcycle',
+                                    'plate_number' => 'PENDING-' . $user['id'],
+                                    'status'       => 'available'
+                                ]);
+                            }
+                        }
+                        $this->User_model->update_user((int)$user['id'], [
+                            'role_id' => $targetRoleId,
+                            'status'  => 'active'
+                        ]);
+                        if (empty($approvedApp['user_id'])) {
+                            $this->db->raw('UPDATE job_applications SET user_id = ? WHERE id = ?', [(int)$user['id'], (int)$approvedApp['id']]);
+                        }
+                        $refreshed = $this->User_model->find_by_id((int)$user['id']);
+                        if ($refreshed) {
+                            $user = $refreshed;
+                        }
+                    }
+                }
+
                 auth_login($user);
                 flash('success', "Welcome back, {$user['name']}!");
                 if ($forApplicant) {
+                    if (in_array($user['role_name'], ['admin', 'dispatcher', 'rider'], true)) {
+                        $this->redirect_by_role($user['role_name']);
+                        return;
+                    }
                     redirect('careers/apply');
                     return;
                 }
@@ -375,6 +424,89 @@ class Auth extends Controller
         ]);
     }
 
+    public function profile_data(): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+        require_auth();
+        $user = $this->User_model->find_by_id(auth_id());
+        $this->api->respond(['success' => true, 'data' => ['user' => $user, 'role' => auth_role()]]);
+    }
+
+    public function api_profile(): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+        require_auth();
+        if (!verify_csrf()) {
+            $this->api->respond(['success' => false, 'error' => 'Invalid security token.'], 400);
+            return;
+        }
+        $user = $this->User_model->find_by_id(auth_id());
+        if (!$user) {
+            $this->api->respond(['success' => false, 'error' => 'User not found.'], 404);
+            return;
+        }
+
+        $name = trim($_POST['name'] ?? '');
+        $phone = trim($_POST['phone'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $passwordConfirm = $_POST['password_confirm'] ?? '';
+
+        if (empty($name) || mb_strlen($name) < 2) {
+            $this->api->respond(['success' => false, 'error' => 'Name cannot be empty and must be at least 2 characters.'], 422);
+            return;
+        }
+        if (!empty($phone)) {
+            $cleanedPhone = preg_replace('/[\s\-\(\)\.]/', '', $phone);
+            if (!preg_match('/^(09|\+639|639)\d{9}$/', $cleanedPhone)) {
+                $this->api->respond(['success' => false, 'error' => 'Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX).'], 422);
+                return;
+            }
+            if (preg_match('/^(?:09|\+639|639)(\d{9})$/', $cleanedPhone, $m)) {
+                $phone = '09' . $m[1];
+            }
+        }
+        $updateData = ['name' => $name, 'phone' => $phone];
+        if (auth_role() === 'customer') {
+            $updateData['sms_opt_in'] = !empty($_POST['sms_opt_in']) ? 1 : 0;
+            $updateData['delivery_status_sms_opt_in'] = !empty($_POST['delivery_status_sms_opt_in']) ? 1 : 0;
+            $updateData['push_opt_in'] = !empty($_POST['push_opt_in']) ? 1 : 0;
+            $updateData['email_notifications_opt_in'] = !empty($_POST['email_notifications_opt_in']) ? 1 : 0;
+        }
+        if (!empty($password)) {
+            if (strlen($password) < 8) {
+                $this->api->respond(['success' => false, 'error' => 'New password must be at least 8 characters.'], 422);
+                return;
+            }
+            if (!preg_match('/[a-zA-Z]/', $password) || !preg_match('/\d/', $password)) {
+                $this->api->respond(['success' => false, 'error' => 'New password must contain at least one letter and one number.'], 422);
+                return;
+            }
+            if ($password !== $passwordConfirm) {
+                $this->api->respond(['success' => false, 'error' => 'Password confirmation does not match.'], 422);
+                return;
+            }
+            $updateData['password'] = $password;
+        }
+
+        if (!$this->User_model->update_user(auth_id(), $updateData)) {
+            $this->api->respond(['success' => false, 'error' => 'Profile changes could not be saved. Please try again.'], 500);
+            return;
+        }
+        $_SESSION['user']['name'] = $name;
+        $_SESSION['user']['phone'] = $phone;
+
+        $updated = $this->User_model->find_by_id(auth_id());
+        $this->api->respond(['success' => true, 'data' => ['user' => $updated, 'role' => auth_role()], 'message' => 'Profile updated successfully.']);
+    }
+
     /**
      * Terminate user session
      */
@@ -382,6 +514,9 @@ class Auth extends Controller
     {
         auth_logout();
         flash('success', 'You have been successfully logged out.');
+        if (is_json_request()) {
+            json_response(['success' => true, 'redirect' => base_url('login')]);
+        }
         header('Location: ' . base_url('login'));
         exit;
     }
@@ -452,22 +587,42 @@ class Auth extends Controller
             exit;
         }
 
-        $this->call->library('BrowserPushService');
-        $push = new BrowserPushService();
-        $result = $push->sendToSubscription(
-            $subscription,
-            'Dispatch Test Notification',
-            'Browser notifications are working correctly for your account.',
-            ['type' => 'test', 'url' => base_url('profile')]
-        );
+        try {
+            $isWebPush = str_starts_with($subscription, '{');
+            if ($isWebPush) {
+                require_once APP_DIR . 'libraries/BrowserPushService.php';
+                $push = new BrowserPushService();
+                $result = $push->sendToSubscription(
+                    $subscription,
+                    'Dispatch Test Notification',
+                    'Browser notifications are working correctly for your account.',
+                    ['type' => 'test', 'url' => base_url('profile')]
+                );
+            } else {
+                require_once APP_DIR . 'libraries/FirebasePushService.php';
+                $push = new FirebasePushService();
+                $result = $push->sendToToken(
+                    $subscription,
+                    'Dispatch Test Notification',
+                    'Browser notifications are working correctly for your account.',
+                    ['type' => 'test', 'url' => base_url('profile')]
+                );
+            }
 
-        if (!empty($result['sent'])) {
-            echo json_encode(['success' => true, 'message' => 'Test notification delivered successfully.']);
-        } else {
-            http_response_code(!empty($result['disabled']) ? 503 : 502);
+            if (!empty($result['sent'])) {
+                echo json_encode(['success' => true, 'message' => 'Test notification delivered successfully.']);
+            } else {
+                http_response_code(!empty($result['disabled']) ? 503 : 502);
+                echo json_encode([
+                    'success' => false,
+                    'error' => $result['error'] ?? 'Browser push delivery failed.',
+                ]);
+            }
+        } catch (Throwable $e) {
+            http_response_code(502);
             echo json_encode([
                 'success' => false,
-                'error' => $result['error'] ?? 'Browser push delivery failed.',
+                'error' => $e->getMessage(),
             ]);
         }
         exit;
@@ -483,7 +638,7 @@ class Auth extends Controller
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             http_response_code(405);
-            echo json_encode(['error' => 'Method Not Allowed']);
+            echo json_encode(['success' => false, 'error' => 'Method Not Allowed']);
             exit;
         }
 
@@ -495,25 +650,49 @@ class Auth extends Controller
         }
 
         $user = $this->User_model->find_by_id(auth_id());
-        $phone = $user['phone'] ?? null;
-        if (!$phone) {
+        $phone = trim((string)($payload['phone'] ?? ($user['phone'] ?? '')));
+        if (empty($phone)) {
             http_response_code(422);
-            echo json_encode(['success' => false, 'error' => 'Save your mobile number in your profile before requesting a test SMS.']);
+            echo json_encode(['success' => false, 'error' => 'Please provide or save a mobile number before requesting a test SMS.']);
             exit;
         }
 
-        require_once APP_DIR . 'libraries/SemaphoreService.php';
-        $semaphore = new SemaphoreService();
-        $msg = 'Dispatch: Semaphore test message. Notifications are active for your account.';
-        $result = $semaphore->send($phone, $msg);
-
-        if (!empty($result['success'])) {
-            echo json_encode(['success' => true, 'message' => "Test SMS sent to {$phone}."]);
+        $cleanedPhone = preg_replace('/[\s\-\(\)\.]/', '', $phone);
+        if (preg_match('/^(?:09|\+639|639)(\d{9})$/', $cleanedPhone, $matches)) {
+            $normalizedPhone = '09' . $matches[1];
+        } elseif (preg_match('/^9\d{9}$/', $cleanedPhone)) {
+            $normalizedPhone = '0' . $cleanedPhone;
         } else {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'error' => 'Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX).']);
+            exit;
+        }
+
+        try {
+            require_once APP_DIR . 'libraries/SemaphoreService.php';
+            $semaphore = new SemaphoreService();
+            $msg = 'Dispatch: Semaphore test message. Notifications are active for your account.';
+            $result = $semaphore->send($normalizedPhone, $msg);
+
+            if (!empty($result['sent'])) {
+                echo json_encode(['success' => true, 'message' => "Test SMS sent to {$normalizedPhone}."]);
+            } elseif (!empty($result['disabled'])) {
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Semaphore SMS is currently disabled in system settings (SEMAPHORE_ENABLED != 1).'
+                ]);
+            } else {
+                http_response_code(502);
+                echo json_encode([
+                    'success' => false,
+                    'error' => $result['error'] ?? 'Semaphore SMS failed. Verify your API key and sender name in settings.'
+                ]);
+            }
+        } catch (Throwable $e) {
             http_response_code(502);
             echo json_encode([
                 'success' => false,
-                'error' => $result['error'] ?? 'Semaphore SMS failed. Verify your API key and sender name in settings.'
+                'error' => $e->getMessage()
             ]);
         }
         exit;
@@ -554,14 +733,24 @@ class Auth extends Controller
         $body = "
             <p>Hello " . e($user['name'] ?? 'User') . ",</p>
             <p>This is a test notification confirming that email alerts are configured and delivering properly for your Dispatch account.</p>
-            <p>You can manage your notification preferences anytime from your <a href=\"" . e(base_url('profile')) . "\">account profile</a>.</p>
+            <p>You can manage your notification preferences anytime from your Dispatch account profile settings.</p>
             <p>Best regards,<br>The Dispatch Team</p>
         ";
 
         $result = $emailService->send($email, $subject, $body);
 
         if (!empty($result['success'])) {
-            echo json_encode(['success' => true, 'message' => "Test email sent to {$email}."]);
+            if (!empty($result['simulated'])) {
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Email is currently running in simulated/log mode (MAIL_MAILER=log).'
+                ]);
+            } else {
+                echo json_encode([
+                    'success' => true,
+                    'message' => "Test email sent to {$email}. Please check your Inbox and Spam/Junk folder."
+                ]);
+            }
         } else {
             http_response_code(502);
             echo json_encode([

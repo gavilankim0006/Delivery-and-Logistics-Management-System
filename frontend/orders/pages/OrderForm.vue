@@ -238,6 +238,7 @@ function feeEstimate() {
 
         <header class="page-header mb-4">
             <div>
+                <p class="ds-eyebrow">Operations</p>
                 <h1 class="page-title">{{ isEdit ? 'Edit draft order' : 'New delivery' }}</h1>
                 <p class="page-description">
                     {{ isEdit ? 'Update delivery details while this order remains a draft. The delivery fee is recalculated when saved.' : 'Enter both stops and parcel details. Your delivery fee is calculated securely on save.' }}

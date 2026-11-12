@@ -18,7 +18,7 @@ export default (function (window, document) {
     }
 
     const NotificationManager = {
-        vapidKey: window.DISPATCH_VAPID_KEY || 'BHrmPX2mONM_J_4rHvbd-uRR42bdopDxItXUg__g5i0nZBRkSHT8nUxp1WOe7fM57VpJ1wJZcVs-txXVDxgbG-I',
+        vapidKey: window.DISPATCH_VAPID_KEY || 'BNmVQzdivvHgmt8ByjO32Rz1fm6y7Ngz1XNPrSejWZpm70so3i0eHS7qnw_LA7Kbt0wrNtTzmBE-Apd1RlY6MAI',
         saveTokenUrl: window.DISPATCH_SAVE_TOKEN_URL || '/SIAproject/auth/save_token',
         testPushUrl: window.DISPATCH_TEST_PUSH_URL || '/SIAproject/auth/test_push',
         csrfToken: window.DISPATCH_CSRF_TOKEN || '',
@@ -75,7 +75,27 @@ export default (function (window, document) {
                     });
                 }
             } catch (pushErr) {
-                throw new Error(`Could not subscribe to push notifications: ${pushErr?.message || 'subscription failed'}`);
+                // If existing subscription had an old/mismatched key, unsubscribe and retry
+                try {
+                    const existing = await reg.pushManager.getSubscription();
+                    if (existing) {
+                        await existing.unsubscribe();
+                        sub = await reg.pushManager.subscribe({
+                            userVisibleOnly: true,
+                            applicationServerKey: urlBase64ToUint8Array(this.vapidKey)
+                        });
+                    }
+                } catch {
+                    // fall through to handling original pushErr
+                }
+
+                if (!sub) {
+                    let msg = pushErr?.message || 'subscription failed';
+                    if (/push service error|Registration failed/i.test(msg)) {
+                        msg += ' (If using Brave Browser, enable "Use Google services for push messaging" in brave://settings/privacy and relaunch Brave. Also ensure you are not in Private/Incognito mode).';
+                    }
+                    throw new Error(`Could not subscribe to push notifications: ${msg}`);
+                }
             }
             if (!sub?.endpoint) {
                 throw new Error('The browser did not return a valid push subscription.');

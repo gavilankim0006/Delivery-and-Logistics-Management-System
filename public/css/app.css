@@ -585,6 +585,8 @@ a:hover { color: var(--route-dark); }
 .badge-delivered, .status-chip--delivered, .ds-status-chip--delivered { background: var(--status-success-bg); color: var(--status-success-ink); }
 .badge-cancelled, .status-chip--cancelled, .ds-status-chip--cancelled { background: var(--status-cancelled-bg); color: var(--status-cancelled-ink); }
 .badge-failed, .status-chip--failed, .ds-status-chip--failed { background: var(--status-danger-bg); color: var(--status-danger-ink); }
+.badge-active, .status-chip--active, .ds-status-chip--active { background: var(--status-success-bg); color: var(--status-success-ink); }
+.badge-inactive, .status-chip--inactive, .ds-status-chip--inactive { background: var(--status-cancelled-bg); color: var(--status-cancelled-ink); }
 
 .status-chip:has(> [aria-hidden="true"])::before,
 .ds-status-chip:has(> [aria-hidden="true"])::before { display: none; }
@@ -1107,10 +1109,10 @@ a:hover { color: var(--route-dark); }
 }
 
 /* Dispatch workspace layout, now using the shared Control Tower tokens. */
-.app-main:has(.dispatch-filter-form) { padding-block: 0; }
+.app-main:has(.dispatch-filter-form) { padding-block-start: var(--s-3); }
 .dispatch-page-header { align-items: center; margin-block-end: var(--s-3); }
 .dispatch-page-header .page-description { color: var(--ink-2); }
-.dispatch-filter-form { padding: var(--s-4); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.dispatch-filter-form { padding: var(--s-4); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); box-shadow: var(--shadow-card); }
 .dispatch-filter-form > .surface-section { margin-block-end: 0 !important; padding: 0; border: 0; background: transparent; }
 .dispatch-search-group { width: min(100%, 520px); }
 .dispatch-search .form-label,
@@ -1254,7 +1256,7 @@ a:hover { color: var(--route-dark); }
 .dispatch-page-shell .dispatch-orders-table .dispatch-fulfillment-actions .form-label:not(:first-child) { display: none; }
 .dispatch-page-shell .dispatch-orders-table td[data-label="Action"] { padding-inline: .5rem; }
 .dispatch-page-shell .dispatch-orders-table td[data-label="Action"] .btn { padding: .45rem .6rem; font-size: .875rem; }
-#ai-assistant-widget.dispatch-assistant-pinned { position: fixed !important; bottom: 24px !important; right: 24px !important; top: auto !important; left: auto !important; z-index: 1020 !important; }
+/* dispatch-assistant-pinned position now handled by drag controller; only z-index lowered */
 .dispatch-page-shell .dispatch-orders-table .dispatch-lalamove-form .lalamove-action { width: 100%; }
 .dispatch-page-shell .dispatch-orders-table .dispatch-fulfillment-actions .form-label { margin-bottom: .1rem; }
 .dispatch-page-shell .dispatch-orders-table .dispatch-row-action { margin-top: .25rem; }
@@ -1279,7 +1281,7 @@ a:hover { color: var(--route-dark); }
 .dispatch-page-shell .dispatch-orders-table .dispatch-lalamove-form .btn { width: auto; }
 .dispatch-page-shell .dispatch-orders-table td[data-label="Action"] > .dispatch-row-action { width: auto; margin-left: .35rem; }
 .dispatch-page-shell .dispatch-orders-table .dispatch-status-extra { display: none; }
-#ai-assistant-widget.dispatch-assistant-pinned { position: fixed; top: auto; right: 24px; bottom: 24px; left: auto; transform: none; z-index: 1020; }
+/* duplicate pinned rule removed — see line 1257 */
 .navbar .bi-person-circle, nav .bi-person-circle { margin-right: .45rem; }
 .dispatch-page-shell .dispatch-filter-form > .surface-section > .dispatch-filter-controls { padding-block-start: 0; }
 .dispatch-page-shell .dispatch-filter-form > .surface-section > .dispatch-filter-controls .dispatch-filter-actions { align-items: end; }
@@ -1680,5 +1682,323 @@ input, select, textarea {
     color: var(--danger);
     font-size: var(--font-size-14);
     font-weight: 500;
+}
+
+/* ==========================================================================
+   Cohesion refresh — hierarchy, density and feedback
+   Additive layer: stays on Control Tower tokens, no class renames and no
+   palette changes. Lifts shared primitives and the Vue workspace shell so
+   every role reads as one product.
+   ========================================================================== */
+
+/* Typography rhythm */
+.page-title,
+.ds-page-header .page-title {
+    font-size: clamp(1.5rem, 1.15rem + 1.35vw, 1.9rem);
+}
+
+.page-description,
+.ds-page-header .page-description {
+    max-width: 70ch;
+    line-height: 1.6;
+}
+
+.ds-eyebrow,
+.page-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    margin-block-end: var(--s-2);
+    color: var(--route-dark);
+    font-size: var(--font-size-12);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.ds-eyebrow::before {
+    width: var(--s-2);
+    height: var(--s-2);
+    flex: 0 0 var(--s-2);
+    border-radius: var(--r-pill);
+    background: var(--route);
+    content: '';
+}
+
+/* Section scaffolding for grouped content */
+.ds-section { margin-block-end: var(--s-5); }
+.ds-section:last-child { margin-block-end: 0; }
+
+.ds-section-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-2) var(--s-3);
+    margin-block-end: var(--s-3);
+}
+
+.ds-section-title {
+    margin: 0;
+    color: var(--ink);
+    font-size: var(--font-size-20);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.ds-section-hint {
+    margin: 0;
+    color: var(--ink-2);
+    font-size: var(--font-size-14);
+}
+
+/* Surface and card polish */
+.surface,
+.ds-panel,
+.surface-section {
+    box-shadow: var(--shadow-card);
+}
+
+.card {
+    transition: box-shadow 180ms ease-out, transform 180ms ease-out, border-color 180ms ease-out;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .surface--interactive:hover,
+    .card--interactive:hover,
+    .card:has(> a:hover) {
+        transform: translateY(-2px);
+        border-color: color-mix(in srgb, var(--route) 22%, var(--line));
+        box-shadow: var(--shadow-card-hover);
+    }
+}
+
+.surface--flush { padding: 0; }
+.surface--quiet { background: var(--paper); box-shadow: none; }
+
+/* Metric / stat cards */
+.ds-metric-card {
+    height: 100%;
+    display: grid;
+    align-content: start;
+    gap: var(--s-1);
+    padding: var(--s-4);
+}
+
+.ds-metric-card__label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    color: var(--ink-2);
+    font-size: var(--font-size-14);
+    font-weight: 500;
+}
+
+.ds-metric-card__label .bi { color: var(--route); }
+
+.ds-metric-card__value {
+    color: var(--ink);
+    font-size: clamp(1.6rem, 1.35rem + 1vw, 2rem);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    overflow-wrap: anywhere;
+}
+
+.ds-metric-card__hint {
+    color: var(--ink-2);
+    font-size: var(--font-size-12);
+}
+
+.ds-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--s-3);
+    margin-block-end: var(--s-4);
+}
+
+/* Toolbars */
+.ds-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: var(--s-3);
+}
+
+.ds-toolbar__spacer { flex: 1 1 auto; }
+
+/* Buttons — size rhythm and press feedback */
+.btn-sm {
+    min-height: 36px;
+    padding: var(--s-1) var(--s-3);
+    gap: var(--s-1);
+}
+
+.btn-lg {
+    min-height: 50px;
+    padding: var(--s-3) var(--s-4);
+    font-size: var(--font-size-16);
+}
+
+.btn-icon {
+    width: 44px;
+    padding-inline: 0;
+}
+
+.btn:not(:disabled):active { transform: translateY(1px); }
+
+/* Tables — calmer header, clearer surfaces */
+.surface > .table-responsive:first-child,
+.ds-panel > .table-responsive:first-child { border-radius: var(--r-md); }
+
+.table thead th,
+.table-clean thead th,
+.ds-table thead th {
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+}
+
+.table-clean thead th,
+.ds-table thead th {
+    border-top: 0;
+}
+
+.table-responsive > .table { margin-block-end: 0; }
+
+/* Lists — aligned, comfortable rows */
+.ds-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ds-list__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-3);
+    padding-block: var(--s-3);
+    border-bottom: 1px solid var(--line);
+}
+
+.ds-list__item:last-child { border-bottom: 0; }
+
+/* Key/value fact lists */
+.ds-kv {
+    display: grid;
+    gap: var(--s-1);
+    margin: 0;
+}
+
+.ds-kv dt {
+    color: var(--ink-2);
+    font-size: var(--font-size-12);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.ds-kv dd {
+    margin: 0 0 var(--s-2);
+    color: var(--ink);
+    overflow-wrap: anywhere;
+}
+
+.ds-kv dd:last-of-type { margin-block-end: 0; }
+
+/* Empty states — consistent icon treatment */
+.ds-empty-state .bi,
+.empty-state .bi,
+.empty-state__icon {
+    color: var(--route);
+    font-size: 2.75rem;
+    opacity: 0.55;
+}
+
+.empty-state__icon--warn { color: var(--amber); opacity: 0.7; }
+
+/* Pagination and floating layers */
+.page-link:hover { border-color: var(--route); color: var(--route-dark); }
+.page-item.disabled .page-link { color: var(--ink-3); }
+
+.modal-content { overflow: hidden; }
+.offcanvas { border-color: var(--line); background: var(--surface); }
+
+/* Code / payload blocks used by admin diagnostics */
+pre {
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: var(--paper);
+    color: var(--ink);
+    font-size: var(--font-size-14);
+}
+
+/* Vue workspace sub-navigation (hash routes) */
+.workspace-nav {
+    width: fit-content;
+    max-width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-1);
+    margin-block-end: var(--s-4);
+    padding: var(--s-1);
+    border: 1px solid var(--line);
+    border-radius: var(--r-pill);
+    background: var(--surface);
+    box-shadow: var(--shadow-card);
+    overflow-x: auto;
+}
+
+.workspace-nav__link {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-pill);
+    color: var(--ink-2);
+    font-size: var(--font-size-14);
+    font-weight: 600;
+    white-space: nowrap;
+    text-decoration: none;
+    transition: background-color 150ms ease-out, color 150ms ease-out;
+}
+
+.workspace-nav__link:hover,
+.workspace-nav__link:focus-visible {
+    background: var(--paper);
+    color: var(--ink);
+}
+
+.workspace-nav__link.is-active {
+    background: var(--route);
+    color: var(--surface);
+}
+
+.workspace-nav__link .bi { font-size: var(--font-size-16); }
+
+/* Account menu name truncation */
+.user-name-truncate { max-width: 160px; }
+
+/* Preserve authored line breaks without inline styles */
+.pre-line { white-space: pre-line; }
+.pre-wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Small layout helpers that replaced one-off inline styles */
+.min-w-0 { min-width: 0; }
+.cursor-pointer { cursor: pointer; }
+.text-12 { font-size: var(--font-size-12); }
+
+/* Spinner alignment for buttons and inline loaders */
+.spinner-border { color: var(--route); }
+
+@media (prefers-reduced-motion: reduce) {
+    .card,
+    .btn,
+    .workspace-nav__link,
+    .surface--interactive,
+    .card--interactive { transition: none; }
+    .btn:not(:disabled):active { transform: none; }
 }
 

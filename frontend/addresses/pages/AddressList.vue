@@ -1,6 +1,11 @@
 <script setup>
 import { ref } from 'vue';
-const props = defineProps({ baseUrl: String, csrfToken: String, addresses: { type: Array, default: () => [] } });
+const props = defineProps({
+    baseUrl: String,
+    csrfToken: String,
+    addresses: { type: Array, default: () => [] },
+    flashes: { type: Array, default: () => [] }
+});
 const deleting = ref(null);
 function removeAddress(id) {
     if (deleting.value !== id) { deleting.value = id; return; }
@@ -11,8 +16,15 @@ function removeAddress(id) {
 
 <template>
     <div class="container py-4 ds-page page-shell">
+        <div v-for="(flash, index) in flashes" :key="index" class="alert alert-dismissible fade show mb-3" :class="flash.type === 'error' ? 'alert-danger' : `alert-${flash.type}`" role="status">
+            <i class="bi me-2" :class="flash.type === 'error' ? 'bi-exclamation-circle-fill' : (flash.type === 'success' ? 'bi-check-circle-fill' : 'bi-info-circle-fill')" aria-hidden="true"></i>
+            {{ flash.message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+
         <header class="page-header ds-page-header d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
             <div>
+                <p class="ds-eyebrow">Account</p>
                 <h1 class="h3 fw-bold mb-1 page-title">Saved addresses</h1>
                 <p class="text-muted mb-0 page-description">Pickup and drop-off locations saved to your customer account.</p>
             </div>

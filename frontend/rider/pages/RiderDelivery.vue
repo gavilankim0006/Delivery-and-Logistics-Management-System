@@ -8,7 +8,8 @@ const props = defineProps({
     baseUrl: { type: String, default: '/' },
     csrfField: { type: String, default: '' },
     csrfToken: { type: String, default: '' },
-    locationUrl: { type: String, default: '' }
+    locationUrl: { type: String, default: '' },
+    flashes: { type: Array, default: () => [] }
 });
 
 /* ── Constants ────────────────────────────────────────── */
@@ -221,6 +222,12 @@ onUnmounted(() => {
     <div
         class="container page-shell py-4 ds-page rider-detail-page"
     >
+        <div v-for="(flash, index) in flashes" :key="index" class="alert alert-dismissible fade show mb-3" :class="flash.type === 'error' ? 'alert-danger' : `alert-${flash.type}`" role="status">
+            <i class="bi me-2" :class="flash.type === 'error' ? 'bi-exclamation-circle-fill' : (flash.type === 'success' ? 'bi-check-circle-fill' : 'bi-info-circle-fill')" aria-hidden="true"></i>
+            {{ flash.message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+
         <!-- ─── Breadcrumb ───────────────────────────────── -->
         <nav aria-label="Breadcrumb" class="rider-breadcrumb mb-3">
             <a :href="`${baseUrl}rider`" class="rider-breadcrumb-link">
@@ -232,6 +239,7 @@ onUnmounted(() => {
         <!-- ─── Header ───────────────────────────────────── -->
         <header class="rider-detail-header mb-3">
             <div>
+                <p class="ds-eyebrow">Delivery</p>
                 <h1 class="page-title mb-1">Delivery {{ order.order_no }}</h1>
                 <p class="page-description mb-0">Follow pickup and drop-off instructions.</p>
             </div>
@@ -546,7 +554,7 @@ onUnmounted(() => {
 /* ── Breadcrumb ───────────────────────────────────────── */
 .rider-breadcrumb-link {
     text-decoration: none;
-    color: var(--bs-primary, #0d6efd);
+    color: var(--route);
     font-size: .875rem;
     font-weight: 500;
     min-height: 44px;
@@ -567,7 +575,7 @@ onUnmounted(() => {
 /* ── Sections ─────────────────────────────────────────── */
 .rider-section {
     border-radius: .75rem;
-    border: 1px solid var(--line, #e5e7eb);
+    border: 1px solid var(--line);
 }
 .rider-section-title {
     font-size: 1rem;
@@ -591,8 +599,8 @@ onUnmounted(() => {
     width: 2px;
     background: repeating-linear-gradient(
         to bottom,
-        var(--line, #dee2e6) 0px,
-        var(--line, #dee2e6) 4px,
+        var(--line) 0px,
+        var(--line) 4px,
         transparent 4px,
         transparent 8px
     );
@@ -617,14 +625,14 @@ onUnmounted(() => {
     z-index: 1;
 }
 .rider-route-marker--pickup {
-    background: #e8f5e9;
-    color: #2e7d32;
-    border: 2px solid #a5d6a7;
+    background: var(--status-success-bg);
+    color: var(--success);
+    border: 2px solid color-mix(in srgb, var(--success) 35%, var(--line));
 }
 .rider-route-marker--dropoff {
-    background: #e3f2fd;
-    color: #1565c0;
-    border: 2px solid #90caf9;
+    background: var(--status-blue-bg);
+    color: var(--route);
+    border: 2px solid color-mix(in srgb, var(--route) 35%, var(--line));
 }
 
 .rider-route-stop h3 {
@@ -634,8 +642,8 @@ onUnmounted(() => {
     letter-spacing: .04em;
     margin-bottom: .375rem;
 }
-.rider-route-stop--pickup h3 { color: #2e7d32; }
-.rider-route-stop--dropoff h3 { color: #1565c0; }
+.rider-route-stop--pickup h3 { color: var(--success); }
+.rider-route-stop--dropoff h3 { color: var(--route); }
 
 .rider-route-address {
     font-size: .95rem;
@@ -644,7 +652,7 @@ onUnmounted(() => {
 }
 .rider-route-contact {
     font-size: .85rem;
-    color: #6c757d;
+    color: var(--ink-2);
 }
 
 /* ── Contact Buttons ──────────────────────────────────── */
@@ -665,39 +673,39 @@ onUnmounted(() => {
     font-size: .8rem;
     font-weight: 600;
     text-decoration: none;
-    border: 1px solid var(--line, #dee2e6);
-    background: var(--surface, #fff);
-    color: var(--bs-body-color, #212529);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
     transition: all .2s ease;
 }
 .rider-contact-btn:hover {
-    background: #f8f9fa;
-    border-color: #adb5bd;
-    color: var(--bs-body-color, #212529);
+    background: var(--paper);
+    border-color: var(--ink-3);
+    color: var(--ink);
 }
 .rider-contact-btn--call {
-    border-color: #a5d6a7;
-    color: #2e7d32;
+    border-color: color-mix(in srgb, var(--success) 35%, var(--line));
+    color: var(--success);
 }
-.rider-contact-btn--call:hover { background: #e8f5e9; color: #2e7d32; }
+.rider-contact-btn--call:hover { background: var(--status-success-bg); color: var(--success); }
 .rider-contact-btn--navigate {
-    border-color: #90caf9;
-    color: #1565c0;
+    border-color: color-mix(in srgb, var(--route) 35%, var(--line));
+    color: var(--route);
 }
-.rider-contact-btn--navigate:hover { background: #e3f2fd; color: #1565c0; }
+.rider-contact-btn--navigate:hover { background: var(--status-blue-bg); color: var(--route); }
 
 /* ── Route Notes ──────────────────────────────────────── */
 .rider-route-notes {
-    background: #f8f9fa;
-    border-inline-start: 2px solid var(--line, #dee2e6);
+    background: var(--paper);
+    border-inline-start: 2px solid var(--line);
     border-radius: 0 .375rem .375rem 0;
     padding: .5rem .75rem;
     margin-top: .5rem;
     font-size: .8rem;
-    color: #495057;
+    color: var(--ink-2);
 }
-.rider-route-stop--pickup .rider-route-notes { border-left-color: #a5d6a7; }
-.rider-route-stop--dropoff .rider-route-notes { border-left-color: #90caf9; }
+.rider-route-stop--pickup .rider-route-notes { border-left-color: color-mix(in srgb, var(--success) 35%, var(--line)); }
+.rider-route-stop--dropoff .rider-route-notes { border-left-color: color-mix(in srgb, var(--route) 35%, var(--line)); }
 
 /* ── Action Cards ─────────────────────────────────────── */
 .rider-action-card {
@@ -707,8 +715,8 @@ onUnmounted(() => {
     width: 48px;
     height: 48px;
     border-radius: 50%;
-    background: #e3f2fd;
-    color: var(--bs-primary, #0d6efd);
+    background: var(--status-blue-bg);
+    color: var(--route);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -716,8 +724,8 @@ onUnmounted(() => {
     margin-bottom: .75rem;
 }
 .rider-action-card--pickup .rider-action-card-icon {
-    background: #e8f5e9;
-    color: #2e7d32;
+    background: var(--status-success-bg);
+    color: var(--success);
 }
 
 /* ── Stepper ──────────────────────────────────────────── */
@@ -743,44 +751,44 @@ onUnmounted(() => {
     justify-content: center;
     font-size: .75rem;
     font-weight: 700;
-    border: 2px solid #dee2e6;
-    background: var(--surface, #fff);
-    color: #adb5bd;
+    border: 2px solid var(--line);
+    background: var(--surface);
+    color: var(--ink-3);
     transition: all .25s ease;
     z-index: 1;
 }
 .rider-stepper-step--complete .rider-stepper-dot {
-    background: #4caf50;
-    border-color: #4caf50;
-    color: #fff;
+    background: var(--success);
+    border-color: var(--success);
+    color: var(--surface);
 }
 .rider-stepper-step--active .rider-stepper-dot {
-    background: var(--bs-primary, #0d6efd);
-    border-color: var(--bs-primary, #0d6efd);
-    color: #fff;
-    box-shadow: 0 0 0 4px rgba(13,110,253,.2);
+    background: var(--route);
+    border-color: var(--route);
+    color: var(--surface);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--route) 20%, transparent);
 }
 .rider-stepper-label {
     font-size: .65rem;
     font-weight: 600;
-    color: #adb5bd;
+    color: var(--ink-3);
     text-transform: uppercase;
     letter-spacing: .04em;
     white-space: nowrap;
 }
 .rider-stepper-step--complete .rider-stepper-label,
 .rider-stepper-step--active .rider-stepper-label {
-    color: var(--bs-body-color, #212529);
+    color: var(--ink);
 }
 .rider-stepper-line {
     flex: 1 1 auto;
     height: 2px;
     min-width: 24px;
     max-width: 80px;
-    background: #dee2e6;
+    background: var(--line);
     transition: background .25s ease;
 }
-.rider-stepper-line--complete { background: #4caf50; }
+.rider-stepper-line--complete { background: var(--success); }
 
 /* ── Form Progress ────────────────────────────────────── */
 .rider-form-progress {
@@ -791,16 +799,16 @@ onUnmounted(() => {
     flex: 1 1 0;
     height: 4px;
     border-radius: 2px;
-    background: #e9ecef;
+    background: var(--line);
     transition: background .25s ease;
 }
-.rider-form-progress-step--done { background: #4caf50; }
+.rider-form-progress-step--done { background: var(--success); }
 
 /* ── Location Panel ───────────────────────────────────── */
 .rider-location-panel {
     border-radius: .75rem;
-    border: 1px solid var(--line, #e5e7eb);
-    background: var(--surface, #fff);
+    border: 1px solid var(--line);
+    background: var(--surface);
     padding: 1rem;
     margin-top: 1rem;
 }
@@ -809,13 +817,13 @@ onUnmounted(() => {
     align-items: center;
     gap: .5rem;
     font-size: .8rem;
-    color: #6c757d;
+    color: var(--ink-2);
     margin-bottom: .75rem;
 }
 
 /* ── Location Pulse Animation ─────────────────────────── */
 @keyframes riderPulse {
-    0%   { box-shadow: 0 0 0 0 rgba(220,53,69,.35); }
+    0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 35%, transparent); }
     70%  { box-shadow: 0 0 0 10px transparent; }
     100% { box-shadow: 0 0 0 0 transparent; }
 }
@@ -832,7 +840,7 @@ onUnmounted(() => {
 }
 .rider-complete-icon {
     font-size: 3rem;
-    color: var(--success, #146443);
+    color: var(--success);
     animation: checkConfirm .24s ease-out;
 }
 
@@ -842,14 +850,14 @@ onUnmounted(() => {
     bottom: 0;
     left: 0;
     right: 0;
-    background: var(--surface, #fff);
+    background: var(--surface);
     box-shadow: 0 -2px 12px rgba(0,0,0,.08);
     padding: .75rem 1rem;
     z-index: 1030;
     display: flex;
     align-items: center;
     gap: .75rem;
-    border-top: 1px solid var(--line, #e9ecef);
+    border-top: 1px solid var(--line);
 }
 .rider-sticky-bar-info { flex: 1 1 auto; min-width: 0; }
 .rider-sticky-bar-order {
@@ -859,7 +867,7 @@ onUnmounted(() => {
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.rider-sticky-bar-status { font-size: .7rem; color: #6c757d; }
+.rider-sticky-bar-status { font-size: .7rem; color: var(--ink-2); }
 
 /* ── Touch Targets ────────────────────────────────────── */
 .rider-action-btn,

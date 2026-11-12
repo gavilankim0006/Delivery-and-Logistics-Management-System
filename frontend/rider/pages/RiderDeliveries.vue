@@ -5,6 +5,7 @@ const props = defineProps({
   orders:       { type: Array,   default: () => [] },
   portalLinked: { type: Boolean, default: false },
   baseUrl:      { type: String,  default: '/' },
+  flashes:      { type: Array,   default: () => [] },
 });
 
 /* ── relative-time helper ─────────────────────────────── */
@@ -127,9 +128,16 @@ function assignedAgo(order) {
   </Transition>
 
   <div class="container page-shell py-4 ds-page rider-deliveries">
+    <div v-for="(flash, index) in flashes" :key="index" class="alert alert-dismissible fade show mb-3" :class="flash.type === 'error' ? 'alert-danger' : `alert-${flash.type}`" role="status">
+      <i class="bi me-2" :class="flash.type === 'error' ? 'bi-exclamation-circle-fill' : (flash.type === 'success' ? 'bi-check-circle-fill' : 'bi-info-circle-fill')" aria-hidden="true"></i>
+      {{ flash.message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+
     <!-- ─── Header ──────────────────────────────────── -->
     <header class="page-header mb-4">
       <div>
+        <p class="ds-eyebrow">Deliveries</p>
         <h1 class="page-title">
           My deliveries
           <span
@@ -307,15 +315,15 @@ function assignedAgo(order) {
 /* ── empty states ─────────────────────────────────────── */
 .empty-state {
   border-radius: .75rem;
-  border: 1px solid var(--line, #e5e7eb);
+  border: 1px solid var(--line);
 }
 .empty-state__icon {
   font-size: 3rem;
-  color: var(--bs-primary, #0d6efd);
+  color: var(--route);
   opacity: .55;
 }
 .empty-state__icon--warn {
-  color: var(--bs-warning, #ffc107);
+  color: var(--amber);
   opacity: .7;
 }
 
@@ -330,12 +338,12 @@ function assignedAgo(order) {
 /* ── delivery card (mobile) ───────────────────────────── */
 .delivery-card {
   border-radius: .75rem;
-  border: 1px solid var(--line, #e5e7eb);
+  border: 1px solid var(--line);
   overflow: hidden;
   transition: box-shadow .2s ease;
 }
 .delivery-card:active {
-  box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb, 13,110,253), .15);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--route) 15%, transparent);
 }
 
 .delivery-card__head {
@@ -349,7 +357,7 @@ function assignedAgo(order) {
   font-size: 1.05rem;
   font-weight: 700;
   text-decoration: none;
-  color: var(--route-dark, #1e293b);
+  color: var(--route-dark);
   min-height: 44px;
   display: inline-flex;
   align-items: center;
@@ -376,8 +384,8 @@ function assignedAgo(order) {
   width: 28px;
   text-align: center;
 }
-.delivery-card__icon--pickup  { color: #16a34a; }
-.delivery-card__icon--dropoff { color: #dc3545; }
+.delivery-card__icon--pickup  { color: var(--success); }
+.delivery-card__icon--dropoff { color: var(--route); }
 
 .delivery-card__addr-label {
   display: block;
@@ -385,14 +393,14 @@ function assignedAgo(order) {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .04em;
-  color: var(--bs-secondary-color, #6c757d);
+  color: var(--ink-2);
   line-height: 1;
   margin-bottom: .15rem;
 }
 .delivery-card__addr-text {
   display: block;
   font-size: .9rem;
-  color: var(--route-dark, #1e293b);
+  color: var(--route-dark);
   line-height: 1.35;
 }
 
@@ -402,7 +410,7 @@ function assignedAgo(order) {
   justify-content: space-between;
   padding: .625rem 1rem .875rem;
   gap: .5rem;
-  border-top: 1px solid var(--line, #e5e7eb);
+  border-top: 1px solid var(--line);
   margin-top: .25rem;
 }
 
@@ -422,7 +430,7 @@ function assignedAgo(order) {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .04em;
-  color: var(--bs-secondary-color, #6c757d);
+  color: var(--ink-2);
   border-bottom-width: 2px;
 }
 .table-clean td {
@@ -443,7 +451,7 @@ function assignedAgo(order) {
   align-items: center;
   gap: .25rem;
   padding: .5rem 1rem;
-  background: var(--surface, #fff);
+  background: var(--surface);
   border-radius: 0 0 .75rem .75rem;
   box-shadow: 0 2px 12px rgba(0,0,0,.1);
   transition: transform .15s ease;
@@ -451,15 +459,15 @@ function assignedAgo(order) {
 .ptr-icon {
   font-size: 1.25rem;
   transition: transform .25s ease, color .25s ease;
-  color: var(--bs-secondary-color, #6c757d);
+  color: var(--ink-2);
 }
 .ptr-icon--ready {
   transform: rotate(180deg);
-  color: var(--bs-primary, #0d6efd);
+  color: var(--route);
 }
 .ptr-label {
   font-size: .75rem;
-  color: var(--bs-secondary-color, #6c757d);
+  color: var(--ink-2);
 }
 
 .ptr-fade-enter-active,

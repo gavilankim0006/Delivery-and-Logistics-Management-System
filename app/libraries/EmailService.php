@@ -24,30 +24,45 @@ class EmailService
     /** @var callable|null */
     private $transport;
 
+    private function getEnvVar(string $key, string $default = ''): string
+    {
+        if (isset($_ENV[$key]) && $_ENV[$key] !== '') {
+            return (string)$_ENV[$key];
+        }
+        if (isset($_SERVER[$key]) && $_SERVER[$key] !== '') {
+            return (string)$_SERVER[$key];
+        }
+        $val = getenv($key);
+        if ($val !== false && $val !== '') {
+            return (string)$val;
+        }
+        return $default;
+    }
+
     public function __construct(array $config = [])
     {
-        $this->host = trim((string)($config['host'] ?? getenv('MAIL_HOST') ?: getenv('SMTP_HOST') ?: ''));
-        $this->port = (int)($config['port'] ?? getenv('MAIL_PORT') ?: getenv('SMTP_PORT') ?: 587);
-        $this->username = trim((string)($config['username'] ?? getenv('MAIL_USERNAME') ?: getenv('SMTP_USER') ?: ''));
-        $this->password = (string)($config['password'] ?? getenv('MAIL_PASSWORD') ?: getenv('SMTP_PASS') ?: '');
-        $this->encryption = strtolower(trim((string)($config['encryption'] ?? getenv('MAIL_ENCRYPTION') ?: getenv('SMTP_CRYPTO') ?: 'tls')));
+        $this->host = trim((string)($config['host'] ?? $this->getEnvVar('MAIL_HOST') ?: $this->getEnvVar('SMTP_HOST') ?: ''));
+        $this->port = (int)($config['port'] ?? $this->getEnvVar('MAIL_PORT') ?: $this->getEnvVar('SMTP_PORT') ?: 587);
+        $this->username = trim((string)($config['username'] ?? $this->getEnvVar('MAIL_USERNAME') ?: $this->getEnvVar('SMTP_USER') ?: ''));
+        $this->password = (string)($config['password'] ?? $this->getEnvVar('MAIL_PASSWORD') ?: $this->getEnvVar('SMTP_PASS') ?: '');
+        $this->encryption = strtolower(trim((string)($config['encryption'] ?? $this->getEnvVar('MAIL_ENCRYPTION') ?: $this->getEnvVar('SMTP_CRYPTO') ?: 'tls')));
 
-        $defaultFrom = getenv('MAIL_FROM_ADDRESS') ?: 'noreply@omniroute.local';
-        $defaultName = getenv('MAIL_FROM_NAME') ?: (function_exists('config_item') ? config_item('app_name') : 'Dispatch Platform');
+        $defaultFrom = $this->getEnvVar('MAIL_FROM_ADDRESS') ?: 'noreply@omniroute.local';
+        $defaultName = $this->getEnvVar('MAIL_FROM_NAME') ?: (function_exists('config_item') ? config_item('app_name') : 'Dispatch Platform');
 
         $this->fromAddress = trim((string)($config['from_address'] ?? $defaultFrom));
         $this->fromName = trim((string)($config['from_name'] ?? $defaultName));
 
         $defaultMailer = $this->host !== '' ? 'smtp' : (PHP_OS_FAMILY === 'Windows' ? 'log' : 'mail');
-        $this->mailer = strtolower(trim((string)($config['mailer'] ?? getenv('MAIL_MAILER') ?: $defaultMailer)));
+        $this->mailer = strtolower(trim((string)($config['mailer'] ?? $this->getEnvVar('MAIL_MAILER') ?: $defaultMailer)));
         $this->logPath = (defined('RUNTIME_DIR') ? RUNTIME_DIR : (defined('ROOT_DIR') ? ROOT_DIR . 'runtime/' : __DIR__ . '/../../runtime/')) . 'logs/email.log';
         $this->transport = isset($config['transport']) && is_callable($config['transport']) ? $config['transport'] : null;
     }
 
     public function isEnabled(): bool
     {
-        $enabledEnv = getenv('MAIL_ENABLED');
-        if ($enabledEnv !== false && $enabledEnv !== '') {
+        $enabledEnv = $this->getEnvVar('MAIL_ENABLED');
+        if ($enabledEnv !== '') {
             return $enabledEnv === '1' || strtolower($enabledEnv) === 'true';
         }
         return true;
@@ -183,7 +198,7 @@ class EmailService
         $roleApplied = ucfirst(htmlspecialchars($application['role_applied'] ?? 'Rider', ENT_QUOTES, 'UTF-8'));
         $appName = htmlspecialchars($this->fromName ?: 'Dispatch Platform', ENT_QUOTES, 'UTF-8');
 
-        $loginUrl = function_exists('base_url') ? base_url('auth/login') : 'http://localhost/SIAproject/auth/login';
+        $loginUrl = function_exists('base_url') ? base_url('login') : 'http://localhost/SIAproject/login';
         $adminNote = trim((string)($application['admin_note'] ?? ''));
 
         $subject = "Congratulations! Your {$roleApplied} Application Has Been Approved - {$appName}";
@@ -736,10 +751,17 @@ HTML;
         $boundary = 'boundary_' . md5(uniqid((string)mt_rand(), true));
         $eol = "\r\n";
 
+        $domain = !empty($this->fromAddress) && str_contains($this->fromAddress, '@')
+            ? substr(strrchr($this->fromAddress, '@'), 1)
+            : 'gmail.com';
+        $messageId = sprintf('<%s.%s@%s>', bin2hex(random_bytes(16)), time(), $domain);
+
         $headers = [];
         $headers[] = 'Date: ' . date('r');
         $headers[] = 'From: ' . ($this->fromName ? '=?UTF-8?B?' . base64_encode($this->fromName) . "?= <{$this->fromAddress}>" : $this->fromAddress);
+        $headers[] = "Reply-To: <{$this->fromAddress}>";
         $headers[] = "To: <{$to}>";
+        $headers[] = "Message-ID: {$messageId}";
         $headers[] = 'Subject: =?UTF-8?B?' . base64_encode($subject) . '?=';
         $headers[] = 'MIME-Version: 1.0';
         $headers[] = "Content-Type: multipart/alternative; boundary=\"{$boundary}\"";
@@ -749,11 +771,11 @@ HTML;
         $body .= "--{$boundary}" . $eol;
         $body .= 'Content-Type: text/plain; charset=UTF-8' . $eol;
         $body .= 'Content-Transfer-Encoding: base64' . $eol . $eol;
-        $body .= chunk_split(base64_encode($textBody), 76, $eol) . $eol;
+        $body .= chunk_split(base64_encode($textBody), 76, $eol);
         $body .= "--{$boundary}" . $eol;
         $body .= 'Content-Type: text/html; charset=UTF-8' . $eol;
         $body .= 'Content-Transfer-Encoding: base64' . $eol . $eol;
-        $body .= chunk_split(base64_encode($htmlBody), 76, $eol) . $eol;
+        $body .= chunk_split(base64_encode($htmlBody), 76, $eol);
         $body .= "--{$boundary}--" . $eol;
         $body .= '.' . $eol;
 
@@ -801,9 +823,14 @@ HTML;
         $eol = "\r\n";
 
         $headers = [];
+        $domain = !empty($this->fromAddress) && str_contains($this->fromAddress, '@')
+            ? substr(strrchr($this->fromAddress, '@'), 1)
+            : 'gmail.com';
+        $messageId = sprintf('<%s.%s@%s>', bin2hex(random_bytes(16)), time(), $domain);
         $from = $this->fromName ? '=?UTF-8?B?' . base64_encode($this->fromName) . "?= <{$this->fromAddress}>" : $this->fromAddress;
         $headers[] = "From: {$from}";
         $headers[] = "Reply-To: {$this->fromAddress}";
+        $headers[] = "Message-ID: {$messageId}";
         $headers[] = 'MIME-Version: 1.0';
         $headers[] = "Content-Type: multipart/alternative; boundary=\"{$boundary}\"";
         $headers[] = 'X-Mailer: Dispatch-Mailer/1.0';
@@ -811,11 +838,11 @@ HTML;
         $body  = "--{$boundary}" . $eol;
         $body .= 'Content-Type: text/plain; charset=UTF-8' . $eol;
         $body .= 'Content-Transfer-Encoding: base64' . $eol . $eol;
-        $body .= chunk_split(base64_encode($textBody), 76, $eol) . $eol;
+        $body .= chunk_split(base64_encode($textBody), 76, $eol);
         $body .= "--{$boundary}" . $eol;
         $body .= 'Content-Type: text/html; charset=UTF-8' . $eol;
         $body .= 'Content-Transfer-Encoding: base64' . $eol . $eol;
-        $body .= chunk_split(base64_encode($htmlBody), 76, $eol) . $eol;
+        $body .= chunk_split(base64_encode($htmlBody), 76, $eol);
         $body .= "--{$boundary}--";
 
         $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
@@ -847,7 +874,12 @@ HTML;
             if (!is_dir($dir)) {
                 @mkdir($dir, 0775, true);
             }
-            $status = $result['success'] ? 'SUCCESS' : 'FAILED (' . ($result['error'] ?? 'Unknown error') . ')';
+            $transportInfo = !empty($result['simulated'])
+                ? 'SIMULATED'
+                : (!empty($result['message']) ? $result['message'] : 'OK');
+            $status = $result['success']
+                ? "SUCCESS [{$transportInfo}]"
+                : 'FAILED (' . ($result['error'] ?? 'Unknown error') . ')';
             $cleanPreview = preg_replace('/\s+/', ' ', trim(strip_tags($body)));
             $logEntry = sprintf(
                 "[%s] %s | TO: %s | SUBJECT: %s\nPREVIEW: %s\n--------------------------------------------------\n",

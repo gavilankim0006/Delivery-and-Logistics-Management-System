@@ -2,5 +2,6 @@
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 $this->call->view('templates/header', ['page_title' => $page_title ?? 'Delivery link unavailable']);
 ?>
-<div class="container page-shell py-5"><div class="surface p-4"><h1 class="h3">Delivery link unavailable</h1><p class="mb-0">This delivery control link is invalid, expired, or has been revoked.</p></div></div>
+<div id="static-page-vue-root" data-page-kind="delivery-control-not-found" data-base-url="<?= e(base_url()) ?>"></div>
+<script type="module" src="<?= e(base_url('build/static_pages.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
 <?php $this->call->view('templates/footer'); ?>

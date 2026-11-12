@@ -5,13 +5,20 @@ $this->call->view('templates/header', [
     'extra_css'  => '<link href="' . base_url('css/rider-portal.css') . '?v=' . (is_file(dirname(__DIR__, 2) . '/public/css/rider-portal.css') ? filemtime(dirname(__DIR__, 2) . '/public/css/rider-portal.css') : '1') . '" rel="stylesheet">'
 ]);
 $orderId = (int)$order['order_id'];
+$flashes = [];
+foreach (['success', 'error', 'warning', 'info'] as $flashType) {
+    if ($message = flash($flashType)) {
+        $flashes[] = ['type' => $flashType, 'message' => $message];
+    }
+}
 $riderProps = [
     'order' => $order,
     'proofRecorded' => !empty($proof_recorded),
     'baseUrl' => base_url(),
     'csrfField' => csrf_field(),
     'csrfToken' => csrf_token(),
-    'locationUrl' => base_url('rider/orders/' . $orderId . '/location')
+    'locationUrl' => base_url('rider/orders/' . $orderId . '/location'),
+    'flashes' => $flashes,
 ];
 ?>
 <div id="vue-rider-root" data-page="show" data-props="<?= e(json_encode($riderProps, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>">

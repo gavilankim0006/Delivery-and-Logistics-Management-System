@@ -152,9 +152,18 @@ async function testSms(event) {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest'
             },
-            body: JSON.stringify({ csrf_token: props.csrfToken })
+            body: JSON.stringify({
+                csrf_token: props.csrfToken,
+                phone: phone.value
+            })
         });
-        const result = await response.json();
+        const responseText = await response.text();
+        let result;
+        try {
+            result = JSON.parse(responseText);
+        } catch {
+            throw new Error(`Test SMS endpoint returned HTTP ${response.status} with a non-JSON response. Check the server error log.`);
+        }
         if (!response.ok || !result.success) throw new Error(result.error || 'Unable to send test SMS.');
         smsResult.value = result.message || 'Test SMS sent.';
     } catch (error) {
@@ -213,6 +222,7 @@ async function sendTestPush() {
         <div class="profile-page">
             <header class="page-header">
                 <div>
+                    <p class="ds-eyebrow">Account</p>
                     <h1 class="page-title">My profile</h1>
                     <p class="page-description">Manage the contact details associated with your account.</p>
                 </div>

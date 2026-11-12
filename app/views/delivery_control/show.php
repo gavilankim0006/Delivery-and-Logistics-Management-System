@@ -1,108 +1,21 @@
 <?php
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 $this->call->view('templates/header', ['page_title' => $page_title ?? 'Delivery control pass']);
-$statusLabels = ['draft'=>'Draft','pending_payment'=>'Awaiting payment','paid'=>'Paid','booking'=>'Booking courier','rider_assigned'=>'Rider assigned','picked_up'=>'Picked up','delivered'=>'Delivered','failed'=>'Needs attention','cancelled'=>'Cancelled'];
-$canChange = in_array($order['status'], ['paid', 'booking', 'rider_assigned'], true);
+$flashes = [];
+foreach (['success', 'error', 'warning', 'info'] as $flashType) {
+    if ($message = flash($flashType)) {
+        $flashes[] = ['type' => $flashType, 'message' => $message];
+    }
+}
+$controlProps = [
+    'order' => $order ?? [],
+    'token' => $token ?? '',
+    'eta_minutes' => $eta_minutes ?? null,
+    'baseUrl' => base_url(),
+    'csrfToken' => csrf_token(),
+    'flashes' => $flashes,
+];
 ?>
-<div class="container page-shell py-4" data-control-pass="true">
-    <header class="page-header mb-4">
-        <div>
-            <p class="text-uppercase small fw-semibold text-muted mb-1">Delivery control pass</p>
-            <h1 class="page-title">Order <?= e($order['order_no']) ?></h1>
-            <p class="page-description">Shareable delivery status and customer requests.</p>
-        </div>
-    </header>
-
-    <?php foreach (['success' => flash('success'), 'error' => flash('error')] as $type => $message): if ($message): ?>
-        <div class="alert alert-<?= $type === 'success' ? 'success' : 'danger' ?>" role="<?= $type === 'success' ? 'status' : 'alert' ?>"><?= e($message) ?></div>
-    <?php endif; endforeach; ?>
-
-    <section class="surface p-3 p-md-4 mb-4">
-        <h2 class="h5">Current status</h2>
-        <p class="fs-4 fw-semibold mb-1"><?= e($statusLabels[$order['status']] ?? 'Status update') ?></p>
-        <p class="text-muted mb-2">Status refreshes when you reload this page.</p>
-        <?php if ($eta_minutes !== null): ?>
-            <p class="mb-0">Approximate remaining route time: <strong><?= (int)$eta_minutes ?> minutes</strong>. This is a route estimate, not live GPS or a guaranteed arrival time.</p>
-        <?php endif; ?>
-    </section>
-
-    <section class="surface p-3 p-md-4 mb-4">
-        <h2 class="h5">Delivery progress</h2>
-        <ol class="list-group list-group-numbered">
-            <?php foreach ($order['timeline'] as $entry): ?>
-                <li class="list-group-item d-flex justify-content-between gap-2">
-                    <span><?= e($statusLabels[$entry['to_status']] ?? 'Update') ?></span>
-                    <time class="small text-muted" datetime="<?= e(date(DATE_ATOM, strtotime($entry['created_at']))) ?>"><?= e(date('M j, Y g:i a', strtotime($entry['created_at']))) ?></time>
-                </li>
-            <?php endforeach; ?>
-        </ol>
-    </section>
-
-    <?php if ($canChange): ?>
-        <section class="surface p-3 p-md-4 mb-4">
-            <h2 class="h5">Update drop-off instructions</h2>
-            <p class="text-muted">New instructions are attached to this order only and shared with dispatch.</p>
-            <form method="post" action="<?= base_url('delivery-control/' . rawurlencode($token) . '/submit') ?>" novalidate>
-                <?= csrf_field() ?>
-                <input type="hidden" name="request_type" value="instruction">
-                <div class="mb-3 shared-field-wrap">
-                    <label class="form-label shared-label" for="instruction">
-                        <span>Drop-off instruction</span>
-                        <span class="text-danger ms-1" aria-hidden="true">*</span>
-                    </label>
-                    <textarea
-                        class="form-control shared-textarea"
-                        id="instruction"
-                        name="request_text"
-                        rows="3"
-                        maxlength="1000"
-                        required
-                        placeholder="Provide clear instructions for the courier upon arrival"><?= e($order['dropoff_notes'] ?? '') ?></textarea>
-                </div>
-                <button class="btn btn-primary" type="submit">Update instructions</button>
-            </form>
-        </section>
-
-        <section class="surface p-3 p-md-4 mb-4">
-            <h2 class="h5">Request a delivery hold</h2>
-            <p class="text-muted">Dispatch will review your request. Submitting it does not pause the courier.</p>
-            <form method="post" action="<?= base_url('delivery-control/' . rawurlencode($token) . '/submit') ?>" novalidate>
-                <?= csrf_field() ?>
-                <input type="hidden" name="request_type" value="hold">
-                <div class="mb-3 shared-field-wrap">
-                    <label class="form-label shared-label" for="hold-note">
-                        <span>Optional note</span>
-                        <span class="text-muted fw-normal ms-1">(optional)</span>
-                    </label>
-                    <textarea
-                        class="form-control shared-textarea"
-                        id="hold-note"
-                        name="request_text"
-                        rows="2"
-                        maxlength="1000"
-                        placeholder="e.g. Please hold delivery until 3 PM, currently in a meeting"></textarea>
-                </div>
-                <button class="btn btn-outline-primary" type="submit">Send hold request</button>
-            </form>
-        </section>
-    <?php else: ?>
-        <div class="alert alert-secondary">This delivery is at a stage where changes can no longer be submitted.</div>
-    <?php endif; ?>
-
-    <?php if (!empty($order['requests'])): ?>
-        <section class="surface p-3 p-md-4">
-            <h2 class="h5">Recent requests</h2>
-            <ul class="list-group list-group-flush">
-                <?php foreach ($order['requests'] as $request): ?>
-                    <li class="list-group-item">
-                        <strong><?= $request['request_type'] === 'hold' ? 'Hold request' : 'Drop-off instruction' ?></strong> · <?= e(ucfirst($request['status'])) ?>
-                        <?php if (!empty($request['request_text'])): ?>
-                            <p class="mb-0 mt-1"><?= nl2br(e($request['request_text'])) ?></p>
-                        <?php endif; ?>
-                    </li>
-                <?php endforeach; ?>
-            </ul>
-        </section>
-    <?php endif; ?>
-</div>
+<div id="vue-delivery-control-root" data-props="<?= e(json_encode($controlProps, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?: '{}') ?>"></div>
+<script type="module" src="<?= e(base_url('build/delivery_control.js')) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
 <?php $this->call->view('templates/footer'); ?>

@@ -40,6 +40,9 @@ class Delivery_control extends Controller
     public function submit(string $token)
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf()) {
+            if (is_json_request()) {
+                json_response(['success' => false, 'error' => 'Invalid security token or request.'], 400);
+            }
             http_response_code(400);
             $this->call->view('delivery_control/not_found', ['page_title' => 'Delivery link unavailable']);
             return;
@@ -48,8 +51,15 @@ class Delivery_control extends Controller
             $type = trim((string)($_POST['request_type'] ?? ''));
             $text = trim((string)($_POST['request_text'] ?? ''));
             $this->control->submit($token, $type, $text);
-            flash('success', $type === 'instruction' ? 'Drop-off instructions updated.' : 'Hold request sent to dispatch for review. This does not pause the courier.');
+            $msg = $type === 'instruction' ? 'Drop-off instructions updated.' : 'Hold request sent to dispatch for review. This does not pause the courier.';
+            if (is_json_request()) {
+                json_response(['success' => true, 'message' => $msg]);
+            }
+            flash('success', $msg);
         } catch (Throwable $e) {
+            if (is_json_request()) {
+                json_response(['success' => false, 'error' => $e->getMessage()], 422);
+            }
             flash('error', $e->getMessage());
         }
         redirect('delivery-control/' . rawurlencode($token));

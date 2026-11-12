@@ -10,7 +10,8 @@ const props = defineProps({
     demoPaymentSimulationEnabled: { type: Boolean, default: false },
     currentUser: { type: Object, default: () => ({}) },
     csrfToken: { type: String, default: '' },
-    baseUrl: { type: String, default: '/' }
+    baseUrl: { type: String, default: '/' },
+    flashes: { type: Array, default: () => [] }
 });
 
 const statusLabels = {
@@ -162,6 +163,12 @@ onUnmounted(() => {
 
 <template>
     <div class="container py-4 ds-page page-shell">
+        <div v-for="(flash, index) in flashes" :key="index" class="alert alert-dismissible fade show mb-3" :class="flash.type === 'error' ? 'alert-danger' : `alert-${flash.type}`" role="status">
+            <i class="bi me-2" :class="flash.type === 'error' ? 'bi-exclamation-circle-fill' : (flash.type === 'success' ? 'bi-check-circle-fill' : 'bi-info-circle-fill')" aria-hidden="true"></i>
+            {{ flash.message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+
         <nav aria-label="Breadcrumb" class="mb-3">
             <a :href="`${baseUrl}orders`">Orders</a>
             <span class="text-muted"> / {{ order.order_no }}</span>
@@ -169,7 +176,9 @@ onUnmounted(() => {
 
         <header class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4 ds-page-header page-header">
             <div>
+                <p class="ds-eyebrow">Operations</p>
                 <h1 class="h3 fw-bold mb-2 page-title">{{ order.order_no }}</h1>
+                <p class="page-description">Delivery details, route timeline and fulfilment actions.</p>
                 <span class="status-chip ds-status-chip" :class="`status-chip--${statusClasses[order.status] || 'draft'}`">
                     <span aria-hidden="true">●</span> {{ statusLabels[order.status] || 'Unknown' }}
                 </span>
@@ -201,9 +210,43 @@ onUnmounted(() => {
                         <button class="btn btn-outline-danger" type="submit">Revoke pass</button>
                     </form>
                 </template>
+                <a v-if="role === 'customer'" class="btn btn-outline-primary" :href="`${baseUrl}package-workflow`">
+                    <i class="bi bi-chat-dots me-1"></i>Handoff messenger
+                </a>
                 <a class="btn btn-outline-secondary" :href="`${baseUrl}orders`">Back to orders</a>
             </div>
         </header>
+
+        <!-- Missing Package Report Dropdown -->
+        <div v-if="role === 'customer' && ['paid', 'booking', 'rider_assigned', 'picked_up', 'delivered'].includes(order.status)" class="mb-4">
+            <details class="surface p-3 rounded">
+                <summary class="fw-semibold text-danger cursor-pointer">
+                    <i class="bi bi-exclamation-octagon me-1"></i>Report missing package
+                </summary>
+                <form method="post" :action="`${baseUrl}package-workflow/report`" class="mt-3" novalidate>
+                    <input type="hidden" name="csrf_token" :value="csrfToken">
+                    <input type="hidden" name="order_id" :value="order.id">
+                    <div class="mb-3 shared-field-wrap">
+                        <label for="missing-description" class="form-label shared-label">
+                            <span>Describe missing package</span>
+                            <span class="text-danger ms-1" aria-hidden="true">*</span>
+                        </label>
+                        <textarea
+                            class="form-control shared-textarea"
+                            id="missing-description"
+                            name="description"
+                            rows="3"
+                            minlength="10"
+                            maxlength="4000"
+                            placeholder="Provide specific details about the missing package (10–4,000 characters)"
+                            required
+                        ></textarea>
+                        <div class="form-text shared-helper-text">Include package contents, packaging description, and last known status (min 10 characters).</div>
+                    </div>
+                    <button type="submit" class="btn btn-danger">Submit missing report</button>
+                </form>
+            </details>
+        </div>
 
         <div v-if="paymentNotice === 'return' && order.status !== 'paid'" class="alert alert-info" role="status">
             PayMongo is confirming your payment. This page will update after our signed webhook confirms it; the return link alone does not mark the order paid.
@@ -253,7 +296,7 @@ onUnmounted(() => {
                             <dd class="col-sm-9">{{ order.pickup_contact_name }} · {{ order.pickup_phone }}</dd>
                             <template v-if="order.pickup_notes">
                                 <dt class="col-sm-3">Pickup notes</dt>
-                                <dd class="col-sm-9" style="white-space: pre-line">{{ order.pickup_notes }}</dd>
+                                <dd class="col-sm-9 pre-line">{{ order.pickup_notes }}</dd>
                             </template>
                             <dt class="col-sm-3">Drop-off</dt>
                             <dd class="col-sm-9">{{ order.dropoff_address }}</dd>
@@ -261,7 +304,7 @@ onUnmounted(() => {
                             <dd class="col-sm-9">{{ order.dropoff_contact_name }} · {{ order.dropoff_phone }}</dd>
                             <template v-if="order.dropoff_notes">
                                 <dt class="col-sm-3">Drop-off notes</dt>
-                                <dd class="col-sm-9" style="white-space: pre-line">{{ order.dropoff_notes }}</dd>
+                                <dd class="col-sm-9 pre-line">{{ order.dropoff_notes }}</dd>
                             </template>
                         </dl>
                     </section>
@@ -357,7 +400,7 @@ onUnmounted(() => {
             <h2 class="h5" id="proof-heading">Proof of delivery</h2>
             <template v-if="order.delivery_proof_id">
                 <p class="mb-2">Received by {{ order.delivery_proof_recipient || 'recipient' }}<span v-if="order.delivery_proof_captured_at"> · {{ date(order.delivery_proof_captured_at) }}</span></p>
-                <p v-if="order.delivery_proof_note" style="white-space: pre-line">{{ order.delivery_proof_note }}</p>
+                <p v-if="order.delivery_proof_note" class="pre-line">{{ order.delivery_proof_note }}</p>
                 <a class="btn btn-outline-primary" :href="`${baseUrl}orders/${Number(order.id)}/proof`">View delivery photo</a>
             </template>
             <p v-else class="mb-0">Delivery proof is not available yet. Contact support if you need help.</p>

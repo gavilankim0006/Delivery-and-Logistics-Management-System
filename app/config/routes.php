@@ -26,12 +26,15 @@ $router->post('/package-workflow/handoff', 'Package_workflow::handoff');
 $router->post('/package-workflow/confirm', 'Package_workflow::confirm');
 // Authentication routes
 $router->match('/login', 'Auth::login', 'GET|POST');
+$router->match('/auth/login', 'Auth::login', 'GET|POST');
 $router->match('/applicant/login', 'Auth::applicant_login', 'GET|POST');
 $router->match('/forgot-password', 'Auth::forgot_password', 'GET|POST');
 $router->match('/reset-password', 'Auth::reset_password', 'GET|POST');
 $router->match('/register', 'Auth::register', 'GET|POST');
-$router->get('/logout', 'Auth::logout');
+$router->match('/logout', 'Auth::logout', 'GET|POST');
 $router->match('/profile', 'Auth::profile', 'GET|POST');
+$router->get('/profile/data', 'Auth::profile_data');
+$router->post('/profile/api', 'Auth::api_profile');
 $router->post('/users/save_token', 'Auth::save_token');
 $router->post('/auth/save_token', 'Auth::save_token');
 $router->post('/auth/test_push', 'Auth::test_push');
@@ -40,13 +43,20 @@ $router->post('/auth/test_email', 'Auth::test_email');
 
 // Admin panel routes
 $router->get('/admin', 'Admin::index');
+$router->get('/admin/data', 'Admin::data');
 $router->get('/admin/users', 'Admin::users');
+$router->get('/admin/users/data', 'Admin::users_data');
+$router->post('/admin/users/api', 'Admin::api_create_user');
+$router->post('/admin/users/{id}/api', 'Admin::api_update_user');
+$router->post('/admin/users/{id}/api-delete', 'Admin::api_delete_user');
+$router->post('/admin/users/{id}/api-toggle', 'Admin::api_toggle_user_status');
 $router->post('/admin/create_user', 'Admin::create_user');
 $router->get('/admin/users/{id}', 'Admin::show_user');
 $router->post('/admin/users/{id}/update', 'Admin::update_user');
 $router->post('/admin/users/{id}/delete', 'Admin::delete_user');
 $router->post('/admin/toggle_user_status/{id}', 'Admin::toggle_user_status');
 $router->get('/admin/riders', 'Admin::riders');
+$router->get('/admin/riders/data', 'Admin::riders_data');
 $router->post('/admin/create_rider', 'Admin::create_rider');
 $router->post('/admin/update_rider/{id}', 'Admin::update_rider');
 $router->post('/admin/delete_rider/{id}', 'Admin::delete_rider');
@@ -60,6 +70,7 @@ $router->post('/admin/test-email', 'Admin::test_email');
 $router->post('/auth/test_email', 'Auth::test_email');
 $router->post('/auth/test-email', 'Auth::test_email');
 $router->get('/admin/analytics', 'Admin::analytics');
+$router->get('/admin/analytics/data', 'Admin::analytics_data');
 $router->get('/admin/reports', 'Admin::reports');
 $router->get('/admin/logs', 'Admin::logs');
 $router->get('/admin/courier-simulator', 'Admin::courier_simulator');
@@ -77,14 +88,19 @@ $router->post('/delivery-control/{token}/submit', 'Delivery_control::submit');
 
 // Customer saved-address CRUD
 $router->get('/addresses', 'Addresses::index');
-$router->get('/addresses/new', 'Addresses::new_address');
+$router->get('/addresses/new', 'Addresses::new');
 $router->post('/addresses', 'Addresses::create');
 $router->get('/addresses/{id}/edit', 'Addresses::edit');
 $router->post('/addresses/{id}/update', 'Addresses::update');
 $router->post('/addresses/{id}/delete', 'Addresses::delete');
 
-// Customer and staff order views
+// Addresses JSON endpoints for the Vue SPA
+$router->get('/addresses/data', 'Addresses::data');
+$router->post('/addresses/api', 'Addresses::api_create');
+$router->post('/addresses/{id}/api', 'Addresses::api_update');
+$router->post('/addresses/{id}/api-delete', 'Addresses::api_delete');
 $router->get('/orders', 'Orders::index');
+$router->get('/orders/data', 'Orders::data');
 $router->get('/orders/new', 'Orders::new_order');
 $router->post('/orders', 'Orders::create');
 $router->get('/orders/{id}/edit', 'Orders::edit');
@@ -97,6 +113,7 @@ $router->get('/orders/{id}/location', 'Orders::location');
 $router->post('/orders/{id}/control-pass', 'Orders::issue_control_pass');
 $router->post('/orders/{id}/control-pass/revoke', 'Orders::revoke_control_pass');
 $router->get('/orders/{id}', 'Orders::show');
+$router->get('/orders/{id}/data', 'Orders::show_data');
 
 // Dispatch board routes
 $router->get('/dispatch', 'Dispatch::index');
@@ -106,10 +123,18 @@ $router->post('/dispatch/orders/{id}/assign-internal', 'Dispatch::assign_interna
 $router->post('/dispatch/orders/{id}/select-lalamove', 'Dispatch::select_lalamove');
 $router->post('/dispatch/requests/{id}/review', 'Dispatch::review_request');
 
-// Internal rider portal
+// Vue SPA workspace
+$router->get('/spa', 'Spa::index');
+
+// Unified Vue application shell
+$router->get('/app', 'Vue_app::index');
 $router->get('/rider', 'Rider::index');
+$router->get('/rider/data', 'Rider::data');
 $router->get('/rider/orders/{id}', 'Rider::show');
+$router->get('/rider/orders/{id}/data', 'Rider::show_data');
 $router->post('/rider/orders/{id}/pickup', 'Rider::pickup');
+$router->post('/rider/orders/{id}/api-pickup', 'Rider::api_pickup');
+$router->post('/rider/orders/{id}/api-complete', 'Rider::api_complete');
 $router->post('/rider/orders/{id}/location', 'Rider::location');
 $router->post('/rider/orders/{id}/complete', 'Rider::complete');
 $router->get('/orders/{id}/proof', 'Delivery_proofs::show');

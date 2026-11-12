@@ -6,6 +6,9 @@ if (is_file($webPushAutoload)) {
     require_once $webPushAutoload;
 }
 
+use Minishlink\WebPush\WebPush;
+use Minishlink\WebPush\Subscription;
+
 class BrowserPushService
 {
     private string $publicKey;
@@ -47,6 +50,8 @@ class BrowserPushService
             return ['sent' => false, 'invalid_subscription' => true, 'error' => 'Stored browser push subscription is invalid.'];
         }
 
+        $prevReporting = error_reporting();
+        error_reporting($prevReporting & ~E_DEPRECATED & ~E_USER_DEPRECATED);
         try {
             $webPush = new WebPush([
                 'VAPID' => [
@@ -73,6 +78,8 @@ class BrowserPushService
             ];
         } catch (Throwable $error) {
             return ['sent' => false, 'error' => $error->getMessage()];
+        } finally {
+            error_reporting($prevReporting);
         }
     }
 }

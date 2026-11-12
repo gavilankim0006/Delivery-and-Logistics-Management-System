@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import TextInput from '../../shared/TextInput.vue';
 import SelectDropdown from '../../shared/SelectDropdown.vue';
 
@@ -12,7 +12,8 @@ const props = defineProps({
     page: { type: Number, default: 1 },
     totalPages: { type: Number, default: 1 },
     baseUrl: { type: String, default: '/' },
-    today: { type: String, default: '' }
+    today: { type: String, default: '' },
+    flashes: { type: Array, default: () => [] }
 });
 
 const statuses = [
@@ -74,6 +75,26 @@ function pageUrl(number) {
     return `${props.baseUrl}orders?${params.toString()}`;
 }
 
+// Keep the page strip compact: first, last, and a window around the current page.
+const pageNumbers = computed(() => {
+    const total = props.totalPages;
+    const current = props.page;
+    if (total <= 7) {
+        return Array.from({ length: total }, (_, index) => index + 1);
+    }
+    const wanted = [...new Set([1, total, current - 1, current, current + 1])]
+        .filter((n) => n >= 1 && n <= total)
+        .sort((a, b) => a - b);
+    const out = [];
+    let previous = 0;
+    for (const n of wanted) {
+        if (previous && n - previous > 1) out.push('…');
+        out.push(n);
+        previous = n;
+    }
+    return out;
+});
+
 function progress(order) {
     let index = Math.max(0, stages.indexOf(stageByStatus[order.status] || 'placed'));
     for (const item of order.timeline || []) {
@@ -100,8 +121,15 @@ function money(value) {
 
 <template>
     <div class="container py-4 page-shell">
+        <div v-for="(flash, index) in flashes" :key="index" class="alert alert-dismissible fade show mb-3" :class="flash.type === 'error' ? 'alert-danger' : `alert-${flash.type}`" role="status">
+            <i class="bi me-2" :class="flash.type === 'error' ? 'bi-exclamation-circle-fill' : (flash.type === 'success' ? 'bi-check-circle-fill' : 'bi-info-circle-fill')" aria-hidden="true"></i>
+            {{ flash.message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+
         <header class="page-header d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
             <div>
+                <p class="ds-eyebrow">Operations</p>
                 <h1 class="page-title mb-1">{{ title }}</h1>
                 <p class="text-muted mb-0 page-description">
                     Review delivery details and follow each order's progress.
@@ -407,12 +435,14 @@ function money(value) {
                         </a>
                     </li>
                     <li
-                        v-for="number in totalPages"
-                        :key="number"
+                        v-for="(number, index) in pageNumbers"
+                        :key="`${number}-${index}`"
                         class="page-item"
-                        :class="{ active: number === page }"
+                        :class="{ active: number === page, disabled: number === '…' }"
                     >
+                        <span v-if="number === '…'" class="page-link" aria-hidden="true">…</span>
                         <a
+                            v-else
                             class="page-link"
                             :href="pageUrl(number)"
                             :aria-current="number === page ? 'page' : undefined"

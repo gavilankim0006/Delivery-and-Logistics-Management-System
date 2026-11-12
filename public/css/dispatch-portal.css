@@ -40,7 +40,7 @@
     border: 1px solid var(--line);
     border-radius: var(--r-md);
     background: var(--surface);
-    box-shadow: var(--dispatch-card-shadow);
+    box-shadow: var(--shadow-card);
 }
 
 .dispatch-attention-heading,
@@ -77,8 +77,9 @@
     padding: var(--s-3) var(--s-4);
     margin-block-end: var(--s-3);
     border-radius: var(--r-md);
-    background: linear-gradient(135deg, var(--ink) 0%, #1e3a4d 100%);
+    background: var(--ink);
     color: var(--surface);
+    box-shadow: var(--shadow-card);
 }
 
 .dispatch-shift-greeting {
@@ -135,6 +136,7 @@
     border: 1px solid var(--line);
     border-radius: var(--r-md);
     background: var(--surface);
+    box-shadow: var(--shadow-card);
     cursor: pointer;
     transition: border-color var(--dispatch-transition), box-shadow var(--dispatch-transition), transform var(--dispatch-transition);
     text-decoration: none;
@@ -145,7 +147,7 @@
 .dispatch-kpi-card:hover,
 .dispatch-kpi-card:focus-visible {
     border-color: var(--route);
-    box-shadow: var(--dispatch-card-shadow);
+    box-shadow: var(--dispatch-card-hover-shadow);
     transform: translateY(-2px);
     text-decoration: none;
     color: inherit;
@@ -262,6 +264,7 @@
     background: var(--surface);
     margin-block-end: var(--s-4);
     overflow: hidden;
+    box-shadow: var(--shadow-card);
 }
 
 .dispatch-hold-header {
@@ -740,7 +743,7 @@
     padding: 0 4px;
     border-radius: var(--r-pill);
     background: var(--danger);
-    color: #fff;
+    color: var(--surface);
     font-size: 10px;
     font-weight: 700;
     display: flex;
@@ -920,7 +923,7 @@
     .dispatch-kpi-card {
         break-inside: avoid;
         box-shadow: none;
-        border: 1px solid #ccc;
+        border: 1px solid var(--line);
     }
 
     .dispatch-order-card {
@@ -929,3 +932,14 @@
     }
 }
 
+
+/* ---------- Align navbar & footer widths with dispatch wide shell ---------- */
+body:has(.dispatch-page-shell) .navbar-custom .page-shell {
+    width: min(100% - 48px, 1600px);
+    max-width: 1600px;
+}
+
+body:has(.dispatch-page-shell) .app-footer .page-shell {
+    width: min(100% - 48px, 1600px);
+    max-width: 1600px;
+}

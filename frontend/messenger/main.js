@@ -1,5 +1,5 @@
-import { createApp } from 'vue';
 import MessengerApp from './MessengerApp.vue';
+import { mountPage } from '../shared/mountPage.js';
 
 window.__VUE_MESSENGER_MOUNTED__ = true;
 if (window.PackageMessenger && typeof window.PackageMessenger.stopPolling === 'function') {
@@ -15,5 +15,5 @@ if (root) {
         console.error('Failed to parse messenger dataset props:', err);
         props = {};
     }
-    createApp(MessengerApp, props).mount(root);
+    mountPage(root, MessengerApp, props);
 }

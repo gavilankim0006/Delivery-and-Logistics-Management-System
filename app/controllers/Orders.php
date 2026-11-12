@@ -112,6 +112,69 @@ class Orders extends Controller
         ]);
     }
 
+    public function data(): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+
+        $role = auth_role();
+        $status = trim($_GET['status'] ?? '');
+        $validStatuses = ['draft', 'pending_payment', 'paid', 'booking', 'rider_assigned', 'picked_up', 'delivered', 'cancelled', 'failed'];
+        if (!in_array($status, $validStatuses, true)) {
+            $status = '';
+        }
+
+        $date = trim($_GET['date'] ?? '');
+        if ($date !== '') {
+            $dateParts = explode('-', $date);
+            if (count($dateParts) !== 3 || !checkdate((int)$dateParts[1], (int)$dateParts[2], (int)$dateParts[0])) {
+                $date = '';
+            }
+        }
+
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $filters = [
+            'status' => $status,
+            'date' => $date,
+            'search' => substr(trim($_GET['search'] ?? ''), 0, 100),
+            'limit' => 20,
+            'offset' => ($page - 1) * 20
+        ];
+
+        if ($role === 'customer') {
+            $customerId = $this->currentCustomerId();
+            if ($customerId === null) {
+                $this->api->respond(['success' => false, 'error' => 'Forbidden.'], 403);
+                return;
+            }
+            $filters['customer_id'] = $customerId;
+        }
+
+        $orders = $this->Order_model->get_list($filters);
+        $totalOrders = $this->Order_model->count_list($filters);
+        $totalPages = max(1, (int)ceil($totalOrders / $filters['limit']));
+
+        $this->api->respond([
+            'success' => true,
+            'data' => [
+                'role' => $role,
+                'orders' => $orders,
+                'filters' => [
+                    'status' => $status,
+                    'date' => $date,
+                    'search' => $filters['search']
+                ],
+                'page' => $page,
+                'pageSize' => $filters['limit'],
+                'totalOrders' => $totalOrders,
+                'totalPages' => $totalPages
+            ]
+        ]);
+    }
+
     /**
      * Show new delivery order form with map route preview and fee estimator
      */
@@ -234,7 +297,7 @@ class Orders extends Controller
         foreach (['pickup_contact_phone' => $pickupContactPhone, 'dropoff_contact_phone' => $dropoffContactPhone] as $field => $phone) {
             $cleanedPhone = preg_replace('/[\s\-\(\)\.]/', '', (string)$phone);
             if ($cleanedPhone === '' || !preg_match('/^(?:09|\+639|639)\d{9}$/', $cleanedPhone)) {
-                $errors[$field] = 'Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX).';
+                $errors[$field] = 'Enter a valid phone number. Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX).';
             } else {
                 if (preg_match('/^(?:09|\+639|639)(\d{9})$/', $cleanedPhone, $matches)) {
                     $normalized = '09' . $matches[1];
@@ -255,7 +318,7 @@ class Orders extends Controller
             $errors['dropoff_notes'] = 'Please keep drop-off notes to 300 characters or fewer.';
         }
         if (!is_numeric($weightInput) || $parcelWeight < 0.1 || $parcelWeight > 1000) {
-            $errors['parcel_weight'] = 'Enter a weight of at least 0.1 kg and no more than 1000 kg.';
+            $errors['parcel_weight'] = 'Enter a weight greater than 0 (at least 0.1 kg) and no more than 1000 kg.';
         }
         if (!in_array($parcelSize, ['S', 'M', 'L'], true)) {
             $errors['parcel_size'] = 'Choose a parcel size.';
@@ -318,7 +381,7 @@ class Orders extends Controller
             }
         }
         if (!$hasMapLocations || !is_numeric($distanceInput) || $distanceKm <= 0 || $distanceKm > 10000) {
-            $errors['distance_km'] = 'A valid road distance must be calculated from both selected locations.';
+            $errors['distance_km'] = 'Enter a distance greater than 0. A valid road distance must be calculated from both selected locations.';
         }
 
         if (!empty($errors)) {
@@ -615,7 +678,7 @@ class Orders extends Controller
         foreach (['pickup_contact_phone' => $pickupContactPhone, 'dropoff_contact_phone' => $dropoffContactPhone] as $field => $phone) {
             $cleanedPhone = preg_replace('/[\s\-\(\)\.]/', '', (string)$phone);
             if ($cleanedPhone === '' || !preg_match('/^(?:09|\+639|639)\d{9}$/', $cleanedPhone)) {
-                $errors[$field] = 'Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX).';
+                $errors[$field] = 'Enter a valid phone number. Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX).';
             } else {
                 if (preg_match('/^(?:09|\+639|639)(\d{9})$/', $cleanedPhone, $matches)) {
                     $normalized = '09' . $matches[1];
@@ -636,7 +699,7 @@ class Orders extends Controller
             $errors['dropoff_notes'] = 'Please keep drop-off notes to 300 characters or fewer.';
         }
         if (!is_numeric($weightInput) || $parcelWeight < 0.1 || $parcelWeight > 1000) {
-            $errors['parcel_weight'] = 'Enter a weight of at least 0.1 kg and no more than 1000 kg.';
+            $errors['parcel_weight'] = 'Enter a weight greater than 0 (at least 0.1 kg) and no more than 1000 kg.';
         }
         if (!in_array($parcelSize, ['S', 'M', 'L'], true)) {
             $errors['parcel_size'] = 'Choose a parcel size.';
@@ -686,7 +749,7 @@ class Orders extends Controller
             }
         }
         if (!$hasMapLocations || !is_numeric($distanceInput) || $distanceKm <= 0 || $distanceKm > 10000) {
-            $errors['distance_km'] = 'A valid road distance must be calculated from both selected locations.';
+            $errors['distance_km'] = 'Enter a distance greater than 0. A valid road distance must be calculated from both selected locations.';
         }
         if ($pickupAddress !== '' && strcasecmp($pickupAddress, $dropoffAddress) === 0) {
             $errors['dropoff_address'] = 'Pickup and drop-off addresses cannot be identical.';
@@ -898,10 +961,45 @@ class Orders extends Controller
     /**
      * Show order tracking and detail page
      */
+    public function show_data(int $id): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+        if ($id <= 0) {
+            $this->api->respond(['success' => false, 'error' => 'Order not found.'], 404);
+            return;
+        }
+        $role = auth_role();
+        $customerId = ($role === 'customer') ? $this->currentCustomerId() : null;
+        $order = $this->Order_model->get_by_id($id, $customerId);
+        if (!$order) {
+            $this->api->respond(['success' => false, 'error' => 'Order not found.'], 404);
+            return;
+        }
+        $controlPassActive = ($role === 'customer' && $customerId !== null)
+            ? (new DeliveryControlService($this->db))->hasActivePass($id, (int)$customerId)
+            : false;
+        $this->api->respond([
+            'success' => true,
+            'data' => [
+                'order' => $order,
+                'role' => $role,
+                'controlPassActive' => $controlPassActive,
+                'riderLocationEnabled' => ($role === 'customer'
+                    && $order['fulfillment_mode'] === 'internal'
+                    && in_array($order['status'], ['rider_assigned', 'picked_up'], true)),
+                'demoPaymentSimulationEnabled' => ($role === 'customer' && $this->demoPaymentSimulationEnabled())
+            ]
+        ]);
+    }
+
     public function show($id)
     {
         // Gracefully recover if user visits or is redirected to malformed URL (e.g. 11paymentcancelled)
-        if (is_string($id) && preg_match('/^(\d+)payment(cancelled|return)$/', $id, $matches)) {
+        if (is_string($id) && preg_match('/^(\\d+)payment(cancelled|return)$/', $id, $matches)) {
             redirect('orders/' . $matches[1] . '?payment=' . $matches[2]);
             return;
         }
@@ -996,6 +1094,9 @@ class Orders extends Controller
         }
 
         if (!verify_csrf()) {
+            if (is_json_request()) {
+                json_response(['success' => false, 'error' => 'Your session expired. Reload the page and try again.'], 403);
+            }
             flash('error', 'Your session expired. Reload the page and try again.');
             redirect('orders/' . $id);
             return;
@@ -1006,6 +1107,9 @@ class Orders extends Controller
         $order = $this->Order_model->get_by_id($id, $customerId);
 
         if (!$order) {
+            if (is_json_request()) {
+                json_response(['success' => false, 'error' => 'Order not found or permission denied.'], 404);
+            }
             flash('error', 'Order not found or permission denied.');
             redirect('orders');
             return;
@@ -1013,6 +1117,9 @@ class Orders extends Controller
 
         $rawReason = trim($_POST['cancel_reason'] ?? '');
         if (mb_strlen($rawReason) > 200) {
+            if (is_json_request()) {
+                json_response(['success' => false, 'error' => 'Cancellation reason cannot exceed 200 characters.'], 422);
+            }
             flash('error', 'Cancellation reason cannot exceed 200 characters.');
             redirect('orders/' . $id);
             return;
@@ -1029,9 +1136,17 @@ class Orders extends Controller
             } catch (Throwable $notificationError) {
                 error_log('Cancellation status notification failed for order ' . $id . ': ' . $notificationError->getMessage());
             }
-            flash('success', "Order #{$order['order_no']} has been cancelled.");
+            $msg = "Order #{$order['order_no']} has been cancelled.";
+            if (is_json_request()) {
+                json_response(['success' => true, 'message' => $msg]);
+            }
+            flash('success', $msg);
         } catch (\Throwable $e) {
-            flash('error', 'Unable to cancel order: ' . $e->getMessage());
+            $err = 'Unable to cancel order: ' . $e->getMessage();
+            if (is_json_request()) {
+                json_response(['success' => false, 'error' => $err], 400);
+            }
+            flash('error', $err);
         }
 
         redirect('orders/' . $id);

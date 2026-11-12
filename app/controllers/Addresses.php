@@ -63,7 +63,7 @@ class Addresses extends Controller
         // Philippine phone validation with normalization to 09XXXXXXXXX
         $cleanedPhone = preg_replace('/[\s\-\(\)\.]/', '', (string)$data['contact_phone']);
         if ($cleanedPhone === '' || !preg_match('/^(?:09|\+639|639)\d{9}$/', $cleanedPhone)) {
-            $errors['contact_phone'] = 'Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX).';
+            $errors['contact_phone'] = 'Enter a valid phone number. Please enter a valid Philippine mobile number (09XXXXXXXXX or +639XXXXXXXXX).';
         } else {
             if (preg_match('/^(?:09|\+639|639)(\d{9})$/', $cleanedPhone, $matches)) {
                 $data['contact_phone'] = '09' . $matches[1];
@@ -75,6 +75,17 @@ class Addresses extends Controller
         }
 
         return [$data, $errors];
+    }
+
+    public function index()
+    {
+        $customerId = $this->currentCustomerId();
+        $addresses = $customerId ? $this->Address_model->get_by_customer($customerId) : [];
+
+        $this->call->view('addresses/index', [
+            'page_title' => 'Saved addresses',
+            'addresses' => $addresses,
+        ]);
     }
 
     public function new()
@@ -103,7 +114,7 @@ class Addresses extends Controller
             return;
         }
         try {
-            $id = $this->Address_model->create(array_merge($data, ['customer_id' => $customerId]));
+            $id = $this->Address_model->create_for_customer($customerId, $data);
             if (!$id) {
                 throw new \RuntimeException('Failed to save address record.');
             }
@@ -203,17 +214,125 @@ class Addresses extends Controller
         redirect('addresses');
     }
 
-    public function index()
+    public function data(): void
     {
-        $customerId = $this->currentCustomerId();
-        if ($customerId === null) {
-            http_response_code(403);
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
             return;
         }
+        $customerId = $this->currentCustomerId();
+        if ($customerId === null) {
+            $this->api->respond(['success' => false, 'error' => 'Forbidden.'], 403);
+            return;
+        }
+        $addresses = $this->Address_model->get_by_customer($customerId);
+        $this->api->respond(['success' => true, 'data' => $addresses]);
+    }
 
-        $this->call->view('addresses/index', [
-            'page_title' => 'Saved addresses',
-            'addresses' => $this->Address_model->get_by_customer($customerId)
-        ]);
+    public function api_create(): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+        if (!verify_csrf()) {
+            $this->api->respond(['success' => false, 'error' => 'Invalid security token.'], 400);
+            return;
+        }
+        $customerId = $this->currentCustomerId();
+        if ($customerId === null) {
+            $this->api->respond(['success' => false, 'error' => 'Forbidden.'], 403);
+            return;
+        }
+        [$data, $errors] = $this->validateAddress($_POST);
+        if ($errors) {
+            $this->api->respond(['success' => false, 'error' => 'Validation failed.', 'errors' => $errors], 422);
+            return;
+        }
+        try {
+            $id = $this->Address_model->create_for_customer($customerId, $data);
+            if (!$id) {
+                throw new \RuntimeException('Failed to save address record.');
+            }
+            $address = $this->Address_model->get_owned((int)$id, $customerId);
+            $this->api->respond(['success' => true, 'data' => $address, 'message' => 'Saved address added.']);
+        } catch (\Throwable $e) {
+            error_log('Saved address API creation failed: ' . $e->getMessage());
+            $this->api->respond(['success' => false, 'error' => 'We could not save this address.'], 500);
+        }
+    }
+
+    public function api_update(int $id): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+        if (!verify_csrf()) {
+            $this->api->respond(['success' => false, 'error' => 'Invalid security token.'], 400);
+            return;
+        }
+        $customerId = $this->currentCustomerId();
+        if ($customerId === null) {
+            $this->api->respond(['success' => false, 'error' => 'Forbidden.'], 403);
+            return;
+        }
+        if (!$this->Address_model->get_owned($id, $customerId)) {
+            $this->api->respond(['success' => false, 'error' => 'Address not found.'], 404);
+            return;
+        }
+        [$data, $errors] = $this->validateAddress($_POST);
+        if ($errors) {
+            $this->api->respond(['success' => false, 'error' => 'Validation failed.', 'errors' => $errors], 422);
+            return;
+        }
+        try {
+            if (!$this->Address_model->update_owned($id, $customerId, $data)) {
+                $this->api->respond(['success' => false, 'error' => 'Address not found.'], 404);
+                return;
+            }
+            $address = $this->Address_model->get_owned($id, $customerId);
+            $this->api->respond(['success' => true, 'data' => $address, 'message' => 'Saved address updated.']);
+        } catch (\Throwable $e) {
+            error_log('Saved address API update failed: ' . $e->getMessage());
+            $this->api->respond(['success' => false, 'error' => 'We could not save these changes.'], 500);
+        }
+    }
+
+    public function api_delete(int $id): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+        if (!verify_csrf()) {
+            $this->api->respond(['success' => false, 'error' => 'Invalid security token.'], 400);
+            return;
+        }
+        $customerId = $this->currentCustomerId();
+        if ($customerId === null) {
+            $this->api->respond(['success' => false, 'error' => 'Forbidden.'], 403);
+            return;
+        }
+        try {
+            $result = $this->Address_model->delete_owned($id, $customerId);
+            if ($result === 'referenced') {
+                $this->api->respond(['success' => false, 'error' => 'This address is used by an order and cannot be deleted.'], 409);
+                return;
+            }
+            if (!$result) {
+                $this->api->respond(['success' => false, 'error' => 'Address not found or permission denied.'], 404);
+                return;
+            }
+            $this->api->respond(['success' => true, 'message' => 'Saved address deleted.']);
+        } catch (\Throwable $e) {
+            error_log('Saved address API deletion failed: ' . $e->getMessage());
+            $this->api->respond(['success' => false, 'error' => 'We could not delete this address.'], 500);
+        }
     }
 }
+

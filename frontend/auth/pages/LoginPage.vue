@@ -71,12 +71,19 @@ function handleSubmit(event) {
                 <circle cx="56" cy="12" r="5" fill="var(--paper)" stroke="currentColor" stroke-width="2" />
                 <circle cx="100" cy="12" r="5" fill="var(--paper)" stroke="currentColor" stroke-width="2" />
             </svg>
+            <p class="ds-eyebrow">Sign in</p>
             <h1 id="auth-title" class="page-title">{{ isApplicant ? 'Applicant sign in' : 'Customer sign in' }}</h1>
             <p class="page-description">{{ isApplicant ? 'Sign in with the account you want to use if your application is approved. You will continue to the rider or dispatcher application form.' : 'Sign in to manage orders, deliveries, and saved addresses.' }}</p>
         </header>
 
-        <div v-if="successMessage" class="alert alert-success" role="status">{{ successMessage }}</div>
-        <div v-if="errorMessage" class="alert alert-danger" role="alert">{{ errorMessage }}</div>
+        <div v-if="successMessage" class="alert alert-success d-flex align-items-center gap-2" role="status">
+            <i class="bi bi-check-circle-fill flex-shrink-0" aria-hidden="true"></i>
+            <div>{{ successMessage }}</div>
+        </div>
+        <div v-if="errorMessage" class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+            <i class="bi bi-exclamation-triangle-fill flex-shrink-0" aria-hidden="true"></i>
+            <div>{{ errorMessage }}</div>
+        </div>
 
         <form class="auth-form" :action="`${baseUrl}${loginAction}`" method="POST" novalidate @submit="handleSubmit">
             <input type="hidden" name="csrf_token" :value="csrfToken">
@@ -128,6 +135,11 @@ function handleSubmit(event) {
             <p v-else class="text-center small mb-0">
                 Applying as a rider or dispatcher? <a :href="`${baseUrl}applicant/login`">Applicant sign in</a>.
             </p>
+            <div class="text-center pt-2">
+                <a :href="baseUrl" class="text-decoration-none small text-muted d-inline-flex align-items-center gap-1">
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to home
+                </a>
+            </div>
         </form>
     </section>
 </template>
