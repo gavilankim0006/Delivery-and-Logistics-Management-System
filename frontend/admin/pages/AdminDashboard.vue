@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 const props = defineProps({
     metrics: { type: Object, default: () => ({}) },
@@ -9,40 +9,212 @@ const props = defineProps({
     dataUrl: { type: String, default: '' }
 });
 
+const REFRESH_INTERVAL_MS = 30000;
+
 const metrics = ref({ ...props.metrics });
 const recentOrders = ref([...props.recentOrders]);
 const recentLogs = ref([...props.recentLogs]);
+const refreshing = ref(false);
+const error = ref('');
+const lastUpdated = ref('');
+
 let refreshTimer = null;
-let refreshing = false;
+let activeRequest = null;
 let stopped = false;
 
-async function refreshDashboard() {
-    if (stopped || refreshing || document.hidden || !props.dataUrl) return;
-    refreshing = true;
+const number = (value) => new Intl.NumberFormat().format(Number(value || 0));
+const money = (value) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(Number(value || 0));
+
+const STATUS_LABELS = {
+    draft: 'Draft',
+    pending_payment: 'Pending payment',
+    paid: 'Paid',
+    booking: 'Booking',
+    rider_assigned: 'Rider assigned',
+    picked_up: 'Picked up',
+    delivered: 'Delivered',
+    cancelled: 'Cancelled',
+    failed: 'Failed'
+};
+
+function statusKey(value) {
+    const key = String(value || '');
+    return Object.prototype.hasOwnProperty.call(STATUS_LABELS, key) ? key : 'draft';
+}
+
+const statusClass = (value) => `ds-status-chip ds-status-chip--${statusKey(value)}`;
+const statusLabel = (value) => STATUS_LABELS[statusKey(value)];
+const riderLabel = (order) => String(order.rider_name || order.courier_driver_name || '');
+
+function parseDate(value) {
+    if (!value) return null;
+    const date = new Date(String(value).replace(' ', 'T'));
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function timeAgo(value) {
+    const date = parseDate(value);
+    if (!date) return '—';
+    const seconds = Math.round((Date.now() - date.getTime()) / 1000);
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date);
+}
+
+function formatDateTime(value) {
+    const date = parseDate(value);
+    return date ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date) : '';
+}
+
+function endpointLabel(value) {
+    const raw = String(value || 'API request');
+    try {
+        const url = new URL(raw, window.location.origin);
+        return url.origin === window.location.origin ? url.pathname : `${url.hostname}${url.pathname}`;
+    } catch {
+        return raw;
+    }
+}
+
+function httpTone(status) {
+    const code = Number(status || 0);
+    if (code >= 200 && code < 300) return 'audit-status--success';
+    if (code >= 300 && code < 500) return 'audit-status--warning';
+    return 'audit-status--failure';
+}
+
+const kpis = computed(() => {
+    const failed = Number(metrics.value.failedPayments || 0);
+    const pending = Number(metrics.value.pendingApplications || 0);
+    return [
+        {
+            key: 'orders-today',
+            label: 'Orders today',
+            icon: 'bi-box-seam',
+            value: number(metrics.value.ordersToday),
+            hint: 'Created since midnight',
+            attention: false,
+            money: false
+        },
+        {
+            key: 'month-revenue',
+            label: 'Paid revenue',
+            icon: 'bi-cash-stack',
+            value: money(metrics.value.monthRevenue),
+            hint: 'Received month to date',
+            attention: false,
+            money: true
+        },
+        {
+            key: 'failed-payments',
+            label: 'Failed payments',
+            icon: 'bi-exclamation-octagon',
+            value: number(failed),
+            hint: failed > 0 ? 'Needs review this month' : 'None this month',
+            attention: failed > 0,
+            money: false
+        },
+        {
+            key: 'pending-applications',
+            label: 'Open applications',
+            icon: 'bi-person-badge',
+            value: number(pending),
+            hint: pending > 0 ? 'Awaiting a decision' : 'All caught up',
+            attention: pending > 0,
+            money: false
+        }
+    ];
+});
+
+const attentionItems = computed(() => {
+    const items = [];
+    const failed = Number(metrics.value.failedPayments || 0);
+    const pending = Number(metrics.value.pendingApplications || 0);
+    if (failed > 0) {
+        items.push({
+            key: 'failed-payments',
+            icon: 'bi-exclamation-octagon',
+            text: `${number(failed)} failed payment${failed === 1 ? '' : 's'} recorded this month.`,
+            action: 'Review payments',
+            href: props.links.failedPayments || props.links.reports
+        });
+    }
+    if (pending > 0) {
+        items.push({
+            key: 'pending-applications',
+            icon: 'bi-person-badge',
+            text: `${number(pending)} job application${pending === 1 ? '' : 's'} waiting for a decision.`,
+            action: 'Open applications',
+            href: props.links.applications
+        });
+    }
+    return items;
+});
+
+const quickLinks = computed(() => [
+    { href: props.links.dispatch, icon: 'bi-kanban', label: 'Dispatch board', description: 'Assign riders and move deliveries.' },
+    { href: props.links.orders, icon: 'bi-box-seam', label: 'Orders', description: 'Browse and filter every delivery.' },
+    { href: props.links.users, icon: 'bi-people', label: 'Users', description: 'Manage staff and customer accounts.' },
+    { href: props.links.riders, icon: 'bi-bicycle', label: 'Riders', description: 'Review the rider fleet and status.' },
+    { href: props.links.applications, icon: 'bi-person-badge', label: 'Applications', description: 'Decide on rider and dispatcher applicants.' },
+    { href: props.links.analytics, icon: 'bi-graph-up', label: 'Analytics', description: 'Delivery trends and outcomes.' },
+    { href: props.links.reports, icon: 'bi-file-earmark-text', label: 'Reports', description: 'Delivery and payment summaries.' },
+    { href: props.links.logs, icon: 'bi-journal-code', label: 'System logs', description: 'Recent external API requests.' }
+].filter((link) => Boolean(link.href)));
+
+const liveStatusLabel = computed(() => {
+    if (error.value) return 'Updates paused';
+    if (refreshing.value) return 'Refreshing…';
+    return `Updated ${lastUpdated.value}`;
+});
+
+function scheduleRefresh() {
+    window.clearTimeout(refreshTimer);
+    if (stopped || !props.dataUrl) return;
+    refreshTimer = window.setTimeout(() => refreshDashboard(), REFRESH_INTERVAL_MS);
+}
+
+async function refreshDashboard(options = {}) {
+    if (stopped || !props.dataUrl || activeRequest) return;
+    const controller = new AbortController();
+    activeRequest = controller;
+    refreshing.value = true;
     try {
         const response = await fetch(props.dataUrl, {
             credentials: 'same-origin',
             headers: { Accept: 'application/json' },
-            cache: 'no-store'
+            cache: 'no-store',
+            signal: controller.signal
         });
-        if (response.ok) {
-            const payload = await response.json();
-            if (payload.success && payload.data) {
-                metrics.value = {
-                    ordersToday: Number(payload.data.ordersToday || 0),
-                    monthRevenue: Number(payload.data.monthRevenue || 0),
-                    failedPayments: Number(payload.data.failedPayments || 0)
-                };
-                recentOrders.value = Array.isArray(payload.data.recentOrders) ? payload.data.recentOrders : [];
-                recentLogs.value = Array.isArray(payload.data.recentLogs) ? payload.data.recentLogs : [];
-            }
+        if (!response.ok) throw new Error(`Request failed with status ${response.status}.`);
+        const payload = await response.json();
+        if (!payload.success || !payload.data) throw new Error('Dashboard data was unavailable.');
+        metrics.value = {
+            ordersToday: Number(payload.data.ordersToday || 0),
+            monthRevenue: Number(payload.data.monthRevenue || 0),
+            failedPayments: Number(payload.data.failedPayments || 0),
+            pendingApplications: Number(payload.data.pendingApplications || 0)
+        };
+        recentOrders.value = Array.isArray(payload.data.recentOrders) ? payload.data.recentOrders : [];
+        recentLogs.value = Array.isArray(payload.data.recentLogs) ? payload.data.recentLogs : [];
+        error.value = '';
+        lastUpdated.value = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    } catch (requestError) {
+        if (requestError.name !== 'AbortError') {
+            error.value = options.manual
+                ? 'The dashboard could not be refreshed. Check your connection and try again.'
+                : 'Live updates are paused; showing the last known figures.';
         }
-    } catch {
-        // Keep the last known data; the next interval will retry.
     } finally {
-        refreshing = false;
+        if (activeRequest === controller) activeRequest = null;
+        refreshing.value = false;
+        scheduleRefresh();
     }
-    if (!stopped) refreshTimer = window.setTimeout(refreshDashboard, 30000);
 }
 
 function handleVisibilityChange() {
@@ -52,254 +224,166 @@ function handleVisibilityChange() {
 }
 
 onMounted(() => {
+    lastUpdated.value = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    refreshTimer = window.setTimeout(refreshDashboard, 30000);
+    scheduleRefresh();
 });
 
 onUnmounted(() => {
     stopped = true;
     window.clearTimeout(refreshTimer);
+    activeRequest?.abort();
     document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
-
-const number = (value) => new Intl.NumberFormat().format(Number(value || 0));
-const money = (value) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'PHP' }).format(Number(value || 0));
-const statusLabel = (value) => String(value || '').replaceAll('_', ' ');
-const endpointLabel = (value) => {
-    const raw = String(value || 'API request');
-    try {
-        const url = new URL(raw, window.location.origin);
-        return `${url.hostname}${url.pathname}`;
-    } catch {
-        return raw;
-    }
-};
 </script>
-
-<style>
-.admin-dashboard {
-    --admin-ink: var(--ink, #172b3a);
-    --admin-muted: var(--ink-2, #627485);
-    --admin-line: var(--line, #dce4e9);
-    padding-block: clamp(1.5rem, 3vw, 2.5rem) !important;
-}
-
-.admin-dashboard .page-shell {
-    width: min(100% - 2rem, 1180px);
-}
-
-.admin-dashboard .page-header {
-    padding-bottom: 1.25rem;
-    border-bottom: 1px solid var(--admin-line);
-}
-
-.admin-dashboard .page-description {
-    margin-top: .4rem;
-    color: var(--admin-muted);
-    font-size: .95rem;
-    line-height: 1.55;
-}
-
-.admin-dashboard .page-header {
-    align-items: center;
-    margin-bottom: clamp(1.5rem, 3vw, 2.25rem) !important;
-}
-
-.admin-dashboard .page-title {
-    font-size: var(--font-size-page-title, 1.75rem);
-    letter-spacing: -0.025em;
-}
-
-.admin-dashboard .page-description { max-width: 58ch; }
-.admin-dashboard .dashboard-metrics .row,
-.admin-dashboard > .row { --bs-gutter-x: 1rem; --bs-gutter-y: 1rem; }
-
-.admin-dashboard .ds-metric {
-    display: flex;
-    min-height: 132px;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
-    gap: .4rem;
-    padding: 1.25rem 1.4rem;
-    border: 1px solid var(--admin-line);
-    border-radius: var(--r-md, 10px);
-    background: var(--surface, #fff);
-    box-shadow: 0 1px 2px rgb(23 43 58 / 4%);
-}
-
-.admin-dashboard .ds-metric__label {
-    color: var(--admin-muted);
-    font-size: .875rem;
-    font-weight: 600;
-}
-
-.admin-dashboard .ds-metric__value {
-    color: var(--admin-ink);
-    font-size: 2rem;
-    font-weight: 700;
-    letter-spacing: -.04em;
-    line-height: 1.12;
-}
-
-.admin-dashboard .ds-metric__value.money { font-size: clamp(1.55rem, 2.6vw, 2rem); }
-.admin-dashboard .ds-metric__hint { color: var(--admin-muted); font-size: .8rem; }
-.admin-dashboard > .row > [class*="col-"] { min-width: 0; }
-
-.admin-dashboard .surface-section {
-    min-width: 0;
-    padding: clamp(1rem, 2vw, 1.4rem);
-    overflow: hidden;
-    border: 1px solid var(--admin-line);
-    border-radius: var(--r-md, 12px);
-    background: var(--surface, #fff);
-    box-shadow: var(--shadow-card, 0 2px 8px rgb(23 43 58 / 6%));
-}
-
-.admin-dashboard .surface-section h2 {
-    color: var(--admin-ink);
-    font-size: 1.05rem;
-    font-weight: 700;
-    letter-spacing: -.015em;
-}
-
-.admin-dashboard .table-responsive { margin-inline: -.2rem; }
-.admin-dashboard .table { --bs-table-bg: transparent; }
-.admin-dashboard .table thead th {
-    padding-block: .7rem;
-    border-bottom-color: var(--admin-line);
-    color: var(--admin-muted);
-    font-size: .75rem;
-    font-weight: 650;
-    white-space: nowrap;
-}
-
-.admin-dashboard .table tbody td {
-    padding-block: .85rem;
-    border-bottom-color: color-mix(in srgb, var(--admin-line) 72%, transparent);
-    color: var(--admin-ink);
-    font-size: .875rem;
-}
-
-.admin-dashboard .table tbody tr:last-child td { border-bottom: 0; }
-.admin-dashboard .table tbody td:first-child a { font-weight: 650; text-decoration-thickness: 1px; text-underline-offset: 3px; }
-.admin-dashboard .list-group-item { border-color: color-mix(in srgb, var(--admin-line) 72%, transparent); }
-.admin-dashboard .list-group-item:last-child { border-bottom: 0; }
-.admin-dashboard .admin-log-meta { display: flex; flex-wrap: wrap; gap: .35rem .65rem; color: var(--admin-muted); font-size: .8rem; }
-.admin-dashboard .admin-log-status { font-variant-numeric: tabular-nums; font-weight: 650; }
-.admin-dashboard .admin-log-endpoint {
-    display: block;
-    overflow-wrap: anywhere;
-    color: var(--admin-ink);
-    font-family: var(--font-family, sans-serif);
-    font-size: .84rem;
-    font-weight: 600;
-    line-height: 1.45;
-}
-
-.admin-dashboard .table tbody td { vertical-align: middle; }
-.admin-dashboard .table tbody tr:hover { background: color-mix(in srgb, var(--route) 4%, transparent); }
-.admin-dashboard :is(a, button):focus-visible {
-    outline: 3px solid var(--focus-ring);
-    outline-offset: 3px;
-}
-
-@media (max-width: 575.98px) {
-    .admin-dashboard .page-header { align-items: flex-start; }
-    .admin-dashboard .page-header > .btn { width: 100%; justify-content: center; }
-    .admin-dashboard .ds-metric { min-height: 122px; padding: var(--s-3, 1rem); }
-    .admin-dashboard .surface-section { padding: 1rem; }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-    .admin-dashboard .ds-metric { transition: border-color .18s ease, box-shadow .18s ease; }
-    .admin-dashboard .ds-metric:hover { border-color: color-mix(in srgb, var(--admin-line) 45%, var(--admin-ink)); box-shadow: var(--shadow-card-hover, 0 10px 24px rgb(23 43 58 / 10%)); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .admin-dashboard .ds-metric { transition: none; }
-}
-</style>
 
 <template>
     <div class="container page-shell py-4 admin-dashboard">
-        <header class="page-header mb-4">
+        <header class="page-header admin-dash__header">
             <div>
                 <p class="ds-eyebrow">Administration</p>
                 <h1 class="page-title">Admin dashboard</h1>
-                <p class="page-description">Today’s order volume, month-to-date payments, and service activity.</p>
+                <p class="page-description">Today’s order volume, month-to-date payments and the latest platform activity at a glance.</p>
             </div>
-            <a :href="links.dispatch" class="btn btn-secondary">View dispatch</a>
+            <div class="admin-dash__actions">
+                <p class="admin-dash__live" :class="{ 'is-error': error, 'is-loading': refreshing }" title="Refreshes automatically every 30 seconds">
+                    <span class="admin-dash__live-dot" aria-hidden="true"></span>
+                    <span>{{ liveStatusLabel }}</span>
+                </p>
+                <button
+                    type="button"
+                    class="btn btn-secondary"
+                    :disabled="refreshing"
+                    :aria-busy="refreshing ? 'true' : 'false'"
+                    @click="refreshDashboard({ manual: true })"
+                >
+                    <i class="bi" :class="refreshing ? 'bi-arrow-repeat admin-dash__spin' : 'bi-arrow-clockwise'" aria-hidden="true"></i>
+                    Refresh
+                </button>
+                <a :href="links.dispatch" class="btn btn-primary">
+                    <i class="bi bi-kanban" aria-hidden="true"></i>
+                    Open dispatch board
+                </a>
+            </div>
         </header>
 
-        <section class="dashboard-metrics mb-4" aria-labelledby="admin-metrics-heading">
-            <h2 id="admin-metrics-heading" class="visually-hidden">Key operating metrics</h2>
-            <div class="row g-3">
-                <div class="col-12 col-md-4">
-                    <div class="ds-metric h-100">
-                        <span class="ds-metric__label">Orders today</span>
-                        <p class="ds-metric__value mb-0">{{ number(metrics.ordersToday) }}</p>
-                        <span class="ds-metric__hint">Created since midnight</span>
-                    </div>
-                </div>
-                <div class="col-12 col-md-4">
-                    <div class="ds-metric h-100">
-                        <span class="ds-metric__label">Paid revenue this month</span>
-                        <p class="ds-metric__value money mb-0">{{ money(metrics.monthRevenue) }}</p>
-                        <span class="ds-metric__hint">Payments received month to date</span>
-                    </div>
-                </div>
-                <div class="col-12 col-md-4">
-                    <div class="ds-metric h-100">
-                        <span class="ds-metric__label">Failed payments</span>
-                        <p class="ds-metric__value mb-0">{{ number(metrics.failedPayments) }}</p>
-                        <span class="ds-metric__hint">This month</span>
-                    </div>
-                </div>
+        <div v-if="error" class="ds-notice ds-notice--warning admin-dash__notice" role="alert">
+            <i class="bi bi-wifi-off" aria-hidden="true"></i>
+            <span class="admin-dash__notice-text">{{ error }}</span>
+            <button type="button" class="btn btn-sm btn-secondary" @click="refreshDashboard({ manual: true })">Try again</button>
+        </div>
+
+        <section v-if="attentionItems.length" class="ds-notice ds-notice--warning admin-dash__attention" aria-labelledby="admin-attention-heading">
+            <span class="admin-dash__attention-icon" aria-hidden="true"><i class="bi bi-exclamation-triangle"></i></span>
+            <div class="admin-dash__attention-body">
+                <h2 id="admin-attention-heading" class="admin-dash__attention-title">Needs attention</h2>
+                <ul class="admin-dash__attention-list">
+                    <li v-for="item in attentionItems" :key="item.key">
+                        <i class="bi" :class="item.icon" aria-hidden="true"></i>
+                        <span>{{ item.text }}</span>
+                        <a :href="item.href">{{ item.action }}</a>
+                    </li>
+                </ul>
             </div>
         </section>
 
-        <div class="row g-4">
-            <div class="col-12 col-xl-7">
-                <section class="surface surface-section h-100" aria-labelledby="recent-orders-heading">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h2 id="recent-orders-heading" class="h5 mb-0">Recent orders</h2>
-                        <a :href="links.orders" class="btn btn-sm btn-secondary">View all</a>
+        <section class="ds-stat-grid admin-dash__kpis" aria-label="Key operating metrics">
+            <article v-for="kpi in kpis" :key="kpi.key" class="surface ds-metric-card admin-dash__kpi" :class="{ 'is-attention': kpi.attention }">
+                <span class="ds-metric-card__label"><i class="bi" :class="kpi.icon" aria-hidden="true"></i>{{ kpi.label }}</span>
+                <span class="ds-metric-card__value" :class="{ 'is-money': kpi.money }">{{ kpi.value }}</span>
+                <span class="ds-metric-card__hint">{{ kpi.hint }}</span>
+            </article>
+        </section>
+
+        <div class="row g-3 g-xl-4 admin-dash__panels">
+            <div class="col-12 col-xl-7 d-flex">
+                <section class="surface admin-dash__panel" aria-labelledby="recent-orders-heading">
+                    <div class="ds-section-header">
+                        <div>
+                            <h2 id="recent-orders-heading" class="ds-section-title">Recent orders</h2>
+                            <p class="ds-section-hint">The five latest deliveries across all customers.</p>
+                        </div>
+                        <a :href="links.orders" class="btn btn-sm btn-secondary">View all orders</a>
                     </div>
-                    <div v-if="recentOrders.length" class="table-responsive">
-                        <table class="table table-clean align-middle mb-0">
-                            <thead><tr><th scope="col">Order</th><th scope="col">Customer</th><th scope="col">Status</th><th scope="col">Rider</th></tr></thead>
+                    <div v-if="recentOrders.length" class="table-responsive admin-dash__table-wrap">
+                        <table class="table table-clean table-responsive-stack align-middle mb-0">
+                            <caption class="visually-hidden">Five most recent orders</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Order</th>
+                                    <th scope="col">Customer</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Rider</th>
+                                    <th scope="col" class="text-end">Created</th>
+                                </tr>
+                            </thead>
                             <tbody>
                                 <tr v-for="order in recentOrders" :key="order.id">
-                                    <td><a :href="`${links.orderPrefix}${order.id}`">{{ order.order_no }}</a></td>
-                                    <td>{{ order.customer_name }}</td>
-                                    <td><span class="badge text-bg-light text-capitalize">{{ statusLabel(order.status) }}</span></td>
-                                    <td>{{ order.rider_name || '—' }}</td>
+                                    <td data-label="Order"><a class="admin-dash__order-link" :href="`${links.orderPrefix}${order.id}`">{{ order.order_no }}</a></td>
+                                    <td data-label="Customer">{{ order.customer_name || '—' }}</td>
+                                    <td data-label="Status"><span :class="statusClass(order.status)">{{ statusLabel(order.status) }}</span></td>
+                                    <td data-label="Rider"><span :class="{ 'admin-dash__muted': !riderLabel(order) }">{{ riderLabel(order) || 'Unassigned' }}</span></td>
+                                    <td data-label="Created" class="text-end text-nowrap"><span :title="formatDateTime(order.created_at)">{{ timeAgo(order.created_at) }}</span></td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
-                    <p v-else class="text-muted mb-0" role="status">No recent orders.</p>
+                    <div v-else class="admin-dash__empty" role="status">
+                        <i class="bi bi-inbox" aria-hidden="true"></i>
+                        <p>No orders yet. New deliveries appear here as customers check out.</p>
+                    </div>
                 </section>
             </div>
-            <div class="col-12 col-xl-5">
-                <section class="surface surface-section h-100" aria-labelledby="recent-logs-heading">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h2 id="recent-logs-heading" class="h5 mb-0">Latest API logs</h2>
-                        <a :href="links.logs" class="btn btn-sm btn-secondary">View logs</a>
-                    </div>
-                    <div v-if="recentLogs.length" class="list-group list-group-flush min-w-0 overflow-hidden">
-                        <div v-for="log in recentLogs" :key="log.id" class="list-group-item px-0 min-w-0 overflow-hidden">
-                            <div class="d-flex flex-column gap-1">
-                                <strong class="admin-log-endpoint">{{ endpointLabel(log.endpoint || log.url) }}</strong>
-                                <span class="small text-muted">{{ log.created_at }}</span>
-                            </div>
-                            <div class="small text-muted">{{ log.method || '—' }} · {{ log.response_status || '—' }}</div>
+
+            <div class="col-12 col-xl-5 d-flex">
+                <section class="surface admin-dash__panel" aria-labelledby="recent-logs-heading">
+                    <div class="ds-section-header">
+                        <div>
+                            <h2 id="recent-logs-heading" class="ds-section-title">API activity</h2>
+                            <p class="ds-section-hint">Latest requests recorded by the API client.</p>
                         </div>
+                        <a :href="links.logs" class="btn btn-sm btn-secondary">All logs</a>
                     </div>
-                    <p v-else class="text-muted mb-0" role="status">No recent API activity.</p>
+                    <ul v-if="recentLogs.length" class="ds-list admin-dash__log-list">
+                        <li v-for="log in recentLogs" :key="log.id" class="ds-list__item admin-dash__log">
+                            <div class="admin-dash__log-main">
+                                <span class="admin-dash__log-method">{{ (log.method || 'GET').toUpperCase() }}</span>
+                                <span class="admin-dash__log-endpoint" :title="log.endpoint || ''">{{ endpointLabel(log.endpoint) }}</span>
+                            </div>
+                            <div class="admin-dash__log-meta">
+                                <span class="audit-status" :class="httpTone(log.response_status)">{{ log.response_status || 'Error' }}</span>
+                                <span class="admin-dash__log-time">
+                                    <span v-if="log.service" class="admin-dash__log-service" :title="log.service">{{ log.service }}</span>
+                                    <span :title="formatDateTime(log.created_at)">{{ timeAgo(log.created_at) }}</span>
+                                </span>
+                            </div>
+                        </li>
+                    </ul>
+                    <div v-else class="admin-dash__empty" role="status">
+                        <i class="bi bi-journal-check" aria-hidden="true"></i>
+                        <p>No API requests recorded yet.</p>
+                    </div>
                 </section>
             </div>
         </div>
+
+        <section class="admin-dash__shortcuts" aria-labelledby="admin-shortcuts-heading">
+            <div class="ds-section-header">
+                <div>
+                    <h2 id="admin-shortcuts-heading" class="ds-section-title">Jump back in</h2>
+                    <p class="ds-section-hint">Common administration areas.</p>
+                </div>
+            </div>
+            <div class="admin-dash__shortcut-grid">
+                <a v-for="link in quickLinks" :key="link.href" class="surface card--interactive admin-dash__shortcut" :href="link.href">
+                    <span class="admin-dash__shortcut-icon"><i class="bi" :class="link.icon" aria-hidden="true"></i></span>
+                    <span class="admin-dash__shortcut-body">
+                        <span class="admin-dash__shortcut-title">{{ link.label }}</span>
+                        <span class="admin-dash__shortcut-desc">{{ link.description }}</span>
+                    </span>
+                    <i class="bi bi-arrow-right admin-dash__shortcut-arrow" aria-hidden="true"></i>
+                </a>
+            </div>
+        </section>
     </div>
 </template>

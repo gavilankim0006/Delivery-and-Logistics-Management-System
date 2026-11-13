@@ -292,56 +292,16 @@ class Admin extends Controller
      */
     public function index()
     {
-        $db = $this->db;
-
-        $ordersToday = (int)$db->raw("
-            SELECT COUNT(*) AS c
-            FROM orders
-            WHERE created_at >= CURRENT_DATE()
-              AND created_at < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)
-        ")->fetch(PDO::FETCH_ASSOC)['c'];
-
-        $monthRevenue = $db->raw("
-            SELECT COALESCE(SUM(amount), 0) AS revenue
-            FROM payments
-            WHERE status = 'paid'
-              AND paid_at >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')
-              AND paid_at < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)
-        ")->fetch(PDO::FETCH_ASSOC);
-        $monthRevenueValue = (float)($monthRevenue['revenue'] ?? 0);
-
-        $failedPayments = (int)$db->raw("
-            SELECT COUNT(*) AS c
-            FROM payments
-            WHERE status = 'failed'
-              AND created_at >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')
-              AND created_at < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)
-        ")->fetch(PDO::FETCH_ASSOC)['c'];
-
-        // Recent orders
-        $recentOrders = $db->raw("
-            SELECT o.*, u.name AS customer_name, r.name AS rider_name
-            FROM orders o
-            INNER JOIN customers c ON o.customer_id = c.id
-            INNER JOIN users u ON c.user_id = u.id
-            LEFT JOIN riders r ON o.rider_id = r.id
-            ORDER BY o.id DESC
-            LIMIT 5
-        ")->fetchAll(PDO::FETCH_ASSOC);
-
-        // Latest API logs
-        $recentLogs = $db->table('api_logs')
-            ->order_by('id', 'DESC')
-            ->limit(5)
-            ->get_all();
+        $dashboard = $this->dashboard_payload();
 
         $this->call->view('admin/dashboard', [
             'page_title' => 'Admin Dashboard',
-            'orders_today' => $ordersToday,
-            'month_revenue' => $monthRevenueValue,
-            'failed_payments' => $failedPayments,
-            'recent_orders' => $recentOrders,
-            'recent_logs' => $recentLogs
+            'orders_today' => $dashboard['metrics']['ordersToday'],
+            'month_revenue' => $dashboard['metrics']['monthRevenue'],
+            'failed_payments' => $dashboard['metrics']['failedPayments'],
+            'pending_applications' => $dashboard['metrics']['pendingApplications'],
+            'recent_orders' => $dashboard['recentOrders'],
+            'recent_logs' => $dashboard['recentLogs']
         ]);
     }
 
@@ -353,22 +313,91 @@ class Admin extends Controller
             return;
         }
         require_role(['admin']);
-        $db = $this->db;
-        $ordersToday = (int)$db->raw("SELECT COUNT(*) AS c FROM orders WHERE created_at >= CURRENT_DATE() AND created_at < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)")->fetch(PDO::FETCH_ASSOC)['c'];
-        $monthRevenue = (float)($db->raw("SELECT COALESCE(SUM(amount), 0) AS revenue FROM payments WHERE status = 'paid' AND paid_at >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01') AND paid_at < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)")->fetch(PDO::FETCH_ASSOC)['revenue'] ?? 0);
-        $failedPayments = (int)$db->raw("SELECT COUNT(*) AS c FROM payments WHERE status = 'failed' AND created_at >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01') AND created_at < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)")->fetch(PDO::FETCH_ASSOC)['c'];
-        $recentOrders = $db->raw("SELECT o.*, u.name AS customer_name, r.name AS rider_name FROM orders o INNER JOIN customers c ON o.customer_id = c.id INNER JOIN users u ON c.user_id = u.id LEFT JOIN riders r ON o.rider_id = r.id ORDER BY o.id DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
-        $recentLogs = $db->table('api_logs')->order_by('id', 'DESC')->limit(5)->get_all();
+        try {
+            $dashboard = $this->dashboard_payload();
+        } catch (Throwable $e) {
+            error_log('Admin dashboard data request failed: ' . $e->getMessage());
+            $this->api->respond(['success' => false, 'error' => 'Unable to load dashboard data.'], 500);
+            return;
+        }
         $this->api->respond([
             'success' => true,
             'data' => [
+                'ordersToday' => $dashboard['metrics']['ordersToday'],
+                'monthRevenue' => $dashboard['metrics']['monthRevenue'],
+                'failedPayments' => $dashboard['metrics']['failedPayments'],
+                'pendingApplications' => $dashboard['metrics']['pendingApplications'],
+                'recentOrders' => $dashboard['recentOrders'],
+                'recentLogs' => $dashboard['recentLogs']
+            ]
+        ]);
+    }
+
+    /**
+     * Metrics and activity shared by the dashboard view and its refresh endpoint.
+     */
+    private function dashboard_payload(): array
+    {
+        $db = $this->db;
+
+        $ordersToday = (int)$db->raw("
+            SELECT COUNT(*) AS c
+            FROM orders
+            WHERE created_at >= CURRENT_DATE()
+              AND created_at < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)
+        ")->fetch(PDO::FETCH_ASSOC)['c'];
+
+        $monthRevenue = (float)($db->raw("
+            SELECT COALESCE(SUM(amount), 0) AS revenue
+            FROM payments
+            WHERE status = 'paid'
+              AND paid_at >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')
+              AND paid_at < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)
+        ")->fetch(PDO::FETCH_ASSOC)['revenue'] ?? 0);
+
+        $failedPayments = (int)$db->raw("
+            SELECT COUNT(*) AS c
+            FROM payments
+            WHERE status = 'failed'
+              AND created_at >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')
+              AND created_at < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)
+        ")->fetch(PDO::FETCH_ASSOC)['c'];
+
+        try {
+            $pendingApplications = (int)$db->raw("SELECT COUNT(*) AS c FROM job_applications WHERE status = 'pending'")->fetch(PDO::FETCH_ASSOC)['c'];
+        } catch (Throwable $e) {
+            // Careers tables may be absent on older databases; keep the rest of the dashboard usable.
+            error_log('Admin dashboard applications count failed: ' . $e->getMessage());
+            $pendingApplications = 0;
+        }
+
+        $recentOrders = $db->raw("
+            SELECT o.id, o.order_no, o.status, o.created_at, o.courier_driver_name, u.name AS customer_name, r.name AS rider_name
+            FROM orders o
+            INNER JOIN customers c ON o.customer_id = c.id
+            INNER JOIN users u ON c.user_id = u.id
+            LEFT JOIN riders r ON o.rider_id = r.id
+            ORDER BY o.id DESC
+            LIMIT 5
+        ")->fetchAll(PDO::FETCH_ASSOC);
+
+        $recentLogs = $db->raw("
+            SELECT id, service, method, endpoint, response_status, created_at
+            FROM api_logs
+            ORDER BY id DESC
+            LIMIT 5
+        ")->fetchAll(PDO::FETCH_ASSOC);
+
+        return [
+            'metrics' => [
                 'ordersToday' => $ordersToday,
                 'monthRevenue' => $monthRevenue,
                 'failedPayments' => $failedPayments,
-                'recentOrders' => $recentOrders ?: [],
-                'recentLogs' => is_array($recentLogs) ? $recentLogs : []
-            ]
-        ]);
+                'pendingApplications' => $pendingApplications
+            ],
+            'recentOrders' => is_array($recentOrders) ? $recentOrders : [],
+            'recentLogs' => is_array($recentLogs) ? $recentLogs : []
+        ];
     }
 
     public function users()

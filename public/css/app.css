@@ -476,7 +476,6 @@ a:hover { color: var(--route-dark); }
 .ds-metric__label { color: var(--ink-2); font-size: var(--font-size-14); }
 .ds-metric__value { color: var(--ink); font-size: var(--font-size-24); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; overflow-wrap: anywhere; }
 .ds-metric__hint { color: var(--ink-2); font-size: var(--font-size-12); }
-.dashboard-metrics .col-md-4 + .col-md-4 .ds-metric { border-inline-start: 1px solid var(--line); padding-inline-start: var(--s-4); }
 
 /* Flat Bootstrap and semantic tables */
 .table,
@@ -1003,10 +1002,6 @@ a:hover { color: var(--route-dark); }
 @media (min-width: 768px) {
     .page-shell,
     .ds-page { width: min(100% - var(--s-5) * 2, 1180px); }
-}
-
-@media (max-width: 991.98px) {
-    .dashboard-metrics .col-md-4 + .col-md-4 .ds-metric { border-inline-start: 0; padding-inline-start: 0; }
 }
 
 @supports (background: color-mix(in srgb, white, transparent)) {

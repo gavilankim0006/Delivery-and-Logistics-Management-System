@@ -2,6 +2,13 @@
 
 This file tracks the execution and verification of build tasks as specified in Section 4 of the AI Agent Brief.
 
+## Admin dashboard redesign (2026-11-13)
+
+- Rebuilt the authenticated admin landing page (`frontend/admin/pages/AdminDashboard.vue`) on the Control Tower primitives: a live status strip with manual refresh, a "Needs attention" notice for failed payments and open applications, four KPI cards (orders today, paid revenue month to date, failed payments, open applications), recent orders with shared status chips and relative times, an API-activity feed with semantic response pills, and a "Jump back in" shortcut grid. Header, empty states, focus rings and reduced-motion behavior follow `docs/design-system.md`.
+- `app/controllers/Admin.php` now shares one `dashboard_payload()` between `GET /admin` and `GET /admin/data`. The payload adds the pending-applications count, the courier-driver name fallback for recent orders, and `created_at` values for relative times; the applications count is guarded so databases without the careers tables still render the rest of the dashboard.
+- New `public/css/admin-dashboard.css` is linked from `app/views/admin/dashboard.php` with a `filemtime` cache-buster, following the `analytics.css` / `dispatch-portal.css` pattern. The previous dashboard styles lived in the Vue component's `<style>` block, whose emitted `public/build/assets/admin-*.css` is linked by no view, so they never reached the browser. Two dead `.dashboard-metrics` rules were removed from `public/css/app.css` and the rebuilt `public/build` entry/chunk files are included.
+- Verification: `php -l` passed for the changed PHP files; `npm run build` completed; an authenticated read-only smoke test (seeded admin, `GET /admin` and `GET /admin/data`) returned HTTP 200 with the new props/JSON fields, `GET /css/admin-dashboard.css` returned HTTP 200, and `GET` for the other admin pages plus `/dispatch` and `/orders` returned HTTP 200. No migrations or database writes were performed. Visual review at 375/768/1280 px and screenshot capture under `docs/ui-review/` remain to be done.
+
 ## Vue dispatch-board integration (2026-10-22)
 
 - Added Vue 3 + Vite source for the dispatcher order board. The PHP application remains responsible for authentication, database access, filtering, recovery recommendations, and CSRF-protected actions; Vue renders and refreshes the board through the same-origin `GET /dispatch/data` endpoint every 30 seconds.

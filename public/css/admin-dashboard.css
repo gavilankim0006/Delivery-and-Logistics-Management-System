@@ -1,0 +1,286 @@
+/* Admin dashboard — a page-scoped layer on top of the Control Tower tokens.
+   Loaded by app/views/admin/dashboard.php so the design ships with the PHP view
+   rather than the Vite entry bundle. */
+
+.admin-dashboard {
+    --admin-ink: var(--ink, #172b3a);
+    --admin-muted: var(--ink-2, #4c6070);
+    --admin-line: var(--line, #d3dde5);
+    padding-block: clamp(1.5rem, 3vw, 2.5rem) !important;
+}
+
+.admin-dash__header {
+    align-items: center;
+    gap: var(--s-3) var(--s-4);
+    margin-bottom: clamp(1.5rem, 3vw, 2.25rem) !important;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--admin-line);
+}
+
+.admin-dashboard .page-description {
+    margin-top: .4rem;
+    max-width: 58ch;
+    color: var(--admin-muted);
+}
+
+.admin-dash__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-2);
+}
+
+.admin-dash__live {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    margin: 0 var(--s-1) 0 0;
+    color: var(--admin-muted);
+    font-size: var(--font-size-14);
+    font-variant-numeric: tabular-nums;
+}
+
+.admin-dash__live-dot {
+    width: var(--s-2);
+    height: var(--s-2);
+    flex: 0 0 var(--s-2);
+    border-radius: var(--r-pill);
+    background: var(--success);
+}
+
+.admin-dash__live.is-loading .admin-dash__live-dot { background: var(--amber); }
+.admin-dash__live.is-error .admin-dash__live-dot { background: var(--danger); }
+
+.admin-dash__notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-2) var(--s-3);
+    margin-bottom: var(--s-4);
+}
+
+.admin-dash__notice > .bi { color: var(--amber-ink); }
+.admin-dash__notice-text { flex: 1 1 260px; }
+
+.admin-dash__attention {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--s-3);
+    margin-bottom: var(--s-4);
+}
+
+.admin-dash__attention-icon {
+    flex: 0 0 auto;
+    color: var(--amber-ink);
+    font-size: var(--font-size-20);
+    line-height: 1.3;
+}
+
+.admin-dash__attention-title {
+    margin: 0 0 var(--s-1);
+    color: var(--ink);
+    font-size: var(--font-size-16);
+    font-weight: 700;
+    letter-spacing: -.01em;
+}
+
+.admin-dash__attention-list {
+    display: grid;
+    gap: var(--s-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.admin-dash__attention-list li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-2);
+    color: var(--admin-muted);
+    font-size: var(--font-size-14);
+}
+
+.admin-dash__attention-list .bi { color: var(--amber-ink); }
+.admin-dash__attention-list a { font-weight: 600; white-space: nowrap; }
+
+.admin-dash__kpi { transition: border-color .18s ease, box-shadow .18s ease; }
+
+.admin-dashboard .admin-dash__kpi.is-attention { border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); }
+.admin-dashboard .admin-dash__kpi.is-attention .ds-metric-card__label .bi { color: var(--amber-ink); }
+.admin-dashboard .admin-dash__kpi.is-attention .ds-metric-card__hint { color: var(--amber-ink); font-weight: 600; }
+.admin-dashboard .ds-metric-card__value.is-money { font-size: clamp(1.35rem, 1.05rem + 1vw, 1.75rem); }
+
+.admin-dash__panels { margin-bottom: var(--s-5); }
+.admin-dash__panels > [class*="col-"] { min-width: 0; }
+
+.admin-dash__panel {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: clamp(1rem, 2vw, 1.4rem);
+}
+
+.admin-dash__panel .ds-section-header { margin-bottom: var(--s-3); }
+
+.admin-dash__table-wrap { margin-inline: -.2rem; }
+
+.admin-dashboard .admin-dash__panel .table thead th {
+    padding-block: .7rem;
+    border-bottom-color: var(--admin-line);
+    background: transparent;
+    color: var(--admin-muted);
+    font-size: var(--font-size-14);
+    font-weight: 500;
+}
+
+.admin-dashboard .admin-dash__panel .table tbody td {
+    padding-block: .8rem;
+    border-bottom-color: color-mix(in srgb, var(--admin-line) 72%, transparent);
+    color: var(--admin-ink);
+    font-size: var(--font-size-14);
+}
+
+.admin-dashboard .admin-dash__panel .table tbody tr:last-child td { border-bottom: 0; }
+.admin-dashboard .admin-dash__order-link { font-variant-numeric: tabular-nums; font-weight: 700; }
+.admin-dashboard .admin-dash__muted { color: var(--admin-muted); }
+
+.admin-dash__log-main {
+    min-width: 0;
+    display: grid;
+    gap: var(--s-1);
+}
+
+.admin-dash__log-method {
+    width: fit-content;
+    padding: 1px var(--s-1);
+    border: 1px solid var(--admin-line);
+    border-radius: var(--r-sm);
+    background: var(--paper);
+    color: var(--admin-muted);
+    font-size: var(--font-size-12);
+    font-weight: 700;
+    letter-spacing: .04em;
+    line-height: 1.5;
+}
+
+.admin-dash__log-endpoint {
+    display: -webkit-box;
+    overflow: hidden;
+    color: var(--admin-ink);
+    font-size: var(--font-size-14);
+    font-weight: 600;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.admin-dash__log-meta {
+    flex: 0 0 auto;
+    display: grid;
+    justify-items: end;
+    gap: var(--s-1);
+    text-align: end;
+}
+
+.admin-dash__log-time {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-1);
+    color: var(--admin-muted);
+    font-size: var(--font-size-12);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.admin-dash__log-service {
+    max-width: 12ch;
+    overflow: hidden;
+    color: var(--ink-3);
+    text-overflow: ellipsis;
+}
+
+.admin-dashboard .audit-status--warning { background: var(--status-pending-bg); color: var(--status-pending-ink); }
+
+.admin-dash__empty {
+    flex: 1 1 auto;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: var(--s-2);
+    min-height: 180px;
+    padding: var(--s-4) var(--s-3);
+    color: var(--admin-muted);
+    text-align: center;
+}
+
+.admin-dash__empty .bi { color: var(--route); font-size: 1.75rem; opacity: .55; }
+.admin-dash__empty p { max-width: 40ch; margin: 0; font-size: var(--font-size-14); }
+
+.admin-dash__shortcut-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: var(--s-3);
+}
+
+.admin-dash__shortcut {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    padding: var(--s-3) var(--s-4);
+    color: inherit;
+    text-decoration: none;
+}
+
+.admin-dash__shortcut-icon {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--r-md);
+    background: var(--status-blue-bg);
+    color: var(--route);
+    font-size: 1.1rem;
+}
+
+.admin-dash__shortcut-body { min-width: 0; display: grid; gap: 2px; }
+.admin-dash__shortcut-title { color: var(--admin-ink); font-size: var(--font-size-16); font-weight: 700; letter-spacing: -.01em; }
+.admin-dash__shortcut-desc { color: var(--admin-muted); font-size: var(--font-size-14); line-height: 1.4; }
+
+.admin-dash__shortcut-arrow {
+    margin-inline-start: auto;
+    color: var(--ink-3);
+    transition: transform 180ms ease-out, color 180ms ease-out;
+}
+
+.admin-dash__shortcut:hover .admin-dash__shortcut-arrow,
+.admin-dash__shortcut:focus-visible .admin-dash__shortcut-arrow {
+    color: var(--route);
+    transform: translateX(3px);
+}
+
+.admin-dash__spin { animation: admin-dash-spin 900ms linear infinite; }
+
+@keyframes admin-dash-spin { to { transform: rotate(360deg); } }
+
+.admin-dashboard :is(a, button):focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 3px;
+}
+
+@media (max-width: 575.98px) {
+    .admin-dash__header { align-items: stretch; }
+    .admin-dash__actions { display: grid; grid-template-columns: 1fr; }
+    .admin-dash__live { order: 3; justify-content: center; }
+    .admin-dash__actions .btn { width: 100%; justify-content: center; }
+    .admin-dash__panel { padding: var(--s-3); }
+    .admin-dash__shortcut { padding: var(--s-3); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .admin-dash__kpi,
+    .admin-dash__shortcut-arrow { transition: none; }
+    .admin-dash__spin { animation: none; }
+}
