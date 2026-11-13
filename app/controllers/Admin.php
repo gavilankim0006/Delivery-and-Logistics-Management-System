@@ -1071,6 +1071,27 @@ class Admin extends Controller
             LIMIT 50
         ")->fetchAll(PDO::FETCH_ASSOC);
 
+        // Derive a readable transport label for the email gateway card. HTTP API mailers
+        // (Resend/Brevo/SendGrid/Mailgun/Mailtrap) are required on hosts that block SMTP (e.g. Render).
+        $mailMailer = strtolower((string)(getenv('MAIL_MAILER') ?: (getenv('MAIL_HOST') || getenv('SMTP_HOST') ? 'smtp' : 'mail')));
+        $mailEndpoint = (string)(getenv('MAIL_API_ENDPOINT') ?: '');
+        $httpApiMailers = ['api', 'resend', 'brevo', 'sendgrid', 'mailgun', 'mailtrap'];
+        if (in_array($mailMailer, $httpApiMailers, true)) {
+            $endpointForLabel = $mailEndpoint;
+            if ($endpointForLabel === '') {
+                $defaultEndpoints = [
+                    'resend' => 'https://api.resend.com/emails',
+                    'brevo' => 'https://api.brevo.com/v3/smtp/email',
+                    'sendgrid' => 'https://api.sendgrid.com/v3/mail/send',
+                ];
+                $endpointForLabel = $defaultEndpoints[$mailMailer] ?? '';
+            }
+            $mailEndpointHost = $endpointForLabel !== '' ? (parse_url($endpointForLabel, PHP_URL_HOST) ?: $endpointForLabel) : '';
+            $mailMailerLabel = 'HTTP API' . ($mailEndpointHost !== '' ? " ({$mailEndpointHost})" : '');
+        } else {
+            $mailMailerLabel = $mailMailer === 'smtp' ? 'SMTP' : strtoupper($mailMailer);
+        }
+
         $this->call->view('admin/settings', [
             'page_title' => 'Fee Rates & Configuration',
             'settings' => $settings,
@@ -1083,9 +1104,12 @@ class Admin extends Controller
             'firebase_enabled' => getenv('FIREBASE_PUSH_ENABLED') === '1',
             'firebase_project_id' => getenv('FIREBASE_PROJECT_ID') ?: '',
             'firebase_has_key' => !empty(getenv('FIREBASE_PRIVATE_KEY')) || file_exists(dirname(APP_DIR) . DIRECTORY_SEPARATOR . 'delivery-and-logistics-system-firebase-adminsdk-fbsvc-0a9478f6dd.json'),
-            'mail_mailer' => getenv('MAIL_MAILER') ?: (getenv('MAIL_HOST') || getenv('SMTP_HOST') ? 'smtp' : 'mail'),
+            'mail_mailer' => $mailMailer,
+            'mail_mailer_label' => $mailMailerLabel,
             'mail_host' => getenv('MAIL_HOST') ?: (getenv('SMTP_HOST') ?: ''),
             'mail_port' => (int)(getenv('MAIL_PORT') ?: (getenv('SMTP_PORT') ?: 587)),
+            'mail_endpoint' => $mailEndpoint,
+            'mail_api_key_set' => (bool)(getenv('MAIL_API_KEY') ?: false),
             'mail_from_address' => getenv('MAIL_FROM_ADDRESS') ?: 'noreply@omniroute.local',
             'mail_from_name' => getenv('MAIL_FROM_NAME') ?: 'Dispatch Delivery & Logistics',
             'mail_enabled' => getenv('MAIL_ENABLED') !== '0' && strtolower((string)getenv('MAIL_ENABLED')) !== 'false'

@@ -5,10 +5,12 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
  * EmailService
  *
  * Lightweight, zero-dependency email service supporting:
- * 1. Direct SMTP with TLS/SSL via stream sockets (supports Gmail, Brevo, SendGrid, Mailgun, AWS SES, etc.)
- * 2. PHP native mail() fallback
- * 3. File logging in runtime/logs/email.log for local testing and audit trail
- * 4. Rich, responsive HTML templates for job application notifications
+ * 1. HTTP email APIs over HTTPS (Resend, Brevo, SendGrid, Mailgun) -
+ *    required on hosts that block outbound SMTP ports (e.g. Render free tier blocks 25/465/587)
+ * 2. Direct SMTP with TLS/SSL via stream sockets (supports Gmail, Brevo, SendGrid, Mailgun, AWS SES, etc.)
+ * 3. PHP native mail() fallback
+ * 4. File logging in runtime/logs/email.log for local testing and audit trail
+ * 5. Rich, responsive HTML templates for job application notifications
  */
 class EmailService
 {
@@ -21,6 +23,9 @@ class EmailService
     private string $fromAddress;
     private string $fromName;
     private string $logPath;
+    private string $apiKey;
+    private string $apiEndpoint;
+    private bool $verifySsl;
     /** @var callable|null */
     private $transport;
 
@@ -55,6 +60,14 @@ class EmailService
 
         $defaultMailer = $this->host !== '' ? 'smtp' : (PHP_OS_FAMILY === 'Windows' ? 'log' : 'mail');
         $this->mailer = strtolower(trim((string)($config['mailer'] ?? $this->getEnvVar('MAIL_MAILER') ?: $defaultMailer)));
+
+        // HTTP API mailer configuration (Resend, Brevo, SendGrid, Mailgun, Mailtrap).
+        // Uses outbound HTTPS (port 443), which works on hosts that block SMTP ports (e.g. Render free tier).
+        $this->apiKey = trim((string)($config['api_key'] ?? $this->getEnvVar('MAIL_API_KEY') ?: ''));
+        $this->apiEndpoint = trim((string)($config['api_endpoint'] ?? $this->getEnvVar('MAIL_API_ENDPOINT') ?: ''));
+        $verifySslEnv = strtolower($this->getEnvVar('MAIL_VERIFY_SSL'));
+        $this->verifySsl = !in_array($verifySslEnv, ['0', 'false', 'no', 'off'], true);
+
         $this->logPath = (defined('RUNTIME_DIR') ? RUNTIME_DIR : (defined('ROOT_DIR') ? ROOT_DIR . 'runtime/' : __DIR__ . '/../../runtime/')) . 'logs/email.log';
         $this->transport = isset($config['transport']) && is_callable($config['transport']) ? $config['transport'] : null;
     }
@@ -91,6 +104,88 @@ class EmailService
     public function getFromName(): string
     {
         return $this->fromName;
+    }
+
+    /**
+     * True when the configured mailer sends over an HTTPS email API instead of SMTP.
+     */
+    public function usesHttpApi(): bool
+    {
+        return in_array($this->mailer, ['api', 'resend', 'brevo', 'sendgrid', 'mailgun', 'mailtrap'], true);
+    }
+
+    public function isApiConfigured(): bool
+    {
+        return $this->apiKey !== '';
+    }
+
+    /**
+     * Resolve the API provider name (explicit mailer value or inferred from the endpoint URL).
+     */
+    public function getApiProvider(): string
+    {
+        if ($this->mailer !== 'api') {
+            return $this->mailer;
+        }
+        $endpoint = $this->apiEndpoint !== '' ? $this->apiEndpoint : $this->defaultApiEndpoint();
+        if (stripos($endpoint, 'brevo.com') !== false) {
+            return 'brevo';
+        }
+        if (stripos($endpoint, 'sendgrid.com') !== false) {
+            return 'sendgrid';
+        }
+        if (stripos($endpoint, 'mailgun') !== false) {
+            return 'mailgun';
+        }
+        if (stripos($endpoint, 'mailtrap') !== false) {
+            return 'mailtrap';
+        }
+        return 'resend';
+    }
+
+    /**
+     * Resolve the API endpoint URL (env override, provider default, or empty if unknown).
+     */
+    public function getApiEndpoint(): string
+    {
+        if ($this->apiEndpoint !== '') {
+            return $this->apiEndpoint;
+        }
+        return $this->defaultApiEndpoint();
+    }
+
+    /**
+     * Short human-readable transport label for UIs and logs.
+     */
+    public function getTransportLabel(): string
+    {
+        if ($this->usesHttpApi()) {
+            $endpoint = $this->getApiEndpoint();
+            $host = $endpoint !== '' ? (parse_url($endpoint, PHP_URL_HOST) ?: $endpoint) : '';
+            return 'HTTP API (' . strtoupper($this->getApiProvider()) . ($host !== '' ? " -> {$host}" : '') . ')';
+        }
+        if ($this->mailer === 'smtp' && $this->host !== '') {
+            return "SMTP ({$this->host}:{$this->port})";
+        }
+        return strtoupper($this->mailer);
+    }
+
+    private function defaultApiEndpoint(): string
+    {
+        switch ($this->mailer) {
+            case 'brevo':
+                return 'https://api.brevo.com/v3/smtp/email';
+            case 'sendgrid':
+                return 'https://api.sendgrid.com/v3/mail/send';
+            case 'mailgun':
+                return 'https://api.mailgun.net/v3/{domain}/messages';
+            case 'mailtrap':
+                return 'https://send.api.mailtrap.io/api/send';
+            case 'resend':
+            case 'api':
+            default:
+                return 'https://api.resend.com/emails';
+        }
     }
 
     /**
@@ -149,8 +244,23 @@ class EmailService
 
         $result = ['success' => false, 'error' => ''];
 
-        // 1. If SMTP is configured, attempt SMTP delivery first
-        if ($this->mailer === 'smtp' && $this->host !== '') {
+        // 1. If an HTTP email API is configured (HTTPS), attempt API delivery first.
+        //    Required on hosts that block outbound SMTP ports (e.g. Render free tier).
+        if ($this->usesHttpApi()) {
+            if ($this->apiKey === '') {
+                $result = ['success' => false, 'error' => 'HTTP API mailer is configured (' . $this->mailer . ') but MAIL_API_KEY is empty.'];
+            } else {
+                try {
+                    $providerLabel = strtoupper($this->getApiProvider());
+                    $this->sendViaHttpApi($to, $subject, $htmlBody, $textBody);
+                    $result = ['success' => true, 'message' => "Sent via {$providerLabel} HTTP API"];
+                } catch (Throwable $e) {
+                    $result = ['success' => false, 'error' => 'HTTP API failed: ' . $e->getMessage()];
+                }
+            }
+        }
+        // 2. If SMTP is configured, attempt SMTP delivery
+        elseif ($this->mailer === 'smtp' && $this->host !== '') {
             try {
                 $this->sendViaSmtp($to, $subject, $htmlBody, $textBody);
                 $result = ['success' => true, 'message' => 'Sent via SMTP'];
@@ -171,7 +281,7 @@ class EmailService
         } elseif ($this->mailer === 'smtp' && $this->host === '') {
             $result = ['success' => false, 'error' => 'SMTP mailer is configured but MAIL_HOST is empty in .env.'];
         } else {
-            // 2. Use PHP native mail()
+            // 3. Use PHP native mail()
             try {
                 $mailSent = $this->sendViaNativeMail($to, $subject, $htmlBody, $textBody);
                 $result = $mailSent
@@ -677,7 +787,7 @@ HTML;
 
         $detailsRows = [
             'Service' => 'Omniroute Dispatch Notifications',
-            'Transport' => strtoupper($this->mailer) . ($this->mailer === 'smtp' && $this->host ? " ({$this->host}:{$this->port})" : ''),
+            'Transport' => $this->getTransportLabel(),
             'Sender' => $this->fromAddress,
             'Timestamp' => date('Y-m-d H:i:s T'),
             'Status' => 'Active'
@@ -700,6 +810,209 @@ HTML;
         $textBody = "{$headline}\n\nEmail notification test dispatched successfully at " . date('Y-m-d H:i:s') . ".\n";
 
         return $this->send($to, $subject, $htmlBody, $textBody);
+    }
+
+    /**
+     * Send via an HTTP email API (HTTPS port 443).
+     *
+     * Supported providers: Resend, Brevo, SendGrid, Mailgun, Mailtrap.
+     * Select with MAIL_MAILER and configure MAIL_API_KEY. MAIL_API_ENDPOINT is
+     * optional and overrides the provider default (required for Mailgun domains).
+     */
+    private function sendViaHttpApi(string $to, string $subject, string $htmlBody, string $textBody): void
+    {
+        $endpoint = $this->getApiEndpoint();
+        if ($endpoint === '') {
+            throw new RuntimeException('No HTTP API endpoint configured. Set MAIL_API_ENDPOINT.');
+        }
+
+        $provider = $this->getApiProvider();
+        $payload = null; // JSON body for most providers
+
+        switch ($provider) {
+            case 'brevo':
+                $payload = [
+                    'sender' => ['name' => $this->fromName, 'email' => $this->fromAddress],
+                    'to' => [['email' => $to]],
+                    'subject' => $subject,
+                    'htmlContent' => $htmlBody,
+                    'textContent' => $textBody,
+                ];
+                break;
+
+            case 'sendgrid':
+                $payload = [
+                    'personalizations' => [['to' => [['email' => $to]]]],
+                    'from' => ['email' => $this->fromAddress, 'name' => $this->fromName],
+                    'subject' => $subject,
+                    'content' => [
+                        ['type' => 'text/plain', 'value' => $textBody],
+                        ['type' => 'text/html', 'value' => $htmlBody],
+                    ],
+                ];
+                break;
+
+            case 'mailgun':
+                // Mailgun expects form-encoded fields; {domain} placeholders in the
+                // endpoint URL are substituted from the sender address.
+                $domainPart = str_contains($this->fromAddress, '@') ? substr(strrchr($this->fromAddress, '@'), 1) : '';
+                if (str_contains($endpoint, '{domain}')) {
+                    if ($domainPart === '') {
+                        throw new RuntimeException('Mailgun requires a valid MAIL_FROM_ADDRESS domain or an explicit MAIL_API_ENDPOINT.');
+                    }
+                    $endpoint = str_replace('{domain}', $domainPart, $endpoint);
+                }
+                $data = [
+                    'from' => $this->fromName !== '' ? "{$this->fromName} <{$this->fromAddress}>" : $this->fromAddress,
+                    'to' => $to,
+                    'subject' => $subject,
+                    'text' => $textBody,
+                    'html' => $htmlBody,
+                ];
+                $this->sendHttpRequest($endpoint, '', http_build_query($data), $this->buildApiAuthHeaders($provider), false);
+                return;
+
+            case 'resend':
+            case 'mailtrap':
+            case 'api':
+            default:
+                $payload = [
+                    'from' => $this->fromName !== '' ? "{$this->fromName} <{$this->fromAddress}>" : $this->fromAddress,
+                    'to' => [$to],
+                    'subject' => $subject,
+                    'html' => $htmlBody,
+                    'text' => $textBody,
+                ];
+                break;
+        }
+
+        $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            throw new RuntimeException('Failed to encode email payload as JSON: ' . json_last_error_msg());
+        }
+
+        $this->sendHttpRequest($endpoint, $json, '', $this->buildApiAuthHeaders($provider), true);
+    }
+
+    /**
+     * Build provider-specific authentication headers for the HTTP email API.
+     */
+    private function buildApiAuthHeaders(string $provider): array
+    {
+        switch ($provider) {
+            case 'brevo':
+                return ['api-key: ' . $this->apiKey];
+            case 'mailgun':
+                return ['Authorization: Basic ' . base64_encode('api:' . $this->apiKey)];
+            case 'sendgrid':
+            case 'mailtrap':
+            case 'resend':
+            case 'api':
+            default:
+                return ['Authorization: Bearer ' . $this->apiKey];
+        }
+    }
+
+    /**
+     * Perform an HTTP POST request and validate the response status code.
+     * Protected for testability (subclasses may stub transport in test suites).
+     */
+    protected function sendHttpRequest(string $url, string $jsonBody, string $formBody, array $authHeaders, bool $isJson): void
+    {
+        $headers = $authHeaders;
+        if ($isJson) {
+            $headers[] = 'Content-Type: application/json';
+            $payload = $jsonBody;
+        } else {
+            $headers[] = 'Content-Type: application/x-www-form-urlencoded';
+            $payload = $formBody;
+        }
+        $headers[] = 'Accept: application/json';
+
+        $contextOptions = [
+            'http' => [
+                'method' => 'POST',
+                'header' => implode("\r\n", $headers),
+                'content' => $payload,
+                'timeout' => 20,
+                'ignore_errors' => true,
+            ],
+        ];
+        if (strpos($url, 'https://') === 0 && !$this->verifySsl) {
+            $contextOptions['ssl'] = [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+            ];
+        }
+
+        [$statusCode, $body] = $this->executeHttpRequest($url, $contextOptions);
+
+        if ($statusCode < 200 || $statusCode >= 300) {
+            $errorDetail = $body;
+            $decoded = json_decode($body, true);
+            if (is_array($decoded)) {
+                $errorDetail = $decoded['message']
+                    ?? $decoded['error']
+                    ?? $decoded['error_description']
+                    ?? (isset($decoded['errors']) ? json_encode($decoded['errors']) : json_encode($decoded));
+            } else {
+                $errorDetail = trim(strip_tags((string)$body));
+            }
+            if (strlen($errorDetail) > 500) {
+                $errorDetail = substr($errorDetail, 0, 500) . '...';
+            }
+            throw new RuntimeException("HTTP {$statusCode} from API: {$errorDetail}");
+        }
+    }
+
+    /**
+     * Execute the HTTP request using cURL when available, with a stream fallback.
+     * Protected for testability (subclasses may stub transport in test suites).
+     *
+     * @return array{0: int, 1: string} [status code, response body]
+     */
+    protected function executeHttpRequest(string $url, array $contextOptions): array
+    {
+        if (function_exists('curl_init')) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_HTTPHEADER => explode("\r\n", $contextOptions['http']['header']),
+                CURLOPT_POSTFIELDS => $contextOptions['http']['content'] ?? '',
+                CURLOPT_TIMEOUT => (int)($contextOptions['http']['timeout'] ?? 20),
+            ]);
+            if (strpos($url, 'https://') === 0 && !$this->verifySsl) {
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+            }
+            $body = curl_exec($ch);
+            if ($body === false) {
+                $curlError = curl_error($ch);
+                curl_close($ch);
+                throw new RuntimeException('HTTP request failed: ' . $curlError);
+            }
+            $statusCode = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+            curl_close($ch);
+            return [$statusCode, (string)$body];
+        }
+
+        $context = stream_context_create($contextOptions);
+        $body = @file_get_contents($url, false, $context);
+        if ($body === false) {
+            $lastError = error_get_last();
+            $detail = is_array($lastError) && !empty($lastError['message']) ? $lastError['message'] : 'network error';
+            throw new RuntimeException('HTTP request failed: ' . $detail);
+        }
+
+        $statusCode = 0;
+        $responseHeaders = isset($http_response_header) && is_array($http_response_header) ? $http_response_header : [];
+        foreach ($responseHeaders as $headerLine) {
+            if (preg_match('#^HTTP/\S+\s+(\d{3})#', $headerLine, $matches)) {
+                $statusCode = (int)$matches[1];
+            }
+        }
+        return [$statusCode, (string)$body];
     }
 
     /**

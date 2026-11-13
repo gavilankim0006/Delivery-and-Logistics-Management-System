@@ -210,23 +210,35 @@
       </div>
 
       <div class="row g-4">
-        <!-- Email (SMTP) Card -->
+        <!-- Email Gateway Card -->
         <div class="col-12 col-lg-4">
           <div class="card h-100 border shadow-sm">
             <div class="card-header bg-light d-flex justify-content-between align-items-center">
-              <span class="fw-bold"><i class="bi bi-envelope text-primary me-1"></i> Email (SMTP)</span>
+              <span class="fw-bold"><i class="bi bi-envelope text-primary me-1"></i> Email ({{ isHttpApiMailer ? 'API' : 'SMTP' }})</span>
               <span class="badge" :class="mail.enabled ? 'bg-success' : 'bg-secondary'">
                 {{ mail.enabled ? 'Active' : 'Disabled' }}
               </span>
             </div>
             <div class="card-body d-flex flex-column justify-content-between">
               <div>
-                <p class="small text-muted mb-2">
+                <p v-if="isHttpApiMailer" class="small text-muted mb-2">
+                  <strong>Transport:</strong> {{ mail.mailerLabel || 'HTTP API' }}<br>
+                  <strong>Endpoint:</strong> {{ mail.endpoint ? shortEndpoint : 'Provider default (HTTPS)' }}<br>
+                  <strong>API key:</strong> {{ mail.apiKeySet ? 'Configured' : 'Not set' }}<br>
+                  <strong>From:</strong> {{ mail.fromAddress || 'noreply@omniroute.local' }}
+                </p>
+                <p v-else class="small text-muted mb-2">
                   <strong>Host:</strong> {{ mail.host || 'Not configured' }}<br>
                   <strong>Port:</strong> {{ mail.port || 587 }}<br>
                   <strong>From:</strong> {{ mail.fromAddress || 'noreply@omniroute.local' }}
                 </p>
                 <p class="small text-muted">Sends templated customer order confirmations, status transitions, and delivery notifications.</p>
+                <p v-if="isHttpApiMailer" class="small text-muted mb-0">
+                  <i class="bi bi-shield-check me-1" aria-hidden="true"></i>Sent over HTTPS (port 443), which is required on hosts that block outbound SMTP (e.g. Render free tier).
+                </p>
+                <p v-else class="small text-muted mb-0">
+                  <i class="bi bi-info-circle me-1" aria-hidden="true"></i>If your host blocks SMTP (e.g. Render free tier), switch <code>MAIL_MAILER</code> to <code>resend</code>/<code>brevo</code>/<code>sendgrid</code> and set <code>MAIL_API_KEY</code>.
+                </p>
               </div>
               <form :action="`${baseUrl}admin/test-email`" method="POST" id="test-email-form" class="mt-3 pt-3 border-top" novalidate>
                 <input type="hidden" name="csrf_token" :value="csrfToken">
@@ -246,7 +258,7 @@
                       required
                     >
                   </div>
-                  <div class="form-text shared-helper-text">Valid recipient email address for SMTP check.</div>
+                  <div class="form-text shared-helper-text">Valid recipient email address for the {{ isHttpApiMailer ? 'API' : 'SMTP' }} test send.</div>
                 </div>
                 <button type="submit" class="btn btn-outline-primary btn-sm w-100 fw-semibold">
                   <i class="bi bi-send me-1" aria-hidden="true"></i>Send test email
@@ -483,6 +495,19 @@ const smsMessage = ref('Dispatch test message from Admin.');
 const smsChunks = computed(() => {
   const len = smsMessage.value ? smsMessage.value.length : 0;
   return Math.ceil(len / 160) || 1;
+});
+
+const HTTP_API_MAILERS = ['api', 'resend', 'brevo', 'sendgrid', 'mailgun', 'mailtrap'];
+const isHttpApiMailer = computed(() => HTTP_API_MAILERS.includes(String(props.mail?.mailer || '').toLowerCase()));
+const shortEndpoint = computed(() => {
+  const endpoint = props.mail?.endpoint || '';
+  if (!endpoint) return '';
+  try {
+    const url = new URL(endpoint);
+    return url.host + (url.pathname !== '/' ? url.pathname : '');
+  } catch {
+    return endpoint;
+  }
 });
 
 function capitalize(str) {

@@ -767,7 +767,7 @@ class Auth extends Controller
             http_response_code(502);
             echo json_encode([
                 'success' => false,
-                'error' => $result['error'] ?? 'Failed to send test email. Please verify SMTP settings.'
+                'error' => $result['error'] ?? 'Failed to send test email. Please verify your mail configuration (MAIL_MAILER with MAIL_API_KEY, or SMTP settings).'
             ]);
         }
         exit;

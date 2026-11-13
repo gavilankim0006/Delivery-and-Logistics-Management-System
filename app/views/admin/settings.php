@@ -18,8 +18,12 @@ $props = [
     'usersWithTokens' => $usersWithTokens,
     'mail' => [
         'enabled' => !empty($mail_enabled),
+        'mailer' => $mail_mailer ?? 'mail',
+        'mailerLabel' => $mail_mailer_label ?? '',
         'host' => $mail_host ?? '',
         'port' => (int)($mail_port ?? 587),
+        'endpoint' => $mail_endpoint ?? '',
+        'apiKeySet' => !empty($mail_api_key_set),
         'fromAddress' => $mail_from_address ?? '',
         'fromName' => $mail_from_name ?? '',
     ],
