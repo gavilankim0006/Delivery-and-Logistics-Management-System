@@ -362,28 +362,32 @@ body:has(.messenger-wrapper) #ai-chat-window,
    ========================================================================== */
 
 @media (max-width: 767.98px) {
-    /* Pin the launcher above the safe area / customer bottom navigation */
+    /* Default pin above the safe area / customer bottom navigation.
+       Once the launcher is dragged, inline styles (important) take over. */
     #ai-assistant-widget {
         position: fixed;
         left: auto !important;
         top: auto !important;
         right: 16px !important;
-        bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+        /* Kept in sync by ai-assistant.js with any fixed bottom bar
+           (customer nav, dispatch mobile bar) plus the safe area. */
+        bottom: var(--ai-bottom-offset, calc(16px + env(safe-area-inset-bottom, 0px))) !important;
         width: 64px;
         height: 64px;
-        z-index: 1040;
-        touch-action: manipulation;
+        z-index: 1050;
+        touch-action: none;
     }
 
-    body.has-customer-bottom-nav #ai-assistant-widget,
-    body.role-customer #ai-assistant-widget {
-        bottom: calc(var(--customer-bottom-nav-height, 62px) + env(safe-area-inset-bottom, 0px) + 12px) !important;
+    /* Stay above fixed bottom bars (z-index 1030) even when dragged near them */
+    #ai-assistant-widget.dispatch-assistant-pinned {
+        z-index: 1050;
     }
 
     .ai-bot-trigger {
         width: 64px;
         height: 64px;
-        touch-action: manipulation;
+        /* Keep touch drags on the launcher from scrolling the page */
+        touch-action: none;
         -webkit-tap-highlight-color: transparent;
     }
 

@@ -40,6 +40,7 @@
         }
 
         createDOM();
+        trackBottomBars();
         lastMobileViewport = isMobileViewport();
         updateComposerPlaceholder();
         init3D();
@@ -270,12 +271,126 @@
             : DESKTOP_INPUT_PLACEHOLDER;
     }
 
+    let safeAreaProbe = null;
+
+    // Reads the bottom safe-area inset (home indicator) via a hidden probe element.
+    function safeAreaBottom() {
+        if (!safeAreaProbe || !safeAreaProbe.isConnected) {
+            safeAreaProbe = document.createElement('div');
+            safeAreaProbe.setAttribute('aria-hidden', 'true');
+            safeAreaProbe.style.cssText = 'position:fixed;left:0;bottom:0;width:0;height:env(safe-area-inset-bottom, 0px);pointer-events:none;visibility:hidden;';
+            document.body.appendChild(safeAreaProbe);
+        }
+        return safeAreaProbe.getBoundingClientRect().height || 0;
+    }
+
+    // Fixed bottom bars the launcher must stay clear of on phones.
+    const BOTTOM_BAR_SELECTORS = [
+        '.customer-bottom-nav',
+        '.dispatch-mobile-bottom-bar',
+        '.rider-sticky-bar',
+        '.order-form-mobile-bar'
+    ];
+
+    let bottomBarOffset = 16;
+    let bottomBarResizeObserver = null;
+    let bottomBarMutationObserver = null;
+
+    // Fallback for customer pages when the nav element is not (yet) in the DOM.
+    function configuredCustomerNavHeight() {
+        if (!document.body) return 0;
+        if (
+            !document.body.classList.contains('has-customer-bottom-nav') &&
+            !document.body.classList.contains('role-customer')
+        ) {
+            return 0;
+        }
+        const raw = window.getComputedStyle(document.documentElement).getPropertyValue('--customer-bottom-nav-height');
+        const configured = parseFloat(raw);
+        return (Number.isFinite(configured) && configured > 0 ? configured : 62) + safeAreaBottom();
+    }
+
+    // Space that visible bottom bars occupy from the viewport bottom upwards.
+    // Using each bar's top edge also covers stacked bars (e.g. an order summary
+    // bar rendered above the customer navigation).
+    function visibleBottomBarHeight() {
+        const viewportHeight = window.innerHeight;
+        const viewportWidth = window.innerWidth;
+        let reserved = 0;
+
+        BOTTOM_BAR_SELECTORS.forEach((selector) => {
+            document.querySelectorAll(selector).forEach((el) => {
+                if (el.closest('#ai-assistant-widget') || el.closest('#ai-chat-window')) return;
+                const style = window.getComputedStyle(el);
+                if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return;
+                const rect = el.getBoundingClientRect();
+                if (rect.height < 24 || rect.height > 200) return;
+                if (rect.width < viewportWidth * 0.5) return;
+                if (rect.top < 0 || rect.top > viewportHeight) return;
+                reserved = Math.max(reserved, viewportHeight - rect.top);
+            });
+        });
+
+        return reserved > 0 ? reserved : configuredCustomerNavHeight();
+    }
+
+    // Distance from the viewport bottom to the launcher's resting bottom edge.
+    function refreshBottomBarOffset() {
+        if (!isMobileViewport()) {
+            bottomBarOffset = 0;
+            document.documentElement.style.removeProperty('--ai-bottom-offset');
+            return bottomBarOffset;
+        }
+
+        const barHeight = visibleBottomBarHeight();
+        bottomBarOffset = barHeight > 0 ? barHeight + 12 : safeAreaBottom() + 16;
+        document.documentElement.style.setProperty('--ai-bottom-offset', `${bottomBarOffset}px`);
+        return bottomBarOffset;
+    }
+
+    function observeBottomBars() {
+        if (!bottomBarResizeObserver) return;
+        BOTTOM_BAR_SELECTORS.forEach((selector) => {
+            document.querySelectorAll(selector).forEach((el) => bottomBarResizeObserver.observe(el));
+        });
+    }
+
+    function handleBottomBarsChanged() {
+        observeBottomBars();
+        const previous = bottomBarOffset;
+        refreshBottomBarOffset();
+        if (bottomBarOffset !== previous && hasCustomBotPosition()) {
+            if (!botTrigger || !botTrigger.classList.contains('is-dragging')) {
+                setBotPosition(botLeft, botTop);
+            }
+        }
+    }
+
+    // Bottom bars can mount after the widget (Vue app shell) or change height
+    // (e.g. badge counts), so keep re-measuring them.
+    function trackBottomBars() {
+        if (typeof ResizeObserver === 'function') {
+            bottomBarResizeObserver = new ResizeObserver(() => handleBottomBarsChanged());
+            observeBottomBars();
+        }
+
+        if (typeof MutationObserver === 'function' && document.body) {
+            bottomBarMutationObserver = new MutationObserver(() => handleBottomBarsChanged());
+            bottomBarMutationObserver.observe(document.body, { childList: true, subtree: true });
+        }
+
+        refreshBottomBarOffset();
+    }
+
     function clampBotPosition(left, top) {
         const size = botSize();
         const margin = isMobileViewport() ? 12 : 24;
+        const maxLeft = Math.max(margin, window.innerWidth - size - margin);
+        const reservedBottom = isMobileViewport() ? bottomBarOffset : margin;
+        const maxTop = Math.max(margin, window.innerHeight - size - reservedBottom);
         return {
-            left: Math.max(margin, Math.min(Math.max(margin, window.innerWidth - size - margin), left)),
-            top: Math.max(margin, Math.min(Math.max(margin, window.innerHeight - size - margin), top))
+            left: Math.max(margin, Math.min(maxLeft, left)),
+            top: Math.max(margin, Math.min(maxTop, top))
         };
     }
 
@@ -289,21 +404,37 @@
         widgetContainer.style.removeProperty('transform');
     }
 
+    function hasCustomBotPosition() {
+        return Boolean(widgetContainer && widgetContainer.style.getPropertyValue('left'));
+    }
+
+    // Records where the CSS-pinned launcher currently sits so drag offsets start correctly.
+    function syncPinnedBotCoords() {
+        if (!widgetContainer) return;
+        const rect = widgetContainer.getBoundingClientRect();
+        botLeft = rect.left;
+        botTop = rect.top;
+    }
+
     function setBotPosition(left, top) {
         if (!widgetContainer) return;
-
-        // On phones the launcher is pinned with CSS so it always clears the
-        // safe area and the customer bottom navigation.
-        if (isMobileViewport()) {
-            clearInlineBotPosition();
-            botLeft = Math.max(0, window.innerWidth - botSize() - 16);
-            botTop = Math.max(0, window.innerHeight - botSize() - 16);
-            return;
-        }
 
         const position = clampBotPosition(left, top);
         botLeft = position.left;
         botTop = position.top;
+
+        if (isMobileViewport()) {
+            // Inline styles use the "important" priority so a dragged launcher
+            // overrides the default CSS pinning above the bottom navigation.
+            widgetContainer.style.setProperty('position', 'fixed', 'important');
+            widgetContainer.style.setProperty('left', `${botLeft}px`, 'important');
+            widgetContainer.style.setProperty('top', `${botTop}px`, 'important');
+            widgetContainer.style.setProperty('right', 'auto', 'important');
+            widgetContainer.style.setProperty('bottom', 'auto', 'important');
+            widgetContainer.style.setProperty('transform', 'none', 'important');
+            return;
+        }
+
         widgetContainer.style.position = 'fixed';
         widgetContainer.style.left = `${botLeft}px`;
         widgetContainer.style.top = `${botTop}px`;
@@ -312,22 +443,40 @@
         widgetContainer.style.transform = 'none';
     }
 
+    function botStorageKey() {
+        return isMobileViewport() ? 'dispatch_ai_bot_pos_mobile' : 'dispatch_ai_bot_pos';
+    }
+
+    function readSavedBotPosition() {
+        try {
+            const saved = localStorage.getItem(botStorageKey());
+            if (!saved) return null;
+            const candidate = JSON.parse(saved);
+            if (Number.isFinite(candidate.left) && Number.isFinite(candidate.top)) {
+                return candidate;
+            }
+        } catch (e) {}
+        return null;
+    }
+
     function restorePosition() {
+        const saved = readSavedBotPosition();
+
         if (isMobileViewport()) {
-            setBotPosition(0, 0);
+            // Keep the default CSS pin unless the user previously dragged it.
+            if (saved) {
+                setBotPosition(saved.left, saved.top);
+            } else {
+                syncPinnedBotCoords();
+            }
             return;
         }
 
-        let position = { left: window.innerWidth - 104, top: window.innerHeight - 104 };
-        try {
-            const saved = localStorage.getItem('dispatch_ai_bot_pos');
-            if (saved) {
-                const candidate = JSON.parse(saved);
-                if (Number.isFinite(candidate.left) && Number.isFinite(candidate.top)) {
-                    position = candidate;
-                }
-            }
-        } catch (e) {}
+        const fallback = {
+            left: window.innerWidth - botSize() - 24,
+            top: window.innerHeight - botSize() - 24
+        };
+        const position = saved || fallback;
         setBotPosition(position.left, position.top);
     }
 
@@ -467,20 +616,20 @@
         }
 
         botTrigger.addEventListener('pointerdown', (e) => {
-            // Touch devices use a pinned launcher; a tap opens the chat.
-            if (isMobileViewport()) return;
             if (e.button && e.button !== 0) return;
             hasMoved = false;
             isDragging = true;
             startX = pointerX = e.clientX;
             startY = pointerY = e.clientY;
-            initialLeft = botLeft;
-            initialTop = botTop;
+            // Read the live box so drags also start correctly from the CSS-pinned spot.
+            const rect = widgetContainer.getBoundingClientRect();
+            initialLeft = rect.left;
+            initialTop = rect.top;
             botTrigger.setPointerCapture(e.pointerId);
         });
 
         botTrigger.addEventListener('pointermove', (e) => {
-            if (!isDragging || isMobileViewport()) return;
+            if (!isDragging) return;
             pointerX = e.clientX;
             pointerY = e.clientY;
             if (!hasMoved && Math.hypot(pointerX - startX, pointerY - startY) > 5) {
@@ -508,7 +657,7 @@
                 ignoreNextClick = true;
                 window.setTimeout(() => { ignoreNextClick = false; }, 400);
                 try {
-                    localStorage.setItem('dispatch_ai_bot_pos', JSON.stringify({ left: botLeft, top: botTop }));
+                    localStorage.setItem(botStorageKey(), JSON.stringify({ left: botLeft, top: botTop }));
                 } catch (err) {}
                 updateChatWindowPosition();
             }
@@ -542,9 +691,19 @@
     function handleViewportResize() {
         const mobile = isMobileViewport();
         updateComposerPlaceholder();
+        refreshBottomBarOffset();
 
         if (mobile) {
-            setBotPosition(0, 0);
+            if (lastMobileViewport !== true) {
+                // Crossing from desktop: return to the default pinned spot.
+                clearInlineBotPosition();
+                syncPinnedBotCoords();
+            } else if (hasCustomBotPosition()) {
+                // Rotated/resized while on a phone: keep the dragged spot, re-clamped.
+                setBotPosition(botLeft, botTop);
+            } else {
+                syncPinnedBotCoords();
+            }
             clearChatWindowPosition();
         } else {
             if (lastMobileViewport === true) {
