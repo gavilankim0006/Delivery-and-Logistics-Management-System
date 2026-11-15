@@ -1599,3 +1599,64 @@ body:has(.messenger-wrapper) #ai-chat-window {
     max-width: 88%;
   }
 }
+
+/* ==========================================================================
+   Dispatch AI panel — small-screen ergonomics
+   ========================================================================== */
+
+@media (max-width: 767.98px) {
+  .ai-panel {
+    overscroll-behavior: contain;
+  }
+
+  .ai-panel .ai-panel-messages {
+    padding: 1rem;
+    gap: 0.65rem;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ai-panel .ai-msg {
+    max-width: 88%;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
+  .ai-panel .ai-panel-input-wrap {
+    padding: 0.7rem 0.85rem;
+    padding-bottom: max(0.7rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .ai-panel .ai-panel-input {
+    min-height: 44px;
+    font-size: 16px;
+    border-radius: 14px;
+  }
+
+  .ai-panel .btn-ai-action {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .ai-panel .ai-panel-quick-prompts {
+    flex-direction: row;
+    align-items: stretch;
+    overflow-x: auto;
+    padding: 0.5rem 0.75rem;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .ai-panel .ai-panel-quick-prompts::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ai-panel .quick-prompt-chip {
+    flex: 0 0 auto;
+    max-width: 78vw;
+    min-height: 40px;
+    white-space: nowrap;
+    scroll-snap-align: start;
+  }
+}

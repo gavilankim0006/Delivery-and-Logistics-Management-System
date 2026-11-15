@@ -13,6 +13,24 @@ class DeliveryProofService
         $this->storageDir = $storageDir ?? ROOT_DIR . 'runtime/private/delivery-proofs';
     }
 
+    private function uploadErrorMessage(int $error): string
+    {
+        switch ($error) {
+            case UPLOAD_ERR_INI_SIZE:
+            case UPLOAD_ERR_FORM_SIZE:
+                return 'The proof photo is too large for the server. Retake the photo at a lower resolution or choose an image under 5 MB.';
+            case UPLOAD_ERR_PARTIAL:
+                return 'The proof photo upload was interrupted. Please try again.';
+            case UPLOAD_ERR_NO_TMP_DIR:
+            case UPLOAD_ERR_CANT_WRITE:
+                return 'The server could not store the proof photo. Please try again.';
+            case UPLOAD_ERR_EXTENSION:
+                return 'The server blocked the proof photo upload. Please try again.';
+            default:
+                return 'Choose a valid proof-of-delivery photo.';
+        }
+    }
+
     public function completeWithProof(int $orderId, int $riderUserId, string $recipientName, string $note, array $upload, $orderModel): array
     {
         $recipientName = trim($recipientName);
@@ -20,8 +38,9 @@ class DeliveryProofService
         if ($orderId < 1 || $riderUserId < 1 || mb_strlen($recipientName) < 2 || mb_strlen($recipientName) > 100 || mb_strlen($note) > 300) {
             throw new InvalidArgumentException('Enter the recipient name (at least 2 characters) and keep the note within 300 characters.');
         }
-        if (($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || empty($upload['tmp_name']) || !is_uploaded_file($upload['tmp_name'])) {
-            throw new InvalidArgumentException('Choose a valid proof-of-delivery photo.');
+        $uploadError = (int)($upload['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($uploadError !== UPLOAD_ERR_OK || empty($upload['tmp_name']) || !is_uploaded_file($upload['tmp_name'])) {
+            throw new InvalidArgumentException($this->uploadErrorMessage($uploadError));
         }
         $size = (int)($upload['size'] ?? 0);
         if ($size < 1 || $size > 5 * 1024 * 1024) {

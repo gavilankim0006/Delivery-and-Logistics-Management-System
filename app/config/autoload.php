@@ -23,7 +23,7 @@ $autoload['libraries'] = $healthPath === '/health' ? array() : array('database')
 |  Auto-load Helper Files
 | -------------------------------------------------------------------
 */
-$autoload['helpers'] = array('url', 'auth', 'fee');
+$autoload['helpers'] = array('url', 'auth', 'fee', 'asset');
 
 /*
 | -------------------------------------------------------------------

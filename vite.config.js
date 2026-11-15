@@ -8,6 +8,7 @@ export default defineConfig({
     build: {
         outDir: 'public/build',
         emptyOutDir: false,
+        manifest: true,
         rollupOptions: {
             input: {
                 app: 'frontend/app/main.js',

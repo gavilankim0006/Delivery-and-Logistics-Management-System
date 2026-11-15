@@ -773,49 +773,10 @@
 }
 
 /* ==========================================================================
-   9. Floating AI Assistant Widget: Mobile Placement & Chat Window
+   9. Floating AI Assistant Widget
+   Mobile placement and chat-window layout live in ai-assistant.css so the
+   widget behaves consistently across all roles.
    ========================================================================== */
-
-@media (max-width: 767.98px) {
-    /* Pin floating 3D orb above customer bottom navigation */
-    body.has-customer-bottom-nav #ai-assistant-widget,
-    body.role-customer #ai-assistant-widget {
-        bottom: calc(var(--customer-bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 12px) !important;
-        right: 14px !important;
-        width: 64px !important;
-        height: 64px !important;
-    }
-
-    body.has-customer-bottom-nav .ai-bot-trigger,
-    body.role-customer .ai-bot-trigger {
-        width: 64px !important;
-        height: 64px !important;
-    }
-
-    /* Full-screen bottom sheet for AI Chat Window on mobile */
-    .ai-chat-window {
-        bottom: 0 !important;
-        right: 0 !important;
-        left: 0 !important;
-        top: 0 !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        height: 100dvh !important;
-        height: 100vh !important; /* Fallback */
-        max-height: none !important;
-        border-radius: 0 !important;
-        z-index: 1060 !important;
-    }
-
-    .ai-chat-header {
-        padding: 14px 16px;
-        border-radius: 0;
-    }
-
-    .ai-chat-input-bar {
-        padding-bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
-    }
-}
 
 /* ==========================================================================
    10. Touch Target & Accessibility Guarantees

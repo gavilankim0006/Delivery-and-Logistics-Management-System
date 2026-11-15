@@ -10,9 +10,23 @@
     let isThinking = false;
     let mouseX = 0, mouseY = 0;
     let currentConversationId = null;
+    let ignoreNextClick = false;
+    let viewportSyncFrame = 0;
+    let mobileMediaQuery = null;
+    let lastMobileViewport = null;
+
+    const DESKTOP_INPUT_PLACEHOLDER = 'Ask about orders, rates, tasks... (Enter to send, Shift+Enter for new line)';
+    const MOBILE_INPUT_PLACEHOLDER = 'Ask Dispatch AI anything...';
 
     // DOM Elements
     let widgetContainer, botTrigger, chatWindow, chatMessages, chatInput, sendBtn, closeBtn, typingIndicator;
+
+    function isMobileViewport() {
+        if (!mobileMediaQuery) {
+            mobileMediaQuery = window.matchMedia('(max-width: 767.98px)');
+        }
+        return mobileMediaQuery.matches;
+    }
 
     function init() {
         // If on dedicated Package Messenger page, do not mount floating bot widget
@@ -26,6 +40,8 @@
         }
 
         createDOM();
+        lastMobileViewport = isMobileViewport();
+        updateComposerPlaceholder();
         init3D();
         restorePosition();
         initDrag();
@@ -41,8 +57,18 @@
         }
 
         widgetContainer.innerHTML = `
-            <div class="ai-bot-trigger" id="ai-bot-trigger" title="Chat with AI Assistant">
+            <div class="ai-bot-trigger" id="ai-bot-trigger" title="Chat with AI Assistant" role="button" tabindex="0" aria-label="Open Dispatch AI chat" aria-expanded="false">
                 <div id="ai-3d-canvas-container" style="width: 100%; height: 100%;"></div>
+                <span class="ai-bot-fallback" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="4" y="7" width="16" height="12" rx="4"></rect>
+                        <path d="M12 3v4"></path>
+                        <circle cx="12" cy="3" r="1.2" fill="currentColor" stroke="none"></circle>
+                        <circle cx="9" cy="13" r="1.2" fill="currentColor" stroke="none"></circle>
+                        <circle cx="15" cy="13" r="1.2" fill="currentColor" stroke="none"></circle>
+                        <path d="M9.5 16.5h5"></path>
+                    </svg>
+                </span>
                 <div class="ai-bot-badge"></div>
                 <div class="ai-bot-tooltip">Chat with Dispatch AI</div>
             </div>
@@ -51,6 +77,10 @@
         chatWindow = document.createElement('div');
         chatWindow.className = 'ai-chat-window';
         chatWindow.id = 'ai-chat-window';
+        chatWindow.setAttribute('role', 'dialog');
+        chatWindow.setAttribute('aria-label', 'Dispatch AI chat');
+        chatWindow.setAttribute('aria-hidden', 'true');
+        chatWindow.inert = true;
         chatWindow.innerHTML = `
                 <div class="ai-chat-header">
                     <div class="ai-chat-header-title">
@@ -95,20 +125,26 @@
     function init3D() {
         const container = document.getElementById('ai-3d-canvas-container');
         if (!container || typeof THREE === 'undefined') {
-            console.warn('Three.js not loaded or canvas container missing.');
+            console.warn('Three.js not loaded or canvas container missing. Using the static AI fallback.');
             return;
         }
 
-        const width = 80;
-        const height = 80;
+        const width = container.clientWidth || (isMobileViewport() ? 64 : 80);
+        const height = container.clientHeight || (isMobileViewport() ? 64 : 80);
 
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
         camera.position.set(0, 0, 4.2);
 
-        renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        try {
+            renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        } catch (error) {
+            console.warn('WebGL is unavailable for the AI assistant. Using the static fallback.', error);
+            return;
+        }
         renderer.setSize(width, height);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.domElement.setAttribute('aria-hidden', 'true');
         container.appendChild(renderer.domElement);
 
         // Lighting
@@ -181,6 +217,10 @@
 
         scene.add(botGroup);
 
+        if (botTrigger) {
+            botTrigger.classList.add('has-3d');
+        }
+
         animate();
     }
 
@@ -219,14 +259,48 @@
     let botLeft = 0;
     let botTop = 0;
 
+    function botSize() {
+        return isMobileViewport() ? 64 : 80;
+    }
+
+    function updateComposerPlaceholder() {
+        if (!chatInput) return;
+        chatInput.placeholder = isMobileViewport()
+            ? MOBILE_INPUT_PLACEHOLDER
+            : DESKTOP_INPUT_PLACEHOLDER;
+    }
+
     function clampBotPosition(left, top) {
+        const size = botSize();
+        const margin = isMobileViewport() ? 12 : 24;
         return {
-            left: Math.max(24, Math.min(Math.max(24, window.innerWidth - 104), left)),
-            top: Math.max(24, Math.min(Math.max(24, window.innerHeight - 104), top))
+            left: Math.max(margin, Math.min(Math.max(margin, window.innerWidth - size - margin), left)),
+            top: Math.max(margin, Math.min(Math.max(margin, window.innerHeight - size - margin), top))
         };
     }
 
+    function clearInlineBotPosition() {
+        if (!widgetContainer) return;
+        widgetContainer.style.removeProperty('position');
+        widgetContainer.style.removeProperty('left');
+        widgetContainer.style.removeProperty('top');
+        widgetContainer.style.removeProperty('right');
+        widgetContainer.style.removeProperty('bottom');
+        widgetContainer.style.removeProperty('transform');
+    }
+
     function setBotPosition(left, top) {
+        if (!widgetContainer) return;
+
+        // On phones the launcher is pinned with CSS so it always clears the
+        // safe area and the customer bottom navigation.
+        if (isMobileViewport()) {
+            clearInlineBotPosition();
+            botLeft = Math.max(0, window.innerWidth - botSize() - 16);
+            botTop = Math.max(0, window.innerHeight - botSize() - 16);
+            return;
+        }
+
         const position = clampBotPosition(left, top);
         botLeft = position.left;
         botTop = position.top;
@@ -239,6 +313,11 @@
     }
 
     function restorePosition() {
+        if (isMobileViewport()) {
+            setBotPosition(0, 0);
+            return;
+        }
+
         let position = { left: window.innerWidth - 104, top: window.innerHeight - 104 };
         try {
             const saved = localStorage.getItem('dispatch_ai_bot_pos');
@@ -252,9 +331,23 @@
         setBotPosition(position.left, position.top);
     }
 
+    function clearChatWindowPosition() {
+        if (!chatWindow) return;
+        ['left', 'top', 'right', 'bottom'].forEach((property) => {
+            chatWindow.style.removeProperty(property);
+        });
+    }
+
     function updateChatWindowPosition() {
         if (!chatWindow || !widgetContainer) return;
-        const rect = { left: botLeft, top: botTop, right: botLeft + 80, bottom: botTop + 80, width: 80, height: 80 };
+
+        if (isMobileViewport()) {
+            clearChatWindowPosition();
+            return;
+        }
+
+        const size = botSize();
+        const rect = { left: botLeft, top: botTop, right: botLeft + size, bottom: botTop + size, width: size, height: size };
         const chatWidth = Math.min(380, window.innerWidth - 32);
         const chatHeight = Math.min(540, window.innerHeight - 130);
 
@@ -282,12 +375,78 @@
         chatWindow.style.bottom = 'auto';
     }
 
-    function toggleChat() {
-        updateChatWindowPosition();
-        const isOpen = chatWindow.classList.toggle('open');
-        if (isOpen) {
-            chatInput.focus();
+    // Keep the full-screen mobile chat aligned with the visual viewport so the
+    // composer stays visible when the on-screen keyboard opens.
+    function syncMobileChatViewport() {
+        if (!chatWindow) return;
+
+        const shouldTrack = isMobileViewport() && chatWindow.classList.contains('open');
+        if (!shouldTrack) {
+            chatWindow.style.removeProperty('--ai-chat-top');
+            chatWindow.style.removeProperty('--ai-chat-height');
+            return;
         }
+
+        const viewport = window.visualViewport;
+        const height = viewport ? viewport.height : window.innerHeight;
+        const top = viewport ? viewport.offsetTop : 0;
+
+        chatWindow.style.setProperty('--ai-chat-top', `${Math.max(0, top)}px`);
+        chatWindow.style.setProperty('--ai-chat-height', `${Math.max(240, height)}px`);
+
+        if (chatMessages) {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    }
+
+    function scheduleViewportSync() {
+        if (viewportSyncFrame) return;
+        viewportSyncFrame = window.requestAnimationFrame(() => {
+            viewportSyncFrame = 0;
+            syncMobileChatViewport();
+        });
+    }
+
+    function setChatOpen(open) {
+        if (!chatWindow) return;
+
+        const willOpen = Boolean(open);
+        if (willOpen === chatWindow.classList.contains('open')) return;
+        const hadFocus = chatWindow.contains(document.activeElement);
+
+        if (isMobileViewport()) {
+            clearChatWindowPosition();
+        } else if (willOpen) {
+            updateChatWindowPosition();
+        }
+
+        chatWindow.classList.toggle('open', willOpen);
+        chatWindow.setAttribute('aria-hidden', String(!willOpen));
+        chatWindow.inert = !willOpen;
+        if (botTrigger) {
+            botTrigger.setAttribute('aria-expanded', String(willOpen));
+        }
+        document.body.classList.toggle('ai-chat-open', willOpen && isMobileViewport());
+
+        if (willOpen) {
+            syncMobileChatViewport();
+            if (chatInput) {
+                chatInput.focus({ preventScroll: true });
+            }
+            window.requestAnimationFrame(() => {
+                if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
+            });
+        } else {
+            syncMobileChatViewport();
+            if (hadFocus && botTrigger) {
+                botTrigger.focus({ preventScroll: true });
+            }
+        }
+    }
+
+    function toggleChat() {
+        if (!chatWindow) return;
+        setChatOpen(!chatWindow.classList.contains('open'));
     }
 
     function initDrag() {
@@ -308,6 +467,8 @@
         }
 
         botTrigger.addEventListener('pointerdown', (e) => {
+            // Touch devices use a pinned launcher; a tap opens the chat.
+            if (isMobileViewport()) return;
             if (e.button && e.button !== 0) return;
             hasMoved = false;
             isDragging = true;
@@ -319,7 +480,7 @@
         });
 
         botTrigger.addEventListener('pointermove', (e) => {
-            if (!isDragging) return;
+            if (!isDragging || isMobileViewport()) return;
             pointerX = e.clientX;
             pointerY = e.clientY;
             if (!hasMoved && Math.hypot(pointerX - startX, pointerY - startY) > 5) {
@@ -343,28 +504,103 @@
             }
             botTrigger.classList.remove('is-dragging');
             if (hasMoved) {
+                hasMoved = false;
+                ignoreNextClick = true;
+                window.setTimeout(() => { ignoreNextClick = false; }, 400);
                 try {
                     localStorage.setItem('dispatch_ai_bot_pos', JSON.stringify({ left: botLeft, top: botTop }));
                 } catch (err) {}
                 updateChatWindowPosition();
-            } else {
-                toggleChat();
             }
         }
 
-        botTrigger.addEventListener('pointerup', stopDrag);
-        botTrigger.addEventListener('pointercancel', stopDrag);
+        function cancelDrag() {
+            if (!isDragging) return;
+            isDragging = false;
+            hasMoved = false;
+            if (frameId) {
+                cancelAnimationFrame(frameId);
+                frameId = 0;
+            }
+            botTrigger.classList.remove('is-dragging');
+            ignoreNextClick = true;
+            window.setTimeout(() => { ignoreNextClick = false; }, 400);
+        }
 
-        window.addEventListener('resize', () => {
-            setBotPosition(botLeft, botTop);
-            updateChatWindowPosition();
+        botTrigger.addEventListener('pointerup', stopDrag);
+        botTrigger.addEventListener('pointercancel', cancelDrag);
+
+        botTrigger.addEventListener('click', () => {
+            if (ignoreNextClick) {
+                ignoreNextClick = false;
+                return;
+            }
+            toggleChat();
         });
+    }
+
+    function handleViewportResize() {
+        const mobile = isMobileViewport();
+        updateComposerPlaceholder();
+
+        if (mobile) {
+            setBotPosition(0, 0);
+            clearChatWindowPosition();
+        } else {
+            if (lastMobileViewport === true) {
+                setBotPosition(window.innerWidth - botSize() - 24, window.innerHeight - botSize() - 24);
+            } else {
+                setBotPosition(botLeft, botTop);
+            }
+            if (chatWindow && chatWindow.classList.contains('open')) {
+                updateChatWindowPosition();
+            }
+        }
+
+        if (chatWindow) {
+            document.body.classList.toggle('ai-chat-open', mobile && chatWindow.classList.contains('open'));
+        }
+
+        lastMobileViewport = mobile;
+        scheduleViewportSync();
     }
 
     function attachEvents() {
         closeBtn.addEventListener('click', () => {
-            chatWindow.classList.remove('open');
+            setChatOpen(false);
         });
+
+        // Keyboard access for the launcher and dialog
+        botTrigger.addEventListener('keydown', (e) => {
+            if (e.repeat) return;
+            if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                e.preventDefault();
+                toggleChat();
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && chatWindow.classList.contains('open')) {
+                e.preventDefault();
+                setChatOpen(false);
+            }
+        });
+
+        // Keep the mobile sheet above the on-screen keyboard.
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', scheduleViewportSync);
+            window.visualViewport.addEventListener('scroll', scheduleViewportSync);
+        }
+
+        // Reposition when crossing the desktop/mobile breakpoint.
+        isMobileViewport();
+        if (mobileMediaQuery) {
+            if (typeof mobileMediaQuery.addEventListener === 'function') {
+                mobileMediaQuery.addEventListener('change', handleViewportResize);
+            } else if (typeof mobileMediaQuery.addListener === 'function') {
+                mobileMediaQuery.addListener(handleViewportResize);
+            }
+        }
 
         // Track cursor for 3D head pivot
         window.addEventListener('mousemove', (e) => {

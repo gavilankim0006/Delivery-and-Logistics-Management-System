@@ -25,11 +25,13 @@ $appShellData = [
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="color-scheme" content="light">
     <title><?= isset($page_title) ? e($page_title) . ' · ' : '' ?>Dispatch</title>
-    <link rel="icon" type="image/svg+xml" href="<?= e(base_url('dispatch-mark.svg')) ?>">
-    <link rel="alternate icon" type="image/x-icon" href="<?= e(base_url('favicon.ico')) ?>">
+    <?php $markSvgPath = dirname(__DIR__, 3) . '/public/dispatch-mark.svg'; ?>
+    <link rel="icon" type="image/svg+xml" href="<?= e(base_url('dispatch-mark.svg')) ?><?= is_file($markSvgPath) ? '?v=' . (string)filemtime($markSvgPath) : '' ?>">
+    <?php $faviconIcoPath = dirname(__DIR__, 3) . '/public/favicon.ico'; ?>
+    <link rel="alternate icon" type="image/x-icon" href="<?= e(base_url('favicon.ico')) ?><?= is_file($faviconIcoPath) ? '?v=' . (string)filemtime($faviconIcoPath) : '' ?>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&display=swap" rel="stylesheet">
@@ -39,7 +41,8 @@ $appShellData = [
     <link href="<?= base_url('css/app.css') ?><?= is_file($appCssPath) ? '?v=' . (string)filemtime($appCssPath) : '' ?>" rel="stylesheet">
     <?php $formsCssPath = dirname(__DIR__, 3) . '/public/css/shared-forms.css'; ?>
     <link href="<?= base_url('css/shared-forms.css') ?><?= is_file($formsCssPath) ? '?v=' . (string)filemtime($formsCssPath) : '' ?>" rel="stylesheet">
-    <link href="<?= base_url('css/ai-assistant.css') ?>" rel="stylesheet">
+    <?php $aiCssPath = dirname(__DIR__, 3) . '/public/css/ai-assistant.css'; ?>
+    <link href="<?= base_url('css/ai-assistant.css') ?><?= is_file($aiCssPath) ? '?v=' . (string)filemtime($aiCssPath) : '' ?>" rel="stylesheet">
     <?php $customerCssPath = dirname(__DIR__, 3) . '/public/css/customer-mobile.css'; ?>
     <link href="<?= base_url('css/customer-mobile.css') ?><?= is_file($customerCssPath) ? '?v=' . (string)filemtime($customerCssPath) : '' ?>" rel="stylesheet">
     <?php

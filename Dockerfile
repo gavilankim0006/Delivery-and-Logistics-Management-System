@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y \
     && docker-php-ext-install pdo pdo_mysql zip \
     && rm -rf /var/lib/apt/lists/*
  
+# Raise PHP upload limits so mobile proof-of-delivery photos are not rejected
+COPY docker/php-uploads.ini /usr/local/etc/php/conf.d/zz-uploads.ini
+
 # Enable Apache mod_rewrite
 RUN a2enmod rewrite
  

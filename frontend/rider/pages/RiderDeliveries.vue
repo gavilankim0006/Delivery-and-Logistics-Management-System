@@ -339,6 +339,7 @@ function assignedAgo(order) {
 .delivery-card {
   border-radius: .75rem;
   border: 1px solid var(--line);
+  padding: 0;
   overflow: hidden;
   transition: box-shadow .2s ease;
 }
@@ -350,8 +351,13 @@ function assignedAgo(order) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   padding: .875rem 1rem .5rem;
-  gap: .5rem;
+  gap: .375rem .5rem;
+}
+.delivery-card__head .status-chip {
+  flex-shrink: 0;
+  margin-inline-start: auto;
 }
 .delivery-card__order-link {
   font-size: 1.05rem;
@@ -361,6 +367,8 @@ function assignedAgo(order) {
   min-height: 44px;
   display: inline-flex;
   align-items: center;
+  min-width: 0;
+  white-space: nowrap;
 }
 .delivery-card__order-link:hover {
   text-decoration: underline;
@@ -376,6 +384,10 @@ function assignedAgo(order) {
   display: flex;
   align-items: flex-start;
   gap: .625rem;
+}
+.delivery-card__addr > div {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .delivery-card__icon {
   flex-shrink: 0;
@@ -402,12 +414,14 @@ function assignedAgo(order) {
   font-size: .9rem;
   color: var(--route-dark);
   line-height: 1.35;
+  overflow-wrap: break-word;
 }
 
 .delivery-card__foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   padding: .625rem 1rem .875rem;
   gap: .5rem;
   border-top: 1px solid var(--line);
@@ -437,6 +451,33 @@ function assignedAgo(order) {
   padding-top: .75rem;
   padding-bottom: .75rem;
   vertical-align: middle;
+}
+.table-clean td:first-child a {
+  white-space: nowrap;
+}
+
+/* ── small-screen card layout ─────────────────────────── */
+@media (max-width: 575.98px) {
+  .delivery-card__head {
+    flex-direction: column;
+    align-items: flex-start;
+    padding-bottom: .625rem;
+  }
+  .delivery-card__head .status-chip {
+    margin-inline-start: 0;
+  }
+  .delivery-card__order-link {
+    font-size: 1rem;
+  }
+  .delivery-card__foot {
+    align-items: stretch;
+  }
+  .delivery-card__foot .btn-action {
+    flex: 1 1 auto;
+  }
+  .delivery-card__foot small {
+    align-self: center;
+  }
 }
 
 /* ── pull-to-refresh ──────────────────────────────────── */

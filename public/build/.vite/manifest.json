@@ -1,0 +1,256 @@
+{
+  "_Analytics-Db7JKEzN.js": {
+    "file": "chunks/Analytics-Db7JKEzN.js",
+    "name": "Analytics",
+    "imports": [
+      "__plugin-vue_export-helper-DqMbYPLR.js"
+    ]
+  },
+  "_AppLayout-!~{004}~.js": {
+    "file": "assets/AppLayout-C2A_gVwQ.css",
+    "src": "_AppLayout-!~{004}~.js"
+  },
+  "_AppLayout-PU04vrHA.js": {
+    "file": "chunks/AppLayout-PU04vrHA.js",
+    "name": "AppLayout",
+    "imports": [
+      "__plugin-vue_export-helper-DqMbYPLR.js"
+    ],
+    "css": [
+      "assets/AppLayout-C2A_gVwQ.css"
+    ]
+  },
+  "_DispatchControls-!~{009}~.js": {
+    "file": "assets/DispatchControls-DLXfLK6d.css",
+    "src": "_DispatchControls-!~{009}~.js"
+  },
+  "_DispatchControls-l9SAD5FA.js": {
+    "file": "chunks/DispatchControls-l9SAD5FA.js",
+    "name": "DispatchControls",
+    "imports": [
+      "__plugin-vue_export-helper-DqMbYPLR.js"
+    ],
+    "css": [
+      "assets/DispatchControls-DLXfLK6d.css"
+    ]
+  },
+  "_FileUpload.vue_vue_type_style_index_0_scoped_4e09f302_lang-!~{008}~.js": {
+    "file": "assets/FileUpload-CMOml14t.css",
+    "src": "_FileUpload.vue_vue_type_style_index_0_scoped_4e09f302_lang-!~{008}~.js"
+  },
+  "_MessengerApp-Dx2Up9Zb.js": {
+    "file": "chunks/MessengerApp-Dx2Up9Zb.js",
+    "name": "MessengerApp",
+    "imports": [
+      "__plugin-vue_export-helper-DqMbYPLR.js"
+    ]
+  },
+  "_SelectDropdown.vue_vue_type_style_index_0_scoped_3e06981d_lang-!~{007}~.js": {
+    "file": "assets/SelectDropdown-C0dnv63r.css",
+    "src": "_SelectDropdown.vue_vue_type_style_index_0_scoped_3e06981d_lang-!~{007}~.js"
+  },
+  "_SelectDropdown.vue_vue_type_style_index_0_scoped_3e06981d_lang-D2V4tYAf.js": {
+    "file": "chunks/SelectDropdown.vue_vue_type_style_index_0_scoped_3e06981d_lang-D2V4tYAf.js",
+    "name": "SelectDropdown.vue_vue_type_style_index_0_scoped_3e06981d_lang",
+    "imports": [
+      "__plugin-vue_export-helper-DqMbYPLR.js"
+    ],
+    "css": [
+      "assets/SelectDropdown-C0dnv63r.css"
+    ]
+  },
+  "__plugin-vue_export-helper-DqMbYPLR.js": {
+    "file": "chunks/_plugin-vue_export-helper-DqMbYPLR.js",
+    "name": "_plugin-vue_export-helper"
+  },
+  "_mountPage-BGCiKGui.js": {
+    "file": "chunks/mountPage-BGCiKGui.js",
+    "name": "mountPage",
+    "imports": [
+      "__plugin-vue_export-helper-DqMbYPLR.js",
+      "_AppLayout-PU04vrHA.js"
+    ]
+  },
+  "frontend/admin/main.js": {
+    "file": "admin.js",
+    "name": "admin",
+    "src": "frontend/admin/main.js",
+    "isEntry": true,
+    "imports": [
+      "__plugin-vue_export-helper-DqMbYPLR.js",
+      "_Analytics-Db7JKEzN.js",
+      "_mountPage-BGCiKGui.js",
+      "_AppLayout-PU04vrHA.js"
+    ],
+    "css": [
+      "assets/admin-C9hAA8CR.css"
+    ]
+  },
+  "frontend/app/main.js": {
+    "file": "app.js",
+    "name": "app",
+    "src": "frontend/app/main.js",
+    "isEntry": true,
+    "imports": [
+      "__plugin-vue_export-helper-DqMbYPLR.js"
+    ],
+    "dynamicImports": [
+      "frontend/app/pages/HomePage.vue",
+      "frontend/app/pages/NotFoundPage.vue"
+    ],
+    "css": [
+      "assets/app-B2NPQUm8.css"
+    ]
+  },
+  "frontend/app/pages/HomePage.vue": {
+    "file": "chunks/HomePage-D6llNzWT.js",
+    "name": "HomePage",
+    "src": "frontend/app/pages/HomePage.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "__plugin-vue_export-helper-DqMbYPLR.js"
+    ],
+    "css": [
+      "assets/HomePage-BqDV4g_k.css"
+    ]
+  },
+  "frontend/app/pages/NotFoundPage.vue": {
+    "file": "chunks/NotFoundPage-CzU07mKK.js",
+    "name": "NotFoundPage",
+    "src": "frontend/app/pages/NotFoundPage.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "__plugin-vue_export-helper-DqMbYPLR.js"
+    ]
+  },
+  "frontend/auth/main.js": {
+    "file": "auth.js",
+    "name": "auth",
+    "src": "frontend/auth/main.js",
+    "isEntry": true,
+    "imports": [
+      "_SelectDropdown.vue_vue_type_style_index_0_scoped_3e06981d_lang-D2V4tYAf.js",
+      "__plugin-vue_export-helper-DqMbYPLR.js",
+      "_mountPage-BGCiKGui.js",
+      "_AppLayout-PU04vrHA.js"
+    ],
+    "css": [
+      "assets/FileUpload-CMOml14t.css"
+    ]
+  },
+  "frontend/careers/main.js": {
+    "file": "careers.js",
+    "name": "careers",
+    "src": "frontend/careers/main.js",
+    "isEntry": true,
+    "imports": [
+      "__plugin-vue_export-helper-DqMbYPLR.js",
+      "_mountPage-BGCiKGui.js",
+      "_AppLayout-PU04vrHA.js"
+    ]
+  },
+  "frontend/delivery_control/main.js": {
+    "file": "delivery_control.js",
+    "name": "delivery_control",
+    "src": "frontend/delivery_control/main.js",
+    "isEntry": true,
+    "imports": [
+      "__plugin-vue_export-helper-DqMbYPLR.js",
+      "_mountPage-BGCiKGui.js",
+      "_AppLayout-PU04vrHA.js"
+    ]
+  },
+  "frontend/dispatch/main.js": {
+    "file": "dispatch.js",
+    "name": "dispatch",
+    "src": "frontend/dispatch/main.js",
+    "isEntry": true,
+    "imports": [
+      "__plugin-vue_export-helper-DqMbYPLR.js",
+      "_DispatchControls-l9SAD5FA.js",
+      "_mountPage-BGCiKGui.js",
+      "_AppLayout-PU04vrHA.js"
+    ]
+  },
+  "frontend/messenger/main.js": {
+    "file": "messenger.js",
+    "name": "messenger",
+    "src": "frontend/messenger/main.js",
+    "isEntry": true,
+    "imports": [
+      "_MessengerApp-Dx2Up9Zb.js",
+      "_mountPage-BGCiKGui.js",
+      "__plugin-vue_export-helper-DqMbYPLR.js",
+      "_AppLayout-PU04vrHA.js"
+    ]
+  },
+  "frontend/orders/main.js": {
+    "file": "orders.js",
+    "name": "orders",
+    "src": "frontend/orders/main.js",
+    "isEntry": true,
+    "imports": [
+      "_SelectDropdown.vue_vue_type_style_index_0_scoped_3e06981d_lang-D2V4tYAf.js",
+      "__plugin-vue_export-helper-DqMbYPLR.js",
+      "_mountPage-BGCiKGui.js",
+      "_AppLayout-PU04vrHA.js"
+    ]
+  },
+  "frontend/public_home/main.js": {
+    "file": "public_home.js",
+    "name": "public_home",
+    "src": "frontend/public_home/main.js",
+    "isEntry": true,
+    "imports": [
+      "__plugin-vue_export-helper-DqMbYPLR.js",
+      "_mountPage-BGCiKGui.js",
+      "_AppLayout-PU04vrHA.js"
+    ]
+  },
+  "frontend/rider/main.js": {
+    "file": "rider.js",
+    "name": "rider",
+    "src": "frontend/rider/main.js",
+    "isEntry": true,
+    "imports": [
+      "__plugin-vue_export-helper-DqMbYPLR.js",
+      "_SelectDropdown.vue_vue_type_style_index_0_scoped_3e06981d_lang-D2V4tYAf.js",
+      "_mountPage-BGCiKGui.js",
+      "_AppLayout-PU04vrHA.js"
+    ],
+    "css": [
+      "assets/rider-DiHYgsAe.css",
+      "assets/FileUpload-CMOml14t.css"
+    ]
+  },
+  "frontend/spa/main.js": {
+    "file": "spa.js",
+    "name": "spa",
+    "src": "frontend/spa/main.js",
+    "isEntry": true,
+    "imports": [
+      "__plugin-vue_export-helper-DqMbYPLR.js",
+      "_AppLayout-PU04vrHA.js",
+      "_Analytics-Db7JKEzN.js",
+      "_DispatchControls-l9SAD5FA.js",
+      "_MessengerApp-Dx2Up9Zb.js"
+    ],
+    "css": [
+      "assets/spa-Dzct_qHY.css"
+    ]
+  },
+  "frontend/static/main.js": {
+    "file": "static_pages.js",
+    "name": "static_pages",
+    "src": "frontend/static/main.js",
+    "isEntry": true,
+    "imports": [
+      "__plugin-vue_export-helper-DqMbYPLR.js",
+      "_mountPage-BGCiKGui.js",
+      "_AppLayout-PU04vrHA.js"
+    ],
+    "css": [
+      "assets/static_pages-BsMgHBam.css"
+    ]
+  }
+}

@@ -1,8 +1,13 @@
 <?php
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
+$riderPortalCssPath = dirname(__DIR__, 3) . '/public/css/rider-portal.css';
+$extraCss = '<link href="' . e(base_url('css/rider-portal.css')) . '?v=' . (is_file($riderPortalCssPath) ? filemtime($riderPortalCssPath) : '1') . '" rel="stylesheet">';
+foreach (vite_entry_css('frontend/rider/main.js') as $riderCssFile) {
+    $extraCss .= '<link href="' . e(base_url('build/' . ltrim($riderCssFile, '/'))) . '" rel="stylesheet">';
+}
 $this->call->view('templates/header', [
     'page_title' => $page_title ?? 'Delivery details',
-    'extra_css'  => '<link href="' . base_url('css/rider-portal.css') . '?v=' . (is_file(dirname(__DIR__, 2) . '/public/css/rider-portal.css') ? filemtime(dirname(__DIR__, 2) . '/public/css/rider-portal.css') : '1') . '" rel="stylesheet">'
+    'extra_css'  => $extraCss
 ]);
 $orderId = (int)$order['order_id'];
 $flashes = [];

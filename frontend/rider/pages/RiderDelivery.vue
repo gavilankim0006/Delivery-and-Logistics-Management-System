@@ -58,10 +58,11 @@ const errors = ref({
 });
 
 /* ── Form completeness ────────────────────────────────── */
+const proofPhotoReady = ref(false);
 const formProgress = computed(() => {
     const steps = [];
     steps.push(!!(recipientName.value || '').trim());
-    steps.push(!!(photoUploadRef.value && photoUploadRef.value.hasFile && photoUploadRef.value.hasFile()));
+    steps.push(proofPhotoReady.value);
     // notes are optional so always "done"
     steps.push(true);
     return steps;
@@ -110,8 +111,12 @@ function validateNotes() {
     return true;
 }
 
-function handlePhotoChange() { errors.value.proof_photo = ''; }
+function handlePhotoChange() {
+    errors.value.proof_photo = '';
+    proofPhotoReady.value = true;
+}
 function handlePhotoClear() {
+    proofPhotoReady.value = false;
     if (errors.value.proof_photo) errors.value.proof_photo = 'Proof of delivery photo is required.';
 }
 
@@ -377,7 +382,7 @@ onUnmounted(() => {
 
                     <!-- ── Delivery Completion Form ───────── -->
                     <template v-else-if="order.status === 'picked_up' && !proofRecorded">
-                        <div class="rider-action-card">
+                        <div id="complete-delivery" class="rider-action-card">
                             <h2 class="h5 mb-1">
                                 <i class="bi bi-camera me-2" aria-hidden="true"></i>Complete delivery
                             </h2>
@@ -448,20 +453,10 @@ onUnmounted(() => {
                                     @blur="validateNotes"
                                 />
 
-                                <!-- Desktop submit button (hidden on mobile where sticky bar takes over) -->
+                                <!-- Submit action (desktop + inline mobile; sticky bar links here) -->
                                 <button
                                     type="submit"
-                                    class="btn btn-primary w-100 rider-action-btn d-none d-lg-flex"
-                                    :disabled="submitting"
-                                >
-                                    <span v-if="submitting" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                    <i v-else class="bi bi-check-circle me-2" aria-hidden="true"></i>
-                                    {{ submitting ? 'Submitting…' : 'Submit proof and complete delivery' }}
-                                </button>
-                                <!-- Mobile submit button (always visible inline on mobile too, sticky bar is supplemental) -->
-                                <button
-                                    type="submit"
-                                    class="btn btn-primary w-100 rider-action-btn d-lg-none"
+                                    class="btn btn-primary w-100 rider-action-btn"
                                     :disabled="submitting"
                                 >
                                     <span v-if="submitting" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
@@ -537,7 +532,7 @@ onUnmounted(() => {
             </form>
         </template>
         <template v-else-if="order.status === 'picked_up'">
-            <a href="#proof-photo" class="btn btn-primary rider-action-btn px-3">
+            <a href="#complete-delivery" class="btn btn-primary rider-action-btn px-3">
                 <i class="bi bi-camera me-1" aria-hidden="true"></i>
                 Complete
             </a>
@@ -552,6 +547,16 @@ onUnmounted(() => {
 }
 
 /* ── Breadcrumb ───────────────────────────────────────── */
+.rider-breadcrumb {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .25rem;
+}
+.rider-breadcrumb > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
 .rider-breadcrumb-link {
     text-decoration: none;
     color: var(--route);
@@ -649,10 +654,12 @@ onUnmounted(() => {
     font-size: .95rem;
     font-weight: 500;
     margin-bottom: .25rem;
+    overflow-wrap: break-word;
 }
 .rider-route-contact {
     font-size: .85rem;
     color: var(--ink-2);
+    overflow-wrap: break-word;
 }
 
 /* ── Contact Buttons ──────────────────────────────────── */
@@ -710,6 +717,7 @@ onUnmounted(() => {
 /* ── Action Cards ─────────────────────────────────────── */
 .rider-action-card {
     padding: .25rem 0;
+    scroll-margin-top: calc(68px + 1rem);
 }
 .rider-action-card-icon {
     width: 48px;
@@ -852,7 +860,7 @@ onUnmounted(() => {
     right: 0;
     background: var(--surface);
     box-shadow: 0 -2px 12px rgba(0,0,0,.08);
-    padding: .75rem 1rem;
+    padding: .75rem 1rem calc(.75rem + env(safe-area-inset-bottom, 0px));
     z-index: 1030;
     display: flex;
     align-items: center;
@@ -889,7 +897,18 @@ onUnmounted(() => {
 
 /* ── Bottom padding on mobile for sticky bar ──────────── */
 @media (max-width: 991.98px) {
-    .rider-detail-page { padding-bottom: 5.5rem; }
+    .rider-detail-page { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ── Narrow-screen polish ─────────────────────────────── */
+@media (max-width: 575.98px) {
+    .rider-detail-header .page-title { font-size: 1.5rem; }
+    .rider-detail-header .status-chip { margin-top: .25rem; }
+    .rider-route-timeline { padding-left: 2.1rem; }
+    .rider-contact-actions { gap: .375rem; }
+    .rider-contact-btn { flex: 1 1 auto; justify-content: center; }
+    .rider-sticky-bar { gap: .5rem; padding-inline: .75rem; }
+    .rider-sticky-bar .rider-action-btn { padding-inline: .875rem; }
 }
 
 /* ── Responsive Stepper ───────────────────────────────── */
