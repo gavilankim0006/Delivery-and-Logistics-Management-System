@@ -487,6 +487,8 @@
     }
 
     .order-form-mobile-bar__info {
+        min-width: 0;
+        flex: 1 1 auto;
         display: flex;
         flex-direction: column;
         line-height: 1.2;
@@ -500,10 +502,13 @@
     }
 
     .order-form-mobile-bar__price {
-        font-size: 1.25rem;
-        font-weight: 800;
+        overflow: hidden;
         color: var(--ink, #172B3A);
+        font-size: 1.2rem;
+        font-weight: 800;
         font-variant-numeric: tabular-nums;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .order-form-mobile-bar__sub {
@@ -667,10 +672,12 @@
         font-weight: 600;
     }
 
-    /* Mobile Floating Action Button (FAB) for Adding Address */
+    /* Mobile Floating Action Button (FAB) for Adding Address.
+       Anchored bottom-left: the bottom-right corner is reserved for the
+       floating AI assistant launcher, which would otherwise cover the FAB. */
     .customer-fab {
         position: fixed;
-        right: 18px;
+        left: calc(18px + env(safe-area-inset-left, 0px));
         bottom: calc(var(--customer-bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 16px);
         width: 52px;
         height: 52px;
@@ -788,6 +795,27 @@
     .nav-link,
     .dropdown-item {
         min-height: var(--customer-touch-target);
+    }
+
+    /* Larger checkbox hit areas (profile preferences, fragile parcel flag).
+       Bootstrap keeps the input floated inside .form-check's padding; only the
+       box size is increased so the layout stays untouched. */
+    .form-check .form-check-input {
+        width: 1.35em;
+        height: 1.35em;
+        margin-top: 0.1em;
+    }
+
+    .form-check-label {
+        cursor: pointer;
+        padding-block: 2px;
+    }
+
+    /* Expand the tap area of card title links without shifting layout */
+    .order-card-title {
+        display: inline-block;
+        margin-block: -6px;
+        padding-block: 6px;
     }
 
     /* Prevent text selection during rapid tapping */

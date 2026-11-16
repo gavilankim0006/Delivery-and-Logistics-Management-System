@@ -89,7 +89,7 @@
       <textarea
         class="ai-panel-input"
         v-model="inputQuery"
-        placeholder="Ask Dispatch AI anything... (Enter to send, Shift+Enter for new line)"
+        :placeholder="inputPlaceholder"
         :disabled="isThinking"
         autocomplete="off"
         ref="inputEl"
@@ -143,6 +143,14 @@ const inputQuery = ref('');
 const isThinking = ref(false);
 const conversationId = ref(null);
 const roleTag = ref('AI ASSISTANT');
+
+// Phones have no Shift key and limited width, so keep the hint short there.
+const isCompactViewport = typeof window !== 'undefined'
+  && typeof window.matchMedia === 'function'
+  && window.matchMedia('(max-width: 767.98px)').matches;
+const inputPlaceholder = isCompactViewport
+  ? 'Ask Dispatch AI…'
+  : 'Ask Dispatch AI anything... (Enter to send, Shift+Enter for new line)';
 const feedEl = ref(null);
 const inputEl = ref(null);
 let historyLoaded = false;

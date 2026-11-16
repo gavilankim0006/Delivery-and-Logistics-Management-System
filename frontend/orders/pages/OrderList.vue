@@ -13,6 +13,7 @@ const props = defineProps({
     totalPages: { type: Number, default: 1 },
     baseUrl: { type: String, default: '/' },
     today: { type: String, default: '' },
+    csrfToken: { type: String, default: '' },
     flashes: { type: Array, default: () => [] }
 });
 
@@ -133,6 +134,12 @@ function pageUrl(number) {
     return `${props.baseUrl}orders?${params.toString()}`;
 }
 
+// CSV export honours the same filters as the list.
+const exportUrl = computed(() => {
+    const params = new URLSearchParams(props.filters || {});
+    return `${props.baseUrl}orders/export?${params.toString()}`;
+});
+
 // Keep the page strip compact: first, last, and a window around the current page.
 const pageNumbers = computed(() => {
     const total = totalPages.value;
@@ -175,6 +182,12 @@ function money(value) {
         maximumFractionDigits: 2
     })}`;
 }
+
+function confirmDuplicate(event) {
+    if (!window.confirm('Copy this delivery into a new draft order? You can review and adjust the details before paying.')) {
+        event.preventDefault();
+    }
+}
 </script>
 
 <template>
@@ -193,10 +206,63 @@ function money(value) {
                     Review delivery details and follow each order's progress.
                 </p>
             </div>
-            <a v-if="role === 'customer'" class="btn btn-primary" :href="`${baseUrl}orders/new`">
-                <i class="bi bi-plus-lg me-1" aria-hidden="true"></i> New order
-            </a>
+            <div v-if="role === 'customer'" class="d-flex flex-wrap gap-2">
+                <a class="btn btn-primary" :href="`${baseUrl}orders/new`">
+                    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i> New order
+                </a>
+                <a class="btn btn-outline-secondary" :href="`${baseUrl}templates`">
+                    <i class="bi bi-bookmarks me-1" aria-hidden="true"></i> Templates
+                </a>
+                <a class="btn btn-outline-secondary" :href="exportUrl" download>
+                    <i class="bi bi-download me-1" aria-hidden="true"></i> Export CSV
+                </a>
+                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importOrdersModal">
+                    <i class="bi bi-upload me-1" aria-hidden="true"></i> Import CSV
+                </button>
+            </div>
         </header>
+
+        <!-- Bulk import modal -->
+        <div v-if="role === 'customer'" class="modal fade" id="importOrdersModal" tabindex="-1" aria-labelledby="importOrdersModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <form method="post" :action="`${baseUrl}orders/import`" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" :value="csrfToken">
+                        <div class="modal-header">
+                            <h2 class="modal-title h5" id="importOrdersModalLabel">Import orders from CSV</h2>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="text-muted small mb-3">
+                                Upload a CSV of deliveries to create up to <strong>20 draft orders</strong> per import.
+                                Routes are resolved per row, so larger files take longer. Drafts can be reviewed and paid individually.
+                            </p>
+                            <div class="mb-3">
+                                <a class="small text-decoration-none" :href="`${baseUrl}orders/import/template`" download>
+                                    <i class="bi bi-file-earmark-arrow-down me-1" aria-hidden="true"></i>Download the CSV template
+                                </a>
+                            </div>
+                            <div class="shared-field-wrap">
+                                <label for="import-csv-file" class="form-label shared-label"><span>CSV file</span><span class="text-danger ms-1" aria-hidden="true">*</span></label>
+                                <input
+                                    id="import-csv-file"
+                                    name="csv_file"
+                                    type="file"
+                                    class="form-control"
+                                    accept=".csv,text/csv"
+                                    required
+                                >
+                                <div class="form-text shared-helper-text">Maximum 256 KB. Required columns are listed in the template.</div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Import drafts</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
 
         <!-- Customer Mobile Quick Status Filter Pills -->
         <div v-if="role === 'customer'" class="customer-mobile-filters d-md-none">
@@ -415,6 +481,17 @@ function money(value) {
                             >
                                 Details
                             </a>
+                            <form
+                                v-if="role === 'customer' && ['delivered', 'cancelled', 'failed'].includes(order.status)"
+                                method="post"
+                                :action="`${baseUrl}orders/${order.id}/duplicate`"
+                                @submit="confirmDuplicate"
+                            >
+                                <input type="hidden" name="csrf_token" :value="csrfToken">
+                                <button class="btn btn-outline-primary" type="submit" :aria-label="`Send order ${order.order_no} again`">
+                                    Send again
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </article>
@@ -475,10 +552,22 @@ function money(value) {
                                 </p>
                             </td>
                             <td data-label="Fee" class="text-nowrap money">{{ money(order.delivery_fee) }}</td>
-                            <td data-label="Details">
+                            <td data-label="Details" class="text-nowrap">
                                 <a class="btn btn-sm btn-outline-secondary" :href="`${baseUrl}orders/${order.id}`" :aria-label="`Track order ${order.order_no}`">
                                     Track order
                                 </a>
+                                <form
+                                    v-if="role === 'customer' && ['delivered', 'cancelled', 'failed'].includes(order.status)"
+                                    method="post"
+                                    :action="`${baseUrl}orders/${order.id}/duplicate`"
+                                    class="d-inline-block ms-1"
+                                    @submit="confirmDuplicate"
+                                >
+                                    <input type="hidden" name="csrf_token" :value="csrfToken">
+                                    <button class="btn btn-sm btn-outline-primary" type="submit" :aria-label="`Send order ${order.order_no} again`">
+                                        Send again
+                                    </button>
+                                </form>
                             </td>
                         </tr>
                     </tbody>

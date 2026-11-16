@@ -52,6 +52,13 @@ class DeliveryNotificationService
         $enqueued = false;
         $now = date('Y-m-d H:i:s');
 
+        // Record an in-app feed entry for the customer (independent of channel opt-ins).
+        try {
+            $this->recordInApp($orderId, $status, $row);
+        } catch (Throwable $e) {
+            error_log('In-app notification failed for order ' . $orderId . ': ' . $e->getMessage());
+        }
+
         // Enqueue SMS if opted in
         if ((int)($row['delivery_status_sms_opt_in'] ?? 0) === 1 && trim((string)($row['phone'] ?? '')) !== '') {
             $this->db->raw(
@@ -91,6 +98,64 @@ class DeliveryNotificationService
         }
 
         return $enqueued;
+    }
+
+    /**
+     * Insert an in-app notification row for the ordering customer.
+     *
+     * Accepts the same status codes as enqueueForTransition plus 'paid'
+     * so payment confirmations also appear in the notification feed.
+     * Pass $orderRow (id, order_no, user_id) when it has already been
+     * resolved by the caller to avoid a duplicate lookup.
+     */
+    public function recordInApp(int $orderId, string $status, ?array $orderRow = null): bool
+    {
+        $titles = [
+            'paid' => 'Payment received',
+            'rider_assigned' => 'Rider assigned',
+            'picked_up' => 'Package picked up',
+            'delivered' => 'Order delivered',
+            'cancelled' => 'Order cancelled',
+            'failed' => 'Delivery needs attention',
+        ];
+        $messages = [
+            'paid' => 'We received your payment for order %s. We are arranging a rider next.',
+            'rider_assigned' => 'A rider has been assigned to delivery order %s.',
+            'picked_up' => 'Your delivery order %s has been picked up.',
+            'delivered' => 'Your delivery order %s has been delivered.',
+            'cancelled' => 'Your delivery order %s has been cancelled.',
+            'failed' => 'There is an issue with delivery order %s. Please contact support.',
+        ];
+        if (!isset($titles[$status], $messages[$status])) {
+            return false;
+        }
+
+        $row = $orderRow;
+        if ($row === null) {
+            $row = $this->db->raw(
+                'SELECT o.id, o.order_no, c.user_id
+                 FROM orders o INNER JOIN customers c ON c.id = o.customer_id
+                 WHERE o.id = ? LIMIT 1',
+                [$orderId]
+            )->fetch(PDO::FETCH_ASSOC);
+        }
+        if (!$row || empty($row['user_id'])) {
+            return false;
+        }
+
+        $this->db->raw(
+            'INSERT INTO user_notifications (user_id, order_id, type, title, body, created_at)
+             VALUES (?, ?, ?, ?, ?, ?)',
+            [
+                (int)$row['user_id'],
+                $orderId,
+                'order_' . $status,
+                $titles[$status],
+                sprintf($messages[$status], (string)$row['order_no']),
+                date('Y-m-d H:i:s')
+            ]
+        );
+        return true;
     }
 
     /**

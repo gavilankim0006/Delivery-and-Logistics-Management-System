@@ -1660,3 +1660,22 @@ body:has(.messenger-wrapper) #ai-chat-window {
     scroll-snap-align: start;
   }
 }
+
+/* ==========================================================================
+   Dedicated AI conversation: never overlay the messenger header
+   Mobile rules position the embedded side panel absolutely so it can cover
+   the chat view. The dedicated AI screen (opened from the messenger's "AI"
+   tab) instead owns the area under .messenger-chat-header, so its panel must
+   stay in normal flow on every breakpoint.
+   ========================================================================== */
+
+.messenger-shell .messenger-ai-main .ai-panel.is-open {
+  position: static !important;
+  inset: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  z-index: auto !important;
+  box-shadow: none !important;
+}

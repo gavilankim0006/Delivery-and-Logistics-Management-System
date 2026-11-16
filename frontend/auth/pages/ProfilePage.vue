@@ -241,7 +241,7 @@ async function sendTestPush() {
                     </div>
                     <div>
                         <span class="form-label shared-label">Email address</span>
-                        <div class="d-flex align-items-center gap-2 mb-1">
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
                             <p class="account-summary__value mb-0">{{ user.email }}</p>
                             <button v-if="user.email" type="button" class="btn btn-sm btn-outline-secondary" @click="testEmail">Test Email</button>
                         </div>
@@ -314,7 +314,7 @@ async function sendTestPush() {
                         <div class="form-check mb-3">
                             <input id="push_opt_in" class="form-check-input" type="checkbox" name="push_opt_in" value="1" :checked="Number(user.push_opt_in ?? 1) === 1">
                             <label class="form-check-label" for="push_opt_in">Receive real-time web push notifications on this device.</label>
-                            <div class="mt-2 d-flex gap-2">
+                            <div class="mt-2 d-flex flex-wrap gap-2">
                                 <button type="button" class="btn btn-outline-primary btn-sm" @click="enableNotifications">Enable browser notifications</button>
                                 <button type="button" class="btn btn-outline-secondary btn-sm" @click="sendTestPush">Test notification</button>
                             </div>

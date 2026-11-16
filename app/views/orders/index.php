@@ -17,6 +17,7 @@ $orderListProps = [
     'totalOrders' => (int)($total_orders ?? 0),
     'today' => date('Y-m-d'),
     'baseUrl' => base_url(),
+    'csrfToken' => csrf_token(),
     'flashes' => $flashes,
 ];
 ?>

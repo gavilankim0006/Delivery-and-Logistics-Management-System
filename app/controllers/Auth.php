@@ -438,8 +438,17 @@ class Auth extends Controller
             return;
         }
         require_auth();
-        $user = $this->User_model->find_by_id(auth_id());
+        $user = $this->public_user($this->User_model->find_by_id(auth_id()));
         $this->api->respond(['success' => true, 'data' => ['user' => $user, 'role' => auth_role()]]);
+    }
+
+    /** Strip secrets (password hash) before user rows leave the server. */
+    private function public_user(?array $user): ?array
+    {
+        if (is_array($user)) {
+            unset($user['password']);
+        }
+        return $user;
     }
 
     public function api_profile(): void
@@ -515,7 +524,7 @@ class Auth extends Controller
             $_SESSION['user']['email_notifications_opt_in'] = $updateData['email_notifications_opt_in'];
         }
 
-        $updated = $this->User_model->find_by_id(auth_id());
+        $updated = $this->public_user($this->User_model->find_by_id(auth_id()));
         $this->api->respond(['success' => true, 'data' => ['user' => $updated, 'role' => auth_role()], 'message' => 'Profile updated successfully.']);
     }
 
@@ -789,7 +798,7 @@ class Auth extends Controller
                 header('Location: ' . base_url('rider'));
                 break;
             default:
-                header('Location: ' . base_url('orders'));
+                header('Location: ' . base_url('dashboard'));
         }
         exit;
     }

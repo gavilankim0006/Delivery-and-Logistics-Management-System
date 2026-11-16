@@ -42,6 +42,7 @@
               <th scope="col">Phone</th>
               <th scope="col">Vehicle</th>
               <th scope="col">Plate number</th>
+              <th scope="col">Rating</th>
               <th scope="col">Status</th>
               <th scope="col">Portal account</th>
               <th scope="col" class="text-end">Actions</th>
@@ -49,7 +50,7 @@
           </thead>
           <tbody>
             <tr v-if="!riders || !riders.length">
-              <td colspan="8" class="text-center py-4 text-muted">No riders match this filter.</td>
+              <td colspan="9" class="text-center py-4 text-muted">No riders match this filter.</td>
             </tr>
             <tr v-for="rider in riders" v-else :key="rider.id">
               <td data-label="ID" class="text-muted">#{{ rider.id }}</td>
@@ -57,6 +58,14 @@
               <td data-label="Phone">{{ rider.phone }}</td>
               <td data-label="Vehicle"><i class="bi bi-bicycle me-1" aria-hidden="true"></i>{{ rider.vehicle_type }}</td>
               <td data-label="Plate number"><span class="font-monospace">{{ rider.plate_number }}</span></td>
+              <td data-label="Rating" class="text-nowrap">
+                <template v-if="Number(rider.rating_count) > 0">
+                  <i class="bi bi-star-fill text-warning me-1" aria-hidden="true"></i>
+                  <span class="fw-medium">{{ Number(rider.rating_average).toFixed(1) }}</span>
+                  <span class="small text-muted">({{ rider.rating_count }})</span>
+                </template>
+                <span v-else class="small text-muted">No ratings</span>
+              </td>
               <td data-label="Status">
                 <span v-if="rider.status === 'available'" class="availability-chip availability-chip--available">Available</span>
                 <span v-else-if="rider.status === 'busy'" class="availability-chip availability-chip--busy">Busy</span>

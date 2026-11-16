@@ -58,6 +58,7 @@ class Orders extends Controller
         $this->call->model('Order_model');
         require_role(['customer', 'dispatcher', 'admin']);
         $this->call->library('DeliveryControlService');
+        $this->call->library('OrderTrackingService');
     }
 
     /**
@@ -173,6 +174,340 @@ class Orders extends Controller
                 'totalPages' => $totalPages
             ]
         ]);
+    }
+
+    /**
+     * Download the customer's order history as a CSV that honours the list filters.
+     */
+    public function export(): void
+    {
+        $role = auth_role();
+        $status = trim($_GET['status'] ?? '');
+        $validStatuses = ['draft', 'pending_payment', 'paid', 'booking', 'rider_assigned', 'picked_up', 'delivered', 'cancelled', 'failed'];
+        if (!in_array($status, $validStatuses, true)) {
+            $status = '';
+        }
+
+        $date = trim($_GET['date'] ?? '');
+        if ($date !== '') {
+            $dateParts = explode('-', $date);
+            if (count($dateParts) !== 3 || !checkdate((int)$dateParts[1], (int)$dateParts[2], (int)$dateParts[0])) {
+                $date = '';
+            }
+        }
+
+        $filters = [
+            'status' => $status,
+            'date' => $date,
+            'search' => substr(trim($_GET['search'] ?? ''), 0, 100)
+        ];
+        if ($role === 'customer') {
+            $customerId = $this->currentCustomerId();
+            if ($customerId === null) {
+                http_response_code(403);
+                return;
+            }
+            $filters['customer_id'] = $customerId;
+        }
+
+        $rows = $this->Order_model->export_list($filters, 5000);
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="dispatch-orders-' . date('Ymd-His') . '.csv"');
+        header('Cache-Control: private, no-store, max-age=0');
+
+        $out = fopen('php://output', 'w');
+        // UTF-8 BOM so Excel detects the encoding.
+        fwrite($out, "\xEF\xBB\xBF");
+        fputcsv($out, [
+            'Order No', 'Status', 'Created', 'Pickup', 'Pickup Contact', 'Pickup Phone',
+            'Drop-off', 'Drop-off Contact', 'Drop-off Phone', 'Parcel', 'Weight (kg)', 'Size',
+            'Distance (km)', 'Delivery Fee', 'Payment Status', 'Rider'
+        ]);
+        foreach ($rows as $row) {
+            fputcsv($out, [
+                $row['order_no'],
+                $row['status'],
+                $row['created_at'],
+                $row['pickup_address'],
+                $row['pickup_contact_name'],
+                $row['pickup_phone'],
+                $row['dropoff_address'],
+                $row['dropoff_contact_name'],
+                $row['dropoff_phone'],
+                $row['parcel_description'],
+                $row['weight_kg'],
+                $row['parcel_size'],
+                $row['distance_km'],
+                $row['delivery_fee'],
+                $row['payment_status'] ?? '',
+                $row['rider_name'] ?? ''
+            ]);
+        }
+        fclose($out);
+        exit;
+    }
+
+    /**
+     * Download a blank CSV template for bulk order import.
+     */
+    public function import_template(): void
+    {
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="dispatch-order-import-template.csv"');
+        header('Cache-Control: private, no-store, max-age=0');
+
+        $out = fopen('php://output', 'w');
+        fwrite($out, "\xEF\xBB\xBF");
+        fputcsv($out, [
+            'pickup_address', 'pickup_contact_name', 'pickup_contact_phone', 'pickup_notes',
+            'dropoff_address', 'dropoff_contact_name', 'dropoff_contact_phone', 'dropoff_notes',
+            'parcel_description', 'parcel_weight_kg', 'parcel_size', 'is_fragile'
+        ]);
+        fputcsv($out, [
+            'SM Mall of Asia Complex, Pasay City', 'Juan Dela Cruz', '09171234567', 'Ask guard for the warehouse',
+            'Makati CBD Hub, Ayala Avenue, Makati City', 'Maria Santos', '09181234567', '',
+            'Retail fashion accessories', '1.5', 'S', '0'
+        ]);
+        fclose($out);
+        exit;
+    }
+
+    /**
+     * Bulk-create draft orders from an uploaded CSV (max 20 rows per import).
+     */
+    public function import(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            redirect('orders');
+            return;
+        }
+        if (auth_role() !== 'customer' || !verify_csrf()) {
+            http_response_code(400);
+            flash('error', 'Invalid request or security token.');
+            redirect('orders');
+            return;
+        }
+
+        $customerId = $this->currentCustomerId();
+        if (!$customerId) {
+            http_response_code(403);
+            return;
+        }
+
+        $file = $_FILES['csv_file'] ?? null;
+        if (!$file || !isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'] ?? '')) {
+            flash('error', 'Attach a CSV file to import orders.');
+            redirect('orders');
+            return;
+        }
+        if ((int)$file['size'] > 262144) {
+            flash('error', 'The import file is too large. Keep it under 256 KB.');
+            redirect('orders');
+            return;
+        }
+
+        $extension = strtolower(pathinfo((string)($file['name'] ?? ''), PATHINFO_EXTENSION));
+        if ($extension !== 'csv') {
+            flash('error', 'Only .csv files are supported. Download the import template for the expected format.');
+            redirect('orders');
+            return;
+        }
+
+        $handle = fopen($file['tmp_name'], 'r');
+        if (!$handle) {
+            flash('error', 'The CSV file could not be read.');
+            redirect('orders');
+            return;
+        }
+
+        set_time_limit(180);
+
+        $requiredColumns = [
+            'pickup_address', 'pickup_contact_name', 'pickup_contact_phone',
+            'dropoff_address', 'dropoff_contact_name', 'dropoff_contact_phone',
+            'parcel_description'
+        ];
+        $optionalDefaults = [
+            'pickup_notes' => '',
+            'dropoff_notes' => '',
+            'parcel_weight_kg' => '1',
+            'parcel_size' => 'M',
+            'is_fragile' => '0'
+        ];
+
+        $headers = null;
+        $rowNumber = 0;
+        $created = 0;
+        $errors = [];
+
+        try {
+            while (($line = fgetcsv($handle)) !== false) {
+                $rowNumber++;
+                if ($rowNumber === 1) {
+                    $firstCell = (string)($line[0] ?? '');
+                    if (str_starts_with($firstCell, "\xEF\xBB\xBF")) {
+                        $line[0] = substr($firstCell, 3);
+                    }
+                    $headers = array_map(static function ($header) {
+                        return strtolower(trim((string)$header, " \t\n\r\0\x0B\"'"));
+                    }, $line);
+                    $headers = array_map(static function ($header) {
+                        return str_replace([' ', '-'], '_', $header);
+                    }, $headers);
+                    $missing = array_diff($requiredColumns, $headers);
+                    if (!empty($missing)) {
+                        flash('error', 'The CSV is missing required columns: ' . implode(', ', $missing) . '. Use the import template.');
+                        fclose($handle);
+                        redirect('orders');
+                        return;
+                    }
+                    continue;
+                }
+
+                // Skip blank lines.
+                if (count($line) === 1 && trim((string)$line[0]) === '') {
+                    continue;
+                }
+                if ($created + count($errors) >= 20) {
+                    $errors[] = 'Row ' . $rowNumber . ': import stopped after 20 data rows. Split the file and run again.';
+                    break;
+                }
+
+                // Unquoted commas inside addresses shift every following column;
+                // catch that early with an actionable message instead of bad data.
+                if (count($line) > count($headers)) {
+                    $errors[] = 'Row ' . $rowNumber . ': too many columns. Wrap address fields containing commas in double quotes (e.g. "Makati CBD Hub, Ayala Avenue").';
+                    continue;
+                }
+
+                $row = [];
+                foreach ($headers as $index => $column) {
+                    $row[$column] = trim((string)($line[$index] ?? ''));
+                }
+                foreach ($optionalDefaults as $column => $default) {
+                    if (!array_key_exists($column, $row) || $row[$column] === '') {
+                        $row[$column] = $default;
+                    }
+                }
+
+                $rowError = null;
+                foreach ($requiredColumns as $column) {
+                    if (($row[$column] ?? '') === '') {
+                        $rowError = str_replace('_', ' ', $column) . ' is required.';
+                        break;
+                    }
+                    $limit = in_array($column, ['pickup_address', 'dropoff_address'], true) ? 500 : 150;
+                    if (mb_strlen($row[$column]) > $limit) {
+                        $rowError = str_replace('_', ' ', $column) . " must be {$limit} characters or fewer.";
+                        break;
+                    }
+                }
+
+                $pickupPhone = $dropoffPhone = '';
+                if ($rowError === null) {
+                    foreach (['pickup_contact_phone' => 'pickup', 'dropoff_contact_phone' => 'dropoff'] as $column => $stop) {
+                        $cleaned = preg_replace('/[\s\-\(\)\.]/', '', $row[$column]);
+                        if (!preg_match('/^(?:09|\+639|639)\d{9}$/', (string)$cleaned)) {
+                            $rowError = 'the ' . str_replace('_', ' ', $column) . ' must be a valid PH mobile number.';
+                            break;
+                        }
+                        preg_match('/^(?:09|\+639|639)(\d{9})$/', (string)$cleaned, $phoneMatches);
+                        if ($stop === 'pickup') {
+                            $pickupPhone = '09' . $phoneMatches[1];
+                        } else {
+                            $dropoffPhone = '09' . $phoneMatches[1];
+                        }
+                    }
+                }
+
+                $weight = $parcelSize = $isFragile = null;
+                if ($rowError === null) {
+                    $weight = is_numeric($row['parcel_weight_kg']) ? (float)$row['parcel_weight_kg'] : 0.0;
+                    if ($weight < 0.1 || $weight > 1000) {
+                        $rowError = 'the parcel weight must be between 0.1 kg and 1000 kg.';
+                    }
+                    $parcelSize = strtoupper($row['parcel_size']);
+                    if ($rowError === null && !in_array($parcelSize, ['S', 'M', 'L'], true)) {
+                        $rowError = 'the parcel size must be S, M, or L.';
+                    }
+                    $isFragile = in_array(strtolower($row['is_fragile']), ['1', 'yes', 'true'], true) ? 1 : 0;
+                }
+
+                if ($rowError === null && strcasecmp($row['pickup_address'], $row['dropoff_address']) === 0) {
+                    $rowError = 'pickup and drop-off addresses cannot be identical.';
+                }
+
+                if ($rowError === null) {
+                    try {
+                        $maps = $this->call->library('GoogleMapsService');
+                        $route = $maps->route($row['pickup_address'], $row['dropoff_address']);
+                        $distanceKm = (float)$route['distance_km'];
+                        if ($distanceKm <= 0 || $distanceKm > 10000) {
+                            throw new InvalidArgumentException('The route distance could not be confirmed.');
+                        }
+                        $feeCalc = calculate_delivery_fee($distanceKm, $weight);
+
+                        $this->Order_model->create_order([
+                            'customer_id' => $customerId,
+                            'distance_km' => $distanceKm,
+                            'estimated_duration_min' => (int)ceil($distanceKm * 2.8),
+                            'delivery_fee' => $feeCalc['total_fee'],
+                            'actor_type' => 'customer',
+                            'actor_id' => auth_id(),
+                            'pickup' => [
+                                'label' => 'Pickup Location',
+                                'address_line' => $row['pickup_address'],
+                                'latitude' => $route['start_location']['lat'] ?? null,
+                                'longitude' => $route['start_location']['lng'] ?? null,
+                                'contact_name' => $row['pickup_contact_name'],
+                                'contact_phone' => $pickupPhone,
+                                'notes' => $row['pickup_notes'] !== '' ? mb_substr($row['pickup_notes'], 0, 300) : null
+                            ],
+                            'dropoff' => [
+                                'label' => 'Drop-off Location',
+                                'address_line' => $row['dropoff_address'],
+                                'latitude' => $route['end_location']['lat'] ?? null,
+                                'longitude' => $route['end_location']['lng'] ?? null,
+                                'contact_name' => $row['dropoff_contact_name'],
+                                'contact_phone' => $dropoffPhone,
+                                'notes' => $row['dropoff_notes'] !== '' ? mb_substr($row['dropoff_notes'], 0, 300) : null
+                            ],
+                            'parcel' => [
+                                'description' => mb_substr($row['parcel_description'], 0, 150),
+                                'weight_kg' => $weight,
+                                'size' => $parcelSize,
+                                'is_fragile' => $isFragile
+                            ]
+                        ]);
+                        $created++;
+                    } catch (Throwable $rowException) {
+                        $rowError = $rowException instanceof InvalidArgumentException
+                            ? $rowException->getMessage()
+                            : 'the route could not be resolved from these addresses.';
+                    }
+                }
+
+                if ($rowError !== null) {
+                    $errors[] = 'Row ' . $rowNumber . ': ' . $rowError;
+                }
+            }
+        } finally {
+            fclose($handle);
+        }
+
+        if ($created > 0) {
+            flash('success', "Imported {$created} draft " . ($created === 1 ? 'order' : 'orders') . '. Review them and pay when ready.');
+        }
+        if (!empty($errors)) {
+            $shown = array_slice($errors, 0, 5);
+            $extra = count($errors) - count($shown);
+            flash('warning', 'Some rows were skipped — ' . implode(' ', $shown) . ($extra > 0 ? " (+{$extra} more)" : ''));
+        }
+        if ($created === 0 && empty($errors)) {
+            flash('error', 'No data rows were found in the CSV file.');
+        }
+        redirect('orders?status=draft');
     }
 
     /**
@@ -570,6 +905,97 @@ class Orders extends Controller
     }
 
     /**
+     * Copy one of the customer's own finished orders into a fresh draft ("Send again").
+     */
+    public function duplicate($id)
+    {
+        if (!is_numeric($id) || (int)$id <= 0) {
+            redirect('orders');
+            return;
+        }
+        $id = (int)$id;
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || auth_role() !== 'customer' || !verify_csrf()) {
+            http_response_code(400);
+            flash('error', 'Invalid request or security token.');
+            redirect('orders/' . $id);
+            return;
+        }
+
+        $customerId = $this->currentCustomerId();
+        $order = $customerId ? $this->Order_model->get_by_id($id, $customerId) : null;
+        if (!$order) {
+            http_response_code(404);
+            flash('error', 'Order not found or permission denied.');
+            redirect('orders');
+            return;
+        }
+
+        $duplicableStatuses = ['delivered', 'cancelled', 'failed'];
+        if (!in_array($order['status'], $duplicableStatuses, true)) {
+            flash('error', 'Only delivered, cancelled, or failed orders can be copied into a new draft.');
+            redirect('orders/' . $id);
+            return;
+        }
+
+        try {
+            $distanceKm = (float)$order['distance_km'];
+            $weightKg = (float)($order['weight_kg'] ?? 1);
+            $feeCalc = calculate_delivery_fee($distanceKm, $weightKg);
+
+            $created = $this->Order_model->create_order([
+                'customer_id' => $customerId,
+                'distance_km' => $distanceKm,
+                'estimated_duration_min' => (int)$order['estimated_duration_min'] ?: (int)ceil($distanceKm * 2.8),
+                'delivery_fee' => $feeCalc['total_fee'],
+                'actor_type' => 'customer',
+                'actor_id' => auth_id(),
+                'pickup' => [
+                    'label' => 'Pickup Location',
+                    'address_line' => $order['pickup_address'],
+                    'unit_number' => $order['pickup_unit_number'] ?? null,
+                    'street' => $order['pickup_street'] ?? null,
+                    'barangay' => $order['pickup_barangay'] ?? null,
+                    'city' => $order['pickup_city'] ?? null,
+                    'province' => $order['pickup_province'] ?? null,
+                    'latitude' => $order['pickup_lat'],
+                    'longitude' => $order['pickup_lng'],
+                    'contact_name' => $order['pickup_contact_name'],
+                    'contact_phone' => $order['pickup_phone'],
+                    'notes' => $order['pickup_notes']
+                ],
+                'dropoff' => [
+                    'label' => 'Drop-off Location',
+                    'address_line' => $order['dropoff_address'],
+                    'unit_number' => $order['dropoff_unit_number'] ?? null,
+                    'street' => $order['dropoff_street'] ?? null,
+                    'barangay' => $order['dropoff_barangay'] ?? null,
+                    'city' => $order['dropoff_city'] ?? null,
+                    'province' => $order['dropoff_province'] ?? null,
+                    'latitude' => $order['dropoff_lat'],
+                    'longitude' => $order['dropoff_lng'],
+                    'contact_name' => $order['dropoff_contact_name'],
+                    'contact_phone' => $order['dropoff_phone'],
+                    'notes' => $order['dropoff_notes']
+                ],
+                'parcel' => [
+                    'description' => $order['parcel_description'] ?? 'Standard Package',
+                    'weight_kg' => $weightKg,
+                    'size' => in_array($order['parcel_size'] ?? '', ['S', 'M', 'L'], true) ? $order['parcel_size'] : 'M',
+                    'is_fragile' => !empty($order['is_fragile']) ? 1 : 0
+                ]
+            ]);
+
+            flash('success', "Copied order #{$order['order_no']} into draft #{$created['order_no']}. Review the details and pay when ready.");
+            redirect('orders/' . $created['order_id']);
+        } catch (\Throwable $e) {
+            error_log('Order duplication failed for order ' . $id . ': ' . $e->getMessage());
+            flash('error', 'We could not copy this order into a new draft. Please try again.');
+            redirect('orders/' . $id);
+        }
+    }
+
+    /**
      * Update editable details on a customer's own draft order.
      */
     public function update($id)
@@ -959,6 +1385,113 @@ class Orders extends Controller
     }
 
     /**
+     * Create (or rotate) a shareable public tracking link for a customer's own order.
+     */
+    public function share_tracking_link($id)
+    {
+        if (!is_numeric($id) || (int)$id <= 0) {
+            redirect('orders');
+            return;
+        }
+        $id = (int)$id;
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf() || auth_role() !== 'customer') {
+            http_response_code(400);
+            flash('error', 'Invalid request or security token.');
+            redirect('orders/' . $id);
+            return;
+        }
+        $customerId = $this->currentCustomerId();
+        if (!$customerId) {
+            http_response_code(403);
+            return;
+        }
+
+        try {
+            (new OrderTrackingService($this->db))->issue($id, (int)$customerId);
+            flash('success', 'Tracking link ready. Copy it from the sharing panel and send it to your recipient.');
+        } catch (Throwable $e) {
+            flash('error', $e instanceof DomainException || $e instanceof InvalidArgumentException
+                ? $e->getMessage()
+                : 'Unable to create a tracking link right now. Please try again.');
+        }
+        redirect('orders/' . $id);
+    }
+
+    /**
+     * Stop sharing the public tracking link for a customer's own order.
+     */
+    public function revoke_tracking_link($id)
+    {
+        if (!is_numeric($id) || (int)$id <= 0) {
+            redirect('orders');
+            return;
+        }
+        $id = (int)$id;
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verify_csrf() || auth_role() !== 'customer') {
+            http_response_code(400);
+            flash('error', 'Invalid request or security token.');
+            redirect('orders/' . $id);
+            return;
+        }
+        $customerId = $this->currentCustomerId();
+        if (!$customerId) {
+            http_response_code(403);
+            return;
+        }
+
+        $revoked = (new OrderTrackingService($this->db))->revoke($id, (int)$customerId);
+        flash($revoked ? 'success' : 'error', $revoked
+            ? 'Tracking link stopped. Previously shared links no longer work.'
+            : 'Order not found.');
+        redirect('orders/' . $id);
+    }
+
+    /**
+     * Printable payment receipt for a customer's own paid order.
+     */
+    public function receipt($id)
+    {
+        if (!is_numeric($id) || (int)$id <= 0) {
+            redirect('orders');
+            return;
+        }
+        $id = (int)$id;
+
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET' || auth_role() !== 'customer') {
+            http_response_code(404);
+            return;
+        }
+
+        $customerId = $this->currentCustomerId();
+        $order = $customerId ? $this->Order_model->get_by_id($id, $customerId) : null;
+        if (!$order) {
+            http_response_code(404);
+            $this->call->view('orders/not_found', ['page_title' => 'Order not found']);
+            return;
+        }
+
+        $payment = $this->db->raw(
+            "SELECT id, status, payment_method, amount, paymongo_session_id, paid_at, created_at
+             FROM payments WHERE order_id = ? AND status = 'paid' ORDER BY id DESC LIMIT 1",
+            [$id]
+        )->fetch(PDO::FETCH_ASSOC);
+
+        if (!$payment) {
+            flash('error', 'A receipt becomes available once a payment has been recorded for this order.');
+            redirect('orders/' . $id);
+            return;
+        }
+
+        $this->call->view('orders/receipt', [
+            'page_title' => "Receipt · {$order['order_no']}",
+            'order' => $order,
+            'payment' => $payment
+        ]);
+    }
+
+    /**
      * Show order tracking and detail page
      */
     public function show_data(int $id): void
@@ -982,12 +1515,16 @@ class Orders extends Controller
         $controlPassActive = ($role === 'customer' && $customerId !== null)
             ? (new DeliveryControlService($this->db))->hasActivePass($id, (int)$customerId)
             : false;
+        $trackingLinkUrl = ($role === 'customer' && $customerId !== null)
+            ? (new OrderTrackingService($this->db))->activeLinkUrl($id, (int)$customerId)
+            : null;
         $this->api->respond([
             'success' => true,
             'data' => [
                 'order' => $order,
                 'role' => $role,
                 'controlPassActive' => $controlPassActive,
+                'trackingLinkUrl' => $trackingLinkUrl,
                 'riderLocationEnabled' => ($role === 'customer'
                     && $order['fulfillment_mode'] === 'internal'
                     && in_array($order['status'], ['rider_assigned', 'picked_up'], true)),
@@ -1030,7 +1567,8 @@ class Orders extends Controller
             'rider_location_enabled' => $role === 'customer'
                 && $order['fulfillment_mode'] === 'internal'
                 && in_array($order['status'], ['rider_assigned', 'picked_up'], true),
-            'control_pass_active' => $role === 'customer' && $this->currentCustomerId() ? (new DeliveryControlService($this->db))->hasActivePass($id, (int)$this->currentCustomerId()) : false
+            'control_pass_active' => $role === 'customer' && $this->currentCustomerId() ? (new DeliveryControlService($this->db))->hasActivePass($id, (int)$this->currentCustomerId()) : false,
+            'tracking_link_url' => $role === 'customer' && $this->currentCustomerId() ? (new OrderTrackingService($this->db))->activeLinkUrl($id, (int)$this->currentCustomerId()) : null
         ]);
     }
 

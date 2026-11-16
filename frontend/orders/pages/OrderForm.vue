@@ -92,7 +92,10 @@ function validateField(id, val, ruleFn, errorMsg) {
 }
 
 function handleSubmit(event) {
-    const form = event.target;
+    // Accept both native submit events (event.target is the form) and clicks
+    // forwarded from controls that live outside the form element.
+    const form = event?.target?.elements ? event.target : event?.target?.closest?.('form');
+    if (!form) return;
 
     // The split components are authoritative. Compose them before validation/submission so
     // route lookup and saved coordinates always correspond to the displayed address.
@@ -162,6 +165,20 @@ function handleSubmit(event) {
     submitting.value = true;
 }
 
+// The sticky mobile action bar lives outside <form>, so trigger the form's real
+// submit pipeline instead of calling the handler with a click event.
+function submitMobile() {
+    const form = document.getElementById('order-main-form');
+    if (!form) return;
+    if (typeof form.requestSubmit === 'function') {
+        form.requestSubmit();
+        return;
+    }
+    const submitEvent = new Event('submit', { cancelable: true, bubbles: true });
+    form.dispatchEvent(submitEvent);
+    if (!submitEvent.defaultPrevented) form.submit();
+}
+
 let initMap;
 let updateEstimate;
 onMounted(() => {
@@ -216,15 +233,26 @@ onUnmounted(() => {
     weightInput?.removeEventListener('input', updateEstimate);
 });
 
-function feeEstimate() {
+function calculatedFee() {
     const distance = Number(props.formData.distance_km) || 0;
+    if (!distance) return null;
     const weight = Number(props.formData.parcel_weight) || 1;
-    if (!distance) return 'Calculated securely when saved';
     const r = props.rates;
-    const fee = Number(r.base_delivery_fee || 60)
+    return Number(r.base_delivery_fee || 60)
         + Math.max(0, distance - Number(r.free_distance_km || 2)) * Number(r.per_km_rate || 12.5)
         + Math.max(0, weight - Number(r.free_weight_kg || 1)) * Number(r.per_kg_rate || 5);
+}
+
+function feeEstimate() {
+    const fee = calculatedFee();
+    if (fee === null) return 'Calculated securely when saved';
     return `Estimated ₱${fee.toFixed(2)} · final fee confirmed on save`;
+}
+
+// Keep the sticky mobile bar compact: value only, no explanatory sentence.
+function mobileFeeEstimate() {
+    const fee = calculatedFee();
+    return fee === null ? '—' : `₱${fee.toFixed(2)}`;
 }
 </script>
 
@@ -278,9 +306,9 @@ function feeEstimate() {
                             <div class="row g-2">
                                 <div class="col-6"><input type="text" class="form-control" name="pickup_unit_number" aria-label="Pickup unit or house number" placeholder="Unit/House No." v-model="addressComponents.pickup_unit_number" @input="clearError('pickup_address')"></div>
                                 <div class="col-6"><input type="text" class="form-control" name="pickup_street" aria-label="Pickup street" placeholder="Street" v-model="addressComponents.pickup_street" @input="clearError('pickup_address')"></div>
-                                <div class="col-4"><input type="text" class="form-control" name="pickup_barangay" aria-label="Pickup barangay" placeholder="Barangay" v-model="addressComponents.pickup_barangay" @input="clearError('pickup_address')"></div>
-                                <div class="col-4"><input type="text" class="form-control" name="pickup_city" aria-label="Pickup city" placeholder="City" v-model="addressComponents.pickup_city" @input="clearError('pickup_address')"></div>
-                                <div class="col-4"><input type="text" class="form-control" name="pickup_province" aria-label="Pickup province" placeholder="Province" v-model="addressComponents.pickup_province" @input="clearError('pickup_address')"></div>
+                                <div class="col-12 col-sm-4"><input type="text" class="form-control" name="pickup_barangay" aria-label="Pickup barangay" placeholder="Barangay" v-model="addressComponents.pickup_barangay" @input="clearError('pickup_address')"></div>
+                                <div class="col-6 col-sm-4"><input type="text" class="form-control" name="pickup_city" aria-label="Pickup city" placeholder="City" v-model="addressComponents.pickup_city" @input="clearError('pickup_address')"></div>
+                                <div class="col-6 col-sm-4"><input type="text" class="form-control" name="pickup_province" aria-label="Pickup province" placeholder="Province" v-model="addressComponents.pickup_province" @input="clearError('pickup_address')"></div>
                             </div>
                         </fieldset>
                         <input type="hidden" id="pickup_address" name="pickup_address" :value="value('pickup_address')">
@@ -407,9 +435,9 @@ function feeEstimate() {
                             <div class="row g-2">
                                 <div class="col-6"><input type="text" class="form-control" name="dropoff_unit_number" aria-label="Drop-off unit or house number" placeholder="Unit/House No." v-model="addressComponents.dropoff_unit_number" @input="clearError('dropoff_address')"></div>
                                 <div class="col-6"><input type="text" class="form-control" name="dropoff_street" aria-label="Drop-off street" placeholder="Street" v-model="addressComponents.dropoff_street" @input="clearError('dropoff_address')"></div>
-                                <div class="col-4"><input type="text" class="form-control" name="dropoff_barangay" aria-label="Drop-off barangay" placeholder="Barangay" v-model="addressComponents.dropoff_barangay" @input="clearError('dropoff_address')"></div>
-                                <div class="col-4"><input type="text" class="form-control" name="dropoff_city" aria-label="Drop-off city" placeholder="City" v-model="addressComponents.dropoff_city" @input="clearError('dropoff_address')"></div>
-                                <div class="col-4"><input type="text" class="form-control" name="dropoff_province" aria-label="Drop-off province" placeholder="Province" v-model="addressComponents.dropoff_province" @input="clearError('dropoff_address')"></div>
+                                <div class="col-12 col-sm-4"><input type="text" class="form-control" name="dropoff_barangay" aria-label="Drop-off barangay" placeholder="Barangay" v-model="addressComponents.dropoff_barangay" @input="clearError('dropoff_address')"></div>
+                                <div class="col-6 col-sm-4"><input type="text" class="form-control" name="dropoff_city" aria-label="Drop-off city" placeholder="City" v-model="addressComponents.dropoff_city" @input="clearError('dropoff_address')"></div>
+                                <div class="col-6 col-sm-4"><input type="text" class="form-control" name="dropoff_province" aria-label="Drop-off province" placeholder="Province" v-model="addressComponents.dropoff_province" @input="clearError('dropoff_address')"></div>
                             </div>
                         </fieldset>
                         <input type="hidden" id="dropoff_address" name="dropoff_address" :value="value('dropoff_address')">
@@ -703,20 +731,20 @@ function feeEstimate() {
         </form>
 
         <!-- Sticky Floating Action Bar for Mobile Customer View -->
-        <div class="order-form-mobile-bar d-lg-none" role="region" aria-label="Order summary bar">
+        <div class="order-form-mobile-bar d-md-none" role="region" aria-label="Order summary bar">
             <div class="order-form-mobile-bar__info">
-                <span class="order-form-mobile-bar__label">Estimated Total</span>
-                <span class="order-form-mobile-bar__price" id="mobile-summary-fee">{{ feeEstimate() }}</span>
+                <span class="order-form-mobile-bar__label">Estimated total</span>
+                <span class="order-form-mobile-bar__price" id="mobile-summary-fee">{{ mobileFeeEstimate() }}</span>
                 <span class="order-form-mobile-bar__sub" id="mobile-summary-distance">Calculated on save</span>
             </div>
             <button
                 class="btn btn-primary order-form-mobile-bar__btn"
                 type="button"
                 :disabled="submitting"
-                @click="handleSubmit"
+                @click="submitMobile"
             >
                 <span v-if="submitting" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                <span>{{ submitting ? 'Saving...' : (isEdit ? 'Save' : 'Save Order') }}</span>
+                <span>{{ submitting ? 'Saving...' : (isEdit ? 'Save' : 'Save order') }}</span>
             </button>
         </div>
     </div>

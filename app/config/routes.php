@@ -86,6 +86,18 @@ $router->post('/webhooks/lalamove', 'Webhooks::lalamove');
 $router->get('/delivery-control/{token}', 'Delivery_control::show');
 $router->post('/delivery-control/{token}/submit', 'Delivery_control::submit');
 
+// Public order tracking (shared link, no login)
+$router->get('/track/{token}', 'Tracking::show');
+$router->get('/track/{token}/data', 'Tracking::data');
+
+// Customer dashboard
+$router->get('/dashboard', 'Dashboard::index');
+
+// In-app notification feed
+$router->get('/notifications/data', 'Notifications::data');
+$router->post('/notifications/read', 'Notifications::read');
+$router->post('/notifications/read-all', 'Notifications::read_all');
+
 // Customer saved-address CRUD
 $router->get('/addresses', 'Addresses::index');
 $router->get('/addresses/new', 'Addresses::new');
@@ -101,17 +113,36 @@ $router->post('/addresses/{id}/api', 'Addresses::api_update');
 $router->post('/addresses/{id}/api-delete', 'Addresses::api_delete');
 $router->get('/orders', 'Orders::index');
 $router->get('/orders/data', 'Orders::data');
+$router->get('/orders/export', 'Orders::export');
+$router->get('/orders/import/template', 'Orders::import_template');
+$router->post('/orders/import', 'Orders::import');
 $router->get('/orders/new', 'Orders::new_order');
 $router->post('/orders', 'Orders::create');
 $router->get('/orders/{id}/edit', 'Orders::edit');
 $router->post('/orders/{id}/edit', 'Orders::update');
 $router->post('/orders/{id}/delete', 'Orders::delete_draft');
+$router->post('/orders/{id}/duplicate', 'Orders::duplicate');
 $router->post('/orders/{id}/checkout', 'Orders::checkout');
 $router->post('/orders/{id}/simulate-payment', 'Orders::simulate_payment');
 $router->post('/orders/{id}/cancel', 'Orders::cancel');
 $router->get('/orders/{id}/location', 'Orders::location');
 $router->post('/orders/{id}/control-pass', 'Orders::issue_control_pass');
 $router->post('/orders/{id}/control-pass/revoke', 'Orders::revoke_control_pass');
+$router->post('/orders/{id}/tracking-link', 'Orders::share_tracking_link');
+$router->post('/orders/{id}/tracking-link/revoke', 'Orders::revoke_tracking_link');
+$router->post('/orders/{id}/rating', 'Ratings::submit');
+$router->post('/orders/{id}/template', 'Templates::save');
+
+// Reusable order templates
+$router->get('/templates', 'Templates::index');
+$router->post('/templates/{id}/use', 'Templates::use_template');
+$router->post('/templates/{id}/delete', 'Templates::destroy');
+
+// Customer team members (business accounts)
+$router->get('/team', 'Team::index');
+$router->post('/team/members', 'Team::store');
+$router->post('/team/members/{id}/delete', 'Team::destroy');
+$router->get('/orders/{id}/receipt', 'Orders::receipt');
 $router->get('/orders/{id}', 'Orders::show');
 $router->get('/orders/{id}/data', 'Orders::show_data');
 

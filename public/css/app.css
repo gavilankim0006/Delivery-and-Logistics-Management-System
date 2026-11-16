@@ -1020,6 +1020,7 @@ a:hover { color: var(--route-dark); }
     .navbar-custom .navbar-nav { align-items: stretch !important; }
     .navbar-custom .nav-link {
         min-height: 44px;
+        gap: var(--s-2);
         padding: var(--s-2) var(--s-3);
         border: 0;
         border-radius: var(--r-sm);
@@ -1038,10 +1039,11 @@ a:hover { color: var(--route-dark); }
         height: auto;
     }
     .ds-route-tracker__stage { flex-direction: row; align-items: center; gap: var(--s-2); text-align: start; }
-    .ds-route-tracker--progress-1 .ds-route-tracker__stages::after { height: 25%; }
-    .ds-route-tracker--progress-2 .ds-route-tracker__stages::after { height: 50%; }
-    .ds-route-tracker--progress-3 .ds-route-tracker__stages::after { height: 75%; }
-    .ds-route-tracker--progress-4 .ds-route-tracker__stages::after { height: 100%; }
+    /* Reset the desktop horizontal widths: the vertical track must stay 2px wide. */
+    .ds-route-tracker--progress-1 .ds-route-tracker__stages::after { width: 2px; height: 25%; }
+    .ds-route-tracker--progress-2 .ds-route-tracker__stages::after { width: 2px; height: 50%; }
+    .ds-route-tracker--progress-3 .ds-route-tracker__stages::after { width: 2px; height: 75%; }
+    .ds-route-tracker--progress-4 .ds-route-tracker__stages::after { width: 2px; height: 100%; }
     .ds-route-tracker__label { max-width: none; }
     .ds-route-tracker__time { margin-inline-start: auto; }
     .ds-route-tracker--compact .ds-route-tracker__stages { flex-direction: row; align-items: center; gap: 0; }

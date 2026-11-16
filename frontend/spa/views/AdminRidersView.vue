@@ -40,6 +40,7 @@
             <th>Name</th>
             <th>Phone</th>
             <th>Vehicle</th>
+            <th>Rating</th>
             <th>Status</th>
             <th>User account</th>
           </tr>
@@ -50,6 +51,13 @@
             <td data-label="Name" class="fw-semibold">{{ rider.name }}</td>
             <td data-label="Phone" class="small">{{ rider.phone }}</td>
             <td data-label="Vehicle" class="small">{{ rider.vehicle_type || '—' }} {{ rider.plate_number ? `(${rider.plate_number})` : '' }}</td>
+            <td data-label="Rating" class="small text-nowrap">
+              <template v-if="Number(rider.rating_count) > 0">
+                <i class="bi bi-star-fill text-warning me-1" aria-hidden="true"></i>{{ Number(rider.rating_average).toFixed(1) }}
+                <span class="text-muted">({{ rider.rating_count }})</span>
+              </template>
+              <span v-else class="text-muted">—</span>
+            </td>
             <td data-label="Status">
               <span class="ds-status-chip" :class="rider.status === 'active' ? 'ds-status-chip--active' : 'ds-status-chip--inactive'">
                 {{ rider.status }}

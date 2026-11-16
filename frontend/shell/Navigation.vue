@@ -14,6 +14,108 @@ const isNavOpen = ref(false);
 const isMoreOpen = ref(false);
 const isUserOpen = ref(false);
 
+const notifications = ref([]);
+const unreadCount = ref(0);
+const isNotificationsOpen = ref(false);
+let notificationTimer = null;
+
+async function loadNotifications() {
+    if (props.role !== 'customer') return;
+    try {
+        const response = await fetch(url('notifications/data'), {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+            cache: 'no-store'
+        });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (payload.success && payload.data) {
+            notifications.value = Array.isArray(payload.data.notifications) ? payload.data.notifications : [];
+            unreadCount.value = Number(payload.data.unreadCount || 0);
+        }
+    } catch {
+        // Keep the current feed; the next poll will retry.
+    }
+}
+
+function scheduleNotificationPoll() {
+    if (typeof window === 'undefined' || props.role !== 'customer') return;
+    window.clearTimeout(notificationTimer);
+    notificationTimer = window.setTimeout(async () => {
+        if (!document.hidden) {
+            await loadNotifications();
+        }
+        scheduleNotificationPoll();
+    }, 60000);
+}
+
+function toggleNotifications() {
+    isNotificationsOpen.value = !isNotificationsOpen.value;
+    if (isNotificationsOpen.value) {
+        loadNotifications();
+    }
+}
+
+function notificationTarget(notification) {
+    return notification.order_id ? `${cleanBaseUrl.value}orders/${Number(notification.order_id)}` : cleanBaseUrl.value;
+}
+
+async function markNotificationRead(notification) {
+    if (notification.read_at) return;
+    notification.read_at = new Date().toISOString();
+    unreadCount.value = Math.max(0, unreadCount.value - 1);
+    try {
+        const body = new URLSearchParams({ id: String(notification.id), csrf_token: props.csrfToken });
+        const response = await fetch(url('notifications/read'), {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+            body
+        });
+        if (response.ok) {
+            const payload = await response.json();
+            if (payload.success && payload.data) {
+                unreadCount.value = Number(payload.data.unreadCount || 0);
+            }
+        }
+    } catch {
+        // Keep the optimistic state; the next poll will reconcile.
+    }
+}
+
+async function markAllNotificationsRead() {
+    if (unreadCount.value === 0) return;
+    const now = new Date().toISOString();
+    notifications.value = notifications.value.map((notification) => ({ ...notification, read_at: notification.read_at || now }));
+    unreadCount.value = 0;
+    try {
+        const body = new URLSearchParams({ csrf_token: props.csrfToken });
+        await fetch(url('notifications/read-all'), {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+            body
+        });
+    } catch {
+        // Keep the optimistic state; the next poll will reconcile.
+    }
+}
+
+function relativeTime(value) {
+    if (!value) return '';
+    const parsed = new Date(String(value).replace(' ', 'T'));
+    if (Number.isNaN(parsed.getTime())) return String(value);
+    const seconds = Math.max(0, Math.floor((Date.now() - parsed.getTime()) / 1000));
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    return parsed.toLocaleDateString(undefined, { dateStyle: 'medium' });
+}
+
 const cleanBaseUrl = computed(() => {
     let url = props.baseUrl || '/';
     if (!url.endsWith('/')) url += '/';
@@ -59,7 +161,7 @@ const brandHref = computed(() => {
     if (props.role === 'admin') return url('admin');
     if (props.role === 'dispatcher') return url('dispatch');
     if (props.role === 'rider') return url('rider');
-    if (props.role === 'customer') return url('orders');
+    if (props.role === 'customer') return url('dashboard');
     return cleanBaseUrl.value;
 });
 
@@ -80,17 +182,25 @@ function handleClickOutside(e) {
     if (!e.target.closest('.dropdown-user')) {
         isUserOpen.value = false;
     }
+    if (!e.target.closest('.dropdown-notifications')) {
+        isNotificationsOpen.value = false;
+    }
 }
 
 onMounted(() => {
     if (typeof window !== 'undefined') {
         window.addEventListener('click', handleClickOutside);
     }
+    if (props.role === 'customer') {
+        loadNotifications();
+        scheduleNotificationPoll();
+    }
 });
 
 onBeforeUnmount(() => {
     if (typeof window !== 'undefined') {
         window.removeEventListener('click', handleClickOutside);
+        window.clearTimeout(notificationTimer);
     }
 });
 </script>
@@ -122,6 +232,12 @@ onBeforeUnmount(() => {
                     <!-- Customer links -->
                     <template v-if="role === 'customer'">
                         <li class="nav-item">
+                            <a class="nav-link" :class="{ active: navIsActive('dashboard') }" :href="url('dashboard')" :aria-current="navIsActive('dashboard') ? 'page' : undefined">
+                                <i class="bi bi-speedometer2" aria-hidden="true"></i>
+                                <span>Dashboard</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link" :class="{ active: navIsActive('package-workflow') }" :href="url('package-workflow')" :aria-current="navIsActive('package-workflow') ? 'page' : undefined">
                                 <i class="bi bi-chat-dots" aria-hidden="true"></i>
                                 <span>Package messenger</span>
@@ -137,6 +253,12 @@ onBeforeUnmount(() => {
                             <a class="nav-link" :class="{ active: navIsActive('orders') && !navIsActive('orders/new') }" :href="url('orders')" :aria-current="navIsActive('orders') && !navIsActive('orders/new') ? 'page' : undefined">
                                 <i class="bi bi-clock-history" aria-hidden="true"></i>
                                 <span>My Orders</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" :class="{ active: navIsActive('templates') }" :href="url('templates')" :aria-current="navIsActive('templates') ? 'page' : undefined">
+                                <i class="bi bi-bookmarks" aria-hidden="true"></i>
+                                <span>Templates</span>
                             </a>
                         </li>
                         <li class="nav-item">
@@ -274,6 +396,51 @@ onBeforeUnmount(() => {
                 <!-- Right Nav Items / Account Menu -->
                 <ul class="navbar-nav ms-auto align-items-lg-center">
                     <template v-if="role && role !== 'guest'">
+                        <li v-if="role === 'customer'" class="nav-item dropdown dropdown-notifications">
+                            <button
+                                class="nav-link dropdown-toggle btn btn-link text-decoration-none border-0 position-relative"
+                                type="button"
+                                @click.stop="toggleNotifications"
+                                :aria-expanded="isNotificationsOpen ? 'true' : 'false'"
+                                aria-label="Notifications"
+                            >
+                                <i class="bi bi-bell" aria-hidden="true"></i>
+                                <span v-if="unreadCount > 0" class="notifications-badge">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end shadow-sm notifications-menu" :class="{ show: isNotificationsOpen }">
+                                <div class="notifications-menu__header">
+                                    <span class="fw-semibold">Notifications</span>
+                                    <button
+                                        v-if="unreadCount > 0"
+                                        type="button"
+                                        class="btn btn-link btn-sm p-0 text-decoration-none"
+                                        @click.stop="markAllNotificationsRead"
+                                    >
+                                        Mark all read
+                                    </button>
+                                </div>
+                                <div v-if="notifications.length === 0" class="notifications-menu__empty text-muted small">
+                                    No notifications yet. Delivery updates will appear here.
+                                </div>
+                                <ul v-else class="list-unstyled mb-0 notifications-menu__list">
+                                    <li
+                                        v-for="notification in notifications"
+                                        :key="notification.id"
+                                        class="notifications-menu__item"
+                                        :class="{ 'is-unread': !notification.read_at }"
+                                    >
+                                        <a class="notifications-menu__link" :href="notificationTarget(notification)" @click="markNotificationRead(notification)">
+                                            <span class="notifications-menu__title">
+                                                <span v-if="!notification.read_at" class="notifications-menu__dot" aria-hidden="true"></span>
+                                                {{ notification.title }}
+                                            </span>
+                                            <span class="notifications-menu__body">{{ notification.body }}</span>
+                                            <span class="notifications-menu__time text-muted">{{ relativeTime(notification.created_at) }}</span>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                        </li>
                         <li class="nav-item dropdown dropdown-user">
                             <button
                                 class="nav-link dropdown-toggle btn btn-link text-decoration-none border-0 d-flex align-items-center gap-1"
@@ -292,6 +459,11 @@ onBeforeUnmount(() => {
                                     </h6>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
+                                <li v-if="role === 'customer'">
+                                    <a class="dropdown-item" :class="{ active: navIsActive('team') }" :href="url('team')">
+                                        <i class="bi bi-people me-2" aria-hidden="true"></i>Team members
+                                    </a>
+                                </li>
                                 <li>
                                     <a class="dropdown-item" :class="{ active: navIsActive('profile') }" :href="url('profile')">
                                         <i class="bi bi-person me-2" aria-hidden="true"></i>My profile
@@ -331,3 +503,99 @@ onBeforeUnmount(() => {
         </div>
     </nav>
 </template>
+
+<style scoped>
+.notifications-badge {
+    position: absolute;
+    top: -2px;
+    right: -8px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #dc3545;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.notifications-menu {
+    width: min(360px, calc(100vw - 24px));
+    max-height: 430px;
+    overflow: auto;
+    padding: 0;
+}
+
+.notifications-menu__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line, #D3DDE5);
+    position: sticky;
+    top: 0;
+    background: var(--surface, #fff);
+    z-index: 1;
+}
+
+.notifications-menu__empty {
+    padding: 16px;
+}
+
+.notifications-menu__item {
+    border-bottom: 1px solid var(--paper, #EEF2F5);
+}
+
+.notifications-menu__item:last-child {
+    border-bottom: 0;
+}
+
+.notifications-menu__item.is-unread {
+    background: color-mix(in srgb, var(--route, #087F98) 7%, transparent);
+}
+
+.notifications-menu__link {
+    display: grid;
+    gap: 2px;
+    padding: 10px 16px;
+    color: inherit;
+    text-decoration: none;
+}
+
+.notifications-menu__link:hover,
+.notifications-menu__link:focus {
+    background: var(--paper, #EEF2F5);
+    text-decoration: none;
+}
+
+.notifications-menu__title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    font-size: var(--font-size-14, 14px);
+    color: var(--ink, #172B3A);
+}
+
+.notifications-menu__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--route, #087F98);
+    flex-shrink: 0;
+}
+
+.notifications-menu__body {
+    font-size: var(--font-size-13, 13px);
+    color: var(--ink-2, #4C6070);
+}
+
+.notifications-menu__time {
+    font-size: var(--font-size-12, 12px);
+}
+</style>

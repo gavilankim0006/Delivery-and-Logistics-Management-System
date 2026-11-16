@@ -289,9 +289,19 @@ class Order_model extends Model
                 'actor_id' => $actorId,
                 'created_at' => date('Y-m-d H:i:s')
             ]);
-            if (in_array($newStatus, ['rider_assigned', 'picked_up', 'delivered', 'cancelled', 'failed'], true)) {
+            if (in_array($newStatus, ['rider_assigned', 'picked_up', 'delivered', 'cancelled', 'failed', 'paid'], true)) {
                 require_once APP_DIR . 'libraries/DeliveryNotificationService.php';
-                (new DeliveryNotificationService($db))->enqueueForTransition($orderId, $newStatus);
+                $notificationService = new DeliveryNotificationService($db);
+                if ($newStatus === 'paid') {
+                    // Payment confirmations reach the in-app feed only; email/SMS receipts are handled elsewhere.
+                    try {
+                        $notificationService->recordInApp($orderId, 'paid');
+                    } catch (Throwable $e) {
+                        error_log('In-app payment notification failed for order ' . $orderId . ': ' . $e->getMessage());
+                    }
+                } else {
+                    $notificationService->enqueueForTransition($orderId, $newStatus);
+                }
             }
             if (($order['fulfillment_mode'] ?? null) === 'internal' && in_array($newStatus, ['delivered', 'cancelled', 'failed'], true)) {
                 $db->raw('DELETE FROM rider_order_locations WHERE order_id = ?', [$orderId]);
@@ -366,7 +376,8 @@ class Order_model extends Model
                        r.name AS rider_name, r.phone AS rider_phone, r.vehicle_type AS rider_vehicle, r.plate_number,
                        pay.id AS payment_id, pay.status AS payment_status, pay.payment_method, pay.amount AS paid_amount, pay.paymongo_session_id,
                        dp.id AS delivery_proof_id, dp.recipient_name AS delivery_proof_recipient,
-                       dp.note AS delivery_proof_note, dp.captured_at AS delivery_proof_captured_at
+                       dp.note AS delivery_proof_note, dp.captured_at AS delivery_proof_captured_at,
+                       dr.rating AS rating_value, dr.comment AS rating_comment, dr.created_at AS rating_at
                 FROM orders o
                 INNER JOIN customers c ON o.customer_id = c.id
                 INNER JOIN users u ON c.user_id = u.id
@@ -376,6 +387,7 @@ class Order_model extends Model
                 LEFT JOIN riders r ON o.rider_id = r.id
                 LEFT JOIN payments pay ON pay.order_id = o.id
                 LEFT JOIN delivery_proofs dp ON dp.order_id = o.id
+                LEFT JOIN delivery_ratings dr ON dr.order_id = o.id
                 {$where} LIMIT 1";
         $order = $this->getDb()->raw($sql, $params)->fetch(PDO::FETCH_ASSOC);
         if (!$order) {
@@ -384,6 +396,45 @@ class Order_model extends Model
         $order['payment_status'] = $this->getDb()->raw("SELECT status FROM payments WHERE order_id = ? ORDER BY id DESC LIMIT 1", [$orderId])->fetch(PDO::FETCH_ASSOC)['status'] ?? null;
         $order['timeline'] = $this->getDb()->raw('SELECT * FROM deliveries WHERE order_id = ? ORDER BY id ASC', [$orderId])->fetchAll(PDO::FETCH_ASSOC);
         return $order;
+    }
+
+    /**
+     * Aggregate counters and monthly spend for a customer's dashboard.
+     */
+    public function get_customer_stats(int $customerId): array
+    {
+        $db = $this->getDb();
+        $counts = $db->raw(
+            "SELECT
+                SUM(CASE WHEN o.status IN ('pending_payment', 'paid', 'booking', 'rider_assigned', 'picked_up') THEN 1 ELSE 0 END) AS active_total,
+                SUM(CASE WHEN o.status IN ('rider_assigned', 'picked_up') THEN 1 ELSE 0 END) AS in_transit,
+                SUM(CASE WHEN o.status = 'delivered' THEN 1 ELSE 0 END) AS delivered_total,
+                SUM(CASE WHEN o.status = 'draft' THEN 1 ELSE 0 END) AS drafts,
+                COUNT(*) AS total_orders
+             FROM orders o
+             WHERE o.customer_id = ? AND o.deleted_at IS NULL",
+            [$customerId]
+        )->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        $spend = $db->raw(
+            "SELECT COALESCE(SUM(p.amount), 0) AS spend_month, COUNT(*) AS payments_month
+             FROM payments p
+             INNER JOIN orders o ON o.id = p.order_id
+             WHERE o.customer_id = ? AND o.deleted_at IS NULL
+               AND p.status = 'paid'
+               AND p.paid_at >= DATE_FORMAT(NOW(), '%Y-%m-01')",
+            [$customerId]
+        )->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        return [
+            'active_total' => (int)($counts['active_total'] ?? 0),
+            'in_transit' => (int)($counts['in_transit'] ?? 0),
+            'delivered_total' => (int)($counts['delivered_total'] ?? 0),
+            'drafts' => (int)($counts['drafts'] ?? 0),
+            'total_orders' => (int)($counts['total_orders'] ?? 0),
+            'spend_month' => (float)($spend['spend_month'] ?? 0),
+            'payments_month' => (int)($spend['payments_month'] ?? 0),
+        ];
     }
 
     protected function build_list_conditions(array $filters): array
@@ -397,6 +448,19 @@ class Order_model extends Model
         if (!empty($filters['status'])) {
             $where .= ' AND o.status = ?';
             $params[] = $filters['status'];
+        }
+        if (!empty($filters['statuses']) && is_array($filters['statuses'])) {
+            $validStatuses = array_intersect(
+                array_values(array_unique($filters['statuses'])),
+                array_keys(self::ALLOWED_TRANSITIONS)
+            );
+            if (!empty($validStatuses)) {
+                $placeholders = implode(',', array_fill(0, count($validStatuses), '?'));
+                $where .= " AND o.status IN ({$placeholders})";
+                foreach ($validStatuses as $statusOption) {
+                    $params[] = $statusOption;
+                }
+            }
         }
         if (!empty($filters['date'])) {
             $where .= ' AND DATE(o.created_at) = ?';
@@ -423,6 +487,31 @@ class Order_model extends Model
         );
         $row = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : false;
         return $row ? (int)$row['total'] : 0;
+    }
+
+    /**
+     * Flat list for CSV export (no pagination; caller caps the row count).
+     */
+    public function export_list(array $filters = [], int $limit = 5000): array
+    {
+        [$where, $params] = $this->build_list_conditions($filters);
+        $limit = max(1, min(10000, $limit));
+        $sql = "SELECT o.order_no, o.status, o.created_at, o.distance_km, o.delivery_fee,
+                       pa.address_line AS pickup_address, pa.contact_name AS pickup_contact_name, pa.contact_phone AS pickup_phone,
+                       da.address_line AS dropoff_address, da.contact_name AS dropoff_contact_name, da.contact_phone AS dropoff_phone,
+                       p.description AS parcel_description, p.weight_kg, p.size AS parcel_size,
+                       r.name AS rider_name,
+                       (SELECT pay.status FROM payments pay WHERE pay.order_id = o.id ORDER BY pay.id DESC LIMIT 1) AS payment_status
+                FROM orders o
+                INNER JOIN customers c ON o.customer_id = c.id
+                INNER JOIN users u ON c.user_id = u.id
+                INNER JOIN addresses pa ON o.pickup_address_id = pa.id
+                INNER JOIN addresses da ON o.dropoff_address_id = da.id
+                LEFT JOIN parcels p ON p.order_id = o.id
+                LEFT JOIN riders r ON o.rider_id = r.id
+                {$where} ORDER BY o.id DESC LIMIT {$limit}";
+        $stmt = $this->getDb()->raw($sql, $params);
+        return $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
     }
 
     public function get_list(array $filters = []): array

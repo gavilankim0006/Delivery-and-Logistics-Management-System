@@ -21,12 +21,16 @@ class Rider_model extends Model
                 return [];
             }
             $stmt = $db->raw("SELECT r.*, u.email AS account_email, u.status AS account_status,
-                EXISTS(SELECT 1 FROM rider_assignments ra WHERE ra.rider_id = r.id AND ra.released_at IS NULL) AS has_active_assignment
+                EXISTS(SELECT 1 FROM rider_assignments ra WHERE ra.rider_id = r.id AND ra.released_at IS NULL) AS has_active_assignment,
+                (SELECT ROUND(AVG(dr.rating), 1) FROM delivery_ratings dr WHERE dr.rider_id = r.id) AS rating_average,
+                (SELECT COUNT(*) FROM delivery_ratings dr WHERE dr.rider_id = r.id) AS rating_count
                 FROM riders r LEFT JOIN users u ON u.id = r.user_id
                 WHERE r.status = ? AND r.deleted_at IS NULL ORDER BY r.name ASC", [$status]);
         } else {
             $stmt = $db->raw("SELECT r.*, u.email AS account_email, u.status AS account_status,
-                EXISTS(SELECT 1 FROM rider_assignments ra WHERE ra.rider_id = r.id AND ra.released_at IS NULL) AS has_active_assignment
+                EXISTS(SELECT 1 FROM rider_assignments ra WHERE ra.rider_id = r.id AND ra.released_at IS NULL) AS has_active_assignment,
+                (SELECT ROUND(AVG(dr.rating), 1) FROM delivery_ratings dr WHERE dr.rider_id = r.id) AS rating_average,
+                (SELECT COUNT(*) FROM delivery_ratings dr WHERE dr.rider_id = r.id) AS rating_count
                 FROM riders r LEFT JOIN users u ON u.id = r.user_id
                 WHERE r.deleted_at IS NULL ORDER BY r.id DESC");
         }

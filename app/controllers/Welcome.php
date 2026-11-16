@@ -12,6 +12,8 @@ class Welcome extends Controller {
                 redirect('dispatch');
             } elseif ($role === 'rider') {
                 redirect('rider');
+            } elseif ($role === 'customer') {
+                redirect('dashboard');
             } else {
                 redirect('profile');
             }

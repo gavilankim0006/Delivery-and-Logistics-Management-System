@@ -33,9 +33,9 @@ function navIsActive(dest) {
 }
 
 const isNewOrderActive = computed(() => navIsActive('orders/new'));
-const isOrdersActive = computed(() => (navIsActive('orders') && !isNewOrderActive.value) || currentPath.value === '/' || currentPath.value.endsWith('/orders'));
+const isHomeActive = computed(() => navIsActive('dashboard'));
+const isOrdersActive = computed(() => navIsActive('orders') && !isNewOrderActive.value);
 const isMessagesActive = computed(() => navIsActive('package-workflow'));
-const isAddressesActive = computed(() => navIsActive('addresses'));
 const isProfileActive = computed(() => navIsActive('profile'));
 </script>
 
@@ -49,13 +49,13 @@ const isProfileActive = computed(() => navIsActive('profile'));
 
     <!-- Customer Mobile Bottom Navigation -->
     <nav v-if="role === 'customer'" class="customer-bottom-nav d-md-none" aria-label="Customer mobile navigation">
+        <a :href="url('dashboard')" class="customer-bottom-nav__item" :class="{ 'is-active': isHomeActive }" :aria-current="isHomeActive ? 'page' : undefined">
+            <i class="bi customer-bottom-nav__icon" :class="isHomeActive ? 'bi-house-door-fill' : 'bi-house-door'" aria-hidden="true"></i>
+            <span class="customer-bottom-nav__label">Home</span>
+        </a>
         <a :href="url('orders')" class="customer-bottom-nav__item" :class="{ 'is-active': isOrdersActive }" :aria-current="isOrdersActive ? 'page' : undefined">
             <i class="bi customer-bottom-nav__icon" :class="isOrdersActive ? 'bi-box-seam-fill' : 'bi-box-seam'" aria-hidden="true"></i>
             <span class="customer-bottom-nav__label">Orders</span>
-        </a>
-        <a :href="url('package-workflow')" class="customer-bottom-nav__item" :class="{ 'is-active': isMessagesActive }" :aria-current="isMessagesActive ? 'page' : undefined">
-            <i class="bi customer-bottom-nav__icon" :class="isMessagesActive ? 'bi-chat-dots-fill' : 'bi-chat-dots'" aria-hidden="true"></i>
-            <span class="customer-bottom-nav__label">Messages</span>
         </a>
         <a :href="url('orders/new')" class="customer-bottom-nav__item customer-bottom-nav__item--action" :class="{ 'is-active': isNewOrderActive }" :aria-current="isNewOrderActive ? 'page' : undefined" aria-label="Create new order">
             <div class="customer-bottom-nav__action-btn">
@@ -63,9 +63,9 @@ const isProfileActive = computed(() => navIsActive('profile'));
             </div>
             <span class="customer-bottom-nav__label">New</span>
         </a>
-        <a :href="url('addresses')" class="customer-bottom-nav__item" :class="{ 'is-active': isAddressesActive }" :aria-current="isAddressesActive ? 'page' : undefined">
-            <i class="bi customer-bottom-nav__icon" :class="isAddressesActive ? 'bi-geo-alt-fill' : 'bi-geo-alt'" aria-hidden="true"></i>
-            <span class="customer-bottom-nav__label">Addresses</span>
+        <a :href="url('package-workflow')" class="customer-bottom-nav__item" :class="{ 'is-active': isMessagesActive }" :aria-current="isMessagesActive ? 'page' : undefined">
+            <i class="bi customer-bottom-nav__icon" :class="isMessagesActive ? 'bi-chat-dots-fill' : 'bi-chat-dots'" aria-hidden="true"></i>
+            <span class="customer-bottom-nav__label">Messages</span>
         </a>
         <a :href="url('profile')" class="customer-bottom-nav__item" :class="{ 'is-active': isProfileActive }" :aria-current="isProfileActive ? 'page' : undefined">
             <i class="bi customer-bottom-nav__icon" :class="isProfileActive ? 'bi-person-fill' : 'bi-person'" aria-hidden="true"></i>
@@ -75,9 +75,8 @@ const isProfileActive = computed(() => navIsActive('profile'));
 </template>
 
 <style scoped>
-.customer-bottom-nav {
-    display: none;
-}
+/* Visibility for narrow screens is owned by public/css/customer-mobile.css;
+   only guarantee that the bar stays hidden from the md breakpoint up. */
 @media (min-width: 768px) {
     .customer-bottom-nav {
         display: none !important;

@@ -92,7 +92,7 @@ const ariaDescribedby = computed(() => {
 
 function runCheck(value) {
     // Check required rules first; they should short-circuit other validators.
-    const requiredRule = props.rules?.find(rule => rule === required || rule.name === 'required');
+    const requiredRule = props.rules?.find(rule => typeof rule === 'function' && rule.name === 'required');
     const isEmpty = value === null || value === undefined || String(value).trim() === '';
     if ((props.required || requiredRule) && isEmpty) {
         return `${props.label || 'This field'} is required.`;

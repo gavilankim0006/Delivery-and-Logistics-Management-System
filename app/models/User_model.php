@@ -15,25 +15,43 @@ class User_model extends Model
     public function find_by_email(string $email): ?array
     {
         $row = $this->getDb()->table('users')
-            ->select('users.id, users.role_id, users.name, users.email, users.phone, users.password, users.status, users.sms_opt_in, users.delivery_status_sms_opt_in, users.push_opt_in, users.email_notifications_opt_in, roles.name AS role_name, customers.id AS customer_id, customers.company_name')
+            ->select('users.id, users.role_id, users.name, users.email, users.phone, users.password, users.status, users.sms_opt_in, users.delivery_status_sms_opt_in, users.push_opt_in, users.email_notifications_opt_in, roles.name AS role_name, customers.id AS customer_id, customers.company_name, customer_members.customer_id AS member_customer_id')
             ->inner_join('roles', 'users.role_id = roles.id')
             ->left_join('customers', 'customers.user_id = users.id')
+            ->left_join('customer_members', 'customer_members.user_id = users.id')
             ->where('users.email', $email)
             ->where_null('users.deleted_at')
             ->get();
-        return $row ?: null;
+        return $this->resolve_customer_scope($row ?: null);
     }
 
     public function find_by_id(int $id): ?array
     {
         $row = $this->getDb()->table('users')
-            ->select('users.id, users.role_id, users.name, users.email, users.phone, users.password, users.status, users.created_at, users.sms_opt_in, users.delivery_status_sms_opt_in, users.push_opt_in, users.email_notifications_opt_in, roles.name AS role_name, customers.id AS customer_id, customers.company_name')
+            ->select('users.id, users.role_id, users.name, users.email, users.phone, users.password, users.status, users.created_at, users.sms_opt_in, users.delivery_status_sms_opt_in, users.push_opt_in, users.email_notifications_opt_in, roles.name AS role_name, customers.id AS customer_id, customers.company_name, customer_members.customer_id AS member_customer_id')
             ->inner_join('roles', 'users.role_id = roles.id')
             ->left_join('customers', 'customers.user_id = users.id')
+            ->left_join('customer_members', 'customer_members.user_id = users.id')
             ->where('users.id', $id)
             ->where_null('users.deleted_at')
             ->get();
-        return $row ?: null;
+        return $this->resolve_customer_scope($row ?: null);
+    }
+
+    /**
+     * Team members have no personal customers row; they operate under the
+     * customer account recorded in customer_members.
+     */
+    private function resolve_customer_scope(?array $row): ?array
+    {
+        if ($row === null) {
+            return null;
+        }
+        if (empty($row['customer_id']) && !empty($row['member_customer_id'])) {
+            $row['customer_id'] = $row['member_customer_id'];
+        }
+        unset($row['member_customer_id']);
+        return $row;
     }
 
     public function authenticate(string $email, string $password): ?array

@@ -19,6 +19,7 @@ export default defineConfig({
                 dispatch: 'frontend/dispatch/main.js',
                 admin: 'frontend/admin/main.js',
                 auth: 'frontend/auth/main.js',
+                dashboard: 'frontend/dashboard/main.js',
                 orders: 'frontend/orders/main.js',
                 rider: 'frontend/rider/main.js',
                 messenger: 'frontend/messenger/main.js',

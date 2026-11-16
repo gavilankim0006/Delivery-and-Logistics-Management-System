@@ -5,6 +5,7 @@ const props = defineProps({
     order: { type: Object, required: true },
     role: { type: String, default: '' },
     controlPassActive: { type: Boolean, default: false },
+    trackingLinkUrl: { type: String, default: '' },
     riderLocationEnabled: { type: Boolean, default: false },
     paymentNotice: { type: String, default: '' },
     demoPaymentSimulationEnabled: { type: Boolean, default: false },
@@ -72,8 +73,57 @@ const lastReached = computed(() => (order.value.timeline || []).reduce((last, en
 const showCancel = computed(() => !['picked_up', 'delivered', 'cancelled', 'failed'].includes(order.value.status));
 const showRiderLocation = computed(() => props.riderLocationEnabled && ['rider_assigned', 'picked_up'].includes(order.value.status));
 
+const canShareTracking = computed(() =>
+    props.role === 'customer' && ['paid', 'booking', 'rider_assigned', 'picked_up', 'delivered'].includes(order.value.status)
+);
+const remainingTrip = computed(() => {
+    const pickedUp = (order.value.timeline || []).find((entry) => entry.to_status === 'picked_up');
+    return {
+        pickedUpAt: pickedUp ? pickedUp.created_at : '',
+        durationMin: Number(order.value.estimated_duration_min || 0)
+    };
+});
+const etaText = computed(() => {
+    if (order.value.status !== 'picked_up') return '';
+    const { pickedUpAt, durationMin } = remainingTrip.value;
+    if (!pickedUpAt || durationMin <= 0) return '';
+    const eta = new Date(new Date(String(pickedUpAt).replace(' ', 'T')).getTime() + durationMin * 60000);
+    if (Number.isNaN(eta.getTime())) return '';
+    return `Estimated arrival around ${eta.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+});
+
 const cancelReason = ref('');
 const isCancelling = ref(false);
+
+const trackingLink = ref(props.trackingLinkUrl || '');
+const linkCopied = ref(false);
+const showRatingForm = ref(!props.order.rating_value);
+const selectedRating = ref(Number(props.order.rating_value || 0));
+const ratingComment = ref(props.order.rating_comment || '');
+const isRatingSubmitting = ref(false);
+
+function starDisplay(value) {
+    const stars = Math.max(0, Math.min(5, Number(value || 0)));
+    return '★'.repeat(stars) + '☆'.repeat(5 - stars);
+}
+
+function handleRatingSubmit(event) {
+    if (!selectedRating.value) {
+        event.preventDefault();
+        return;
+    }
+    isRatingSubmitting.value = true;
+}
+
+async function copyTrackingLink() {
+    try {
+        await navigator.clipboard.writeText(trackingLink.value);
+        linkCopied.value = true;
+        window.setTimeout(() => { linkCopied.value = false; }, 2500);
+    } catch {
+        window.prompt('Copy this tracking link:', trackingLink.value);
+    }
+}
 
 const locationText = ref('Checking for a recent rider-shared update…');
 const locationLink = ref('');
@@ -97,6 +147,7 @@ async function refreshOrder() {
             const payload = await response.json();
             if (payload.success && payload.data?.order) {
                 liveOrder.value = payload.data.order;
+                trackingLink.value = payload.data.trackingLinkUrl || '';
             }
         }
     } catch {
@@ -142,6 +193,18 @@ function postForm(path) {
 
 function confirmDemoPayment(event) {
     if (!window.confirm('This only simulates payment for a demo. No PayMongo payment will be verified. Continue?')) {
+        event.preventDefault();
+    }
+}
+
+function confirmDuplicate(event) {
+    if (!window.confirm('Copy this delivery into a new draft order? You can review and adjust the details before paying.')) {
+        event.preventDefault();
+    }
+}
+
+function confirmRotateTracking(event) {
+    if (!window.confirm('Replace the current tracking link? The old link will stop working immediately.')) {
         event.preventDefault();
     }
 }
@@ -243,6 +306,22 @@ onUnmounted(() => {
                     <a class="btn btn-outline-primary" :href="`${baseUrl}orders/${Number(order.id)}/edit`">Edit draft</a>
                     <button class="btn btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#deleteDraftModal">Delete draft</button>
                 </template>
+                <a
+                    v-if="role === 'customer' && order.payment_status === 'paid'"
+                    class="btn btn-outline-secondary"
+                    :href="`${baseUrl}orders/${Number(order.id)}/receipt`"
+                >
+                    <i class="bi bi-receipt me-1" aria-hidden="true"></i>Receipt
+                </a>
+                <button
+                    v-if="role === 'customer'"
+                    type="button"
+                    class="btn btn-outline-secondary"
+                    data-bs-toggle="modal"
+                    data-bs-target="#saveTemplateModal"
+                >
+                    <i class="bi bi-bookmark-plus me-1" aria-hidden="true"></i>Save as template
+                </button>
                 <template v-if="role === 'customer' && ['paid', 'booking', 'rider_assigned', 'picked_up', 'delivered'].includes(order.status)">
                     <form method="post" :action="postForm('control-pass')">
                         <input type="hidden" name="csrf_token" :value="csrfToken">
@@ -253,12 +332,63 @@ onUnmounted(() => {
                         <button class="btn btn-outline-danger" type="submit">Revoke pass</button>
                     </form>
                 </template>
+                <form v-if="canShareTracking && !trackingLink" method="post" :action="postForm('tracking-link')">
+                    <input type="hidden" name="csrf_token" :value="csrfToken">
+                    <button class="btn btn-outline-primary" type="submit">
+                        <i class="bi bi-share me-1" aria-hidden="true"></i>Share tracking
+                    </button>
+                </form>
+                <template v-if="role === 'customer' && ['delivered', 'cancelled', 'failed'].includes(order.status)">
+                    <form method="post" :action="postForm('duplicate')" @submit="confirmDuplicate">
+                        <input type="hidden" name="csrf_token" :value="csrfToken">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Send again
+                        </button>
+                    </form>
+                </template>
                 <a v-if="role === 'customer'" class="btn btn-outline-primary" :href="`${baseUrl}package-workflow`">
                     <i class="bi bi-chat-dots me-1"></i>Handoff messenger
                 </a>
                 <a class="btn btn-outline-secondary" :href="`${baseUrl}orders`">Back to orders</a>
             </div>
         </header>
+
+        <!-- Shareable public tracking link -->
+        <section v-if="role === 'customer' && trackingLink" class="surface ds-panel p-3 p-md-4 mb-4" aria-labelledby="tracking-share-heading">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                <h2 class="h5 mb-0" id="tracking-share-heading">
+                    <i class="bi bi-share me-2" aria-hidden="true"></i>Share tracking link
+                </h2>
+                <a class="small text-decoration-none" :href="trackingLink" target="_blank" rel="noopener noreferrer">Preview page</a>
+            </div>
+            <p class="text-muted small mb-3">
+                Anyone with this link can follow this delivery's progress without an account. Stop sharing at any time.
+            </p>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <input
+                    class="form-control tracking-link-input"
+                    type="text"
+                    :value="trackingLink"
+                    readonly
+                    aria-label="Tracking link"
+                    @focus="$event.target.select()"
+                >
+                <button class="btn btn-primary flex-shrink-0" type="button" @click="copyTrackingLink">
+                    <i class="bi me-1" :class="linkCopied ? 'bi-check2' : 'bi-clipboard'" aria-hidden="true"></i>
+                    {{ linkCopied ? 'Copied' : 'Copy link' }}
+                </button>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <form method="post" :action="postForm('tracking-link')" @submit="confirmRotateTracking">
+                    <input type="hidden" name="csrf_token" :value="csrfToken">
+                    <button class="btn btn-outline-secondary btn-sm" type="submit">Rotate link</button>
+                </form>
+                <form method="post" :action="postForm('tracking-link/revoke')">
+                    <input type="hidden" name="csrf_token" :value="csrfToken">
+                    <button class="btn btn-outline-danger btn-sm" type="submit">Stop sharing</button>
+                </form>
+            </div>
+        </section>
 
         <!-- Missing Package Report Dropdown -->
         <div v-if="role === 'customer' && ['paid', 'booking', 'rider_assigned', 'picked_up', 'delivered'].includes(order.status)" class="mb-4">
@@ -288,6 +418,10 @@ onUnmounted(() => {
                     </div>
                     <button type="submit" class="btn btn-danger">Submit missing report</button>
                 </form>
+                <p class="small text-muted mt-3 mb-0">
+                    Something else wrong with this delivery?
+                    <a :href="`${baseUrl}package-workflow?order_id=${Number(order.id)}`">Message our support team</a>.
+                </p>
             </details>
         </div>
 
@@ -300,6 +434,9 @@ onUnmounted(() => {
 
         <section class="surface ds-panel p-3 p-md-4 mb-4" aria-labelledby="progress-heading">
             <h2 class="h5" id="progress-heading">Delivery progress</h2>
+            <p v-if="etaText" class="text-muted small mb-3" role="status" aria-live="polite">
+                <i class="bi bi-clock me-1" aria-hidden="true"></i>{{ etaText }}
+            </p>
             <div class="ds-route-tracker" :class="`ds-route-tracker--progress-${Math.max(0, Math.min(4, lastReached))}`" role="group" :aria-label="`Delivery progress for ${order.order_no}`">
                 <ol class="ds-route-tracker__stages">
                     <li
@@ -379,14 +516,14 @@ onUnmounted(() => {
                 <div class="col-12 col-md-4">
                     <div class="p-3 bg-light rounded d-flex align-items-start gap-3">
                         <div class="fs-4 text-primary"><i class="bi bi-envelope-fill"></i></div>
-                        <div>
-                            <div class="d-flex align-items-center gap-2 mb-1">
+                        <div class="min-w-0 flex-grow-1">
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
                                 <span class="fw-semibold">Email Updates</span>
                                 <span class="badge" :class="currentUser.email && Number(currentUser.email_notifications_opt_in ?? 1) === 1 ? 'bg-success' : 'bg-secondary'">
                                     {{ currentUser.email && Number(currentUser.email_notifications_opt_in ?? 1) === 1 ? 'Active' : 'Disabled' }}
                                 </span>
                             </div>
-                            <p class="small text-muted mb-0">
+                            <p class="small text-muted mb-0 text-break">
                                 {{ currentUser.email && Number(currentUser.email_notifications_opt_in ?? 1) === 1 ? `Sending payment receipts and milestone alerts to ${currentUser.email}.` : 'Email updates are disabled in your profile preferences.' }}
                             </p>
                         </div>
@@ -395,14 +532,14 @@ onUnmounted(() => {
                 <div class="col-12 col-md-4">
                     <div class="p-3 bg-light rounded d-flex align-items-start gap-3">
                         <div class="fs-4 text-primary"><i class="bi bi-chat-dots-fill"></i></div>
-                        <div>
-                            <div class="d-flex align-items-center gap-2 mb-1">
+                        <div class="min-w-0 flex-grow-1">
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
                                 <span class="fw-semibold">SMS Updates (Semaphore)</span>
                                 <span class="badge" :class="currentUser.phone && currentUser.delivery_status_sms_opt_in ? 'bg-success' : 'bg-secondary'">
                                     {{ currentUser.phone && currentUser.delivery_status_sms_opt_in ? 'Active' : 'Disabled' }}
                                 </span>
                             </div>
-                            <p class="small text-muted mb-0">
+                            <p class="small text-muted mb-0 text-break">
                                 {{ currentUser.phone && currentUser.delivery_status_sms_opt_in ? `Sending status updates to ${currentUser.phone} when assigned, picked up, and delivered.` : 'SMS updates are disabled. Add your phone and enable delivery notifications in your profile.' }}
                             </p>
                         </div>
@@ -411,14 +548,14 @@ onUnmounted(() => {
                 <div class="col-12 col-md-4">
                     <div class="p-3 bg-light rounded d-flex align-items-start gap-3">
                         <div class="fs-4 text-primary"><i class="bi bi-bell-fill"></i></div>
-                        <div>
-                            <div class="d-flex align-items-center gap-2 mb-1">
+                        <div class="min-w-0 flex-grow-1">
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
                                 <span class="fw-semibold">Push Notifications (Firebase)</span>
                                 <span class="badge" :class="currentUser.push_opt_in && currentUser.fcm_token ? 'bg-success' : (currentUser.push_opt_in ? 'bg-warning text-dark' : 'bg-secondary')">
                                     {{ currentUser.push_opt_in && currentUser.fcm_token ? 'Active' : (currentUser.push_opt_in ? 'Device not paired' : 'Disabled') }}
                                 </span>
                             </div>
-                            <p class="small text-muted mb-0">
+                            <p class="small text-muted mb-0 text-break">
                                 {{ currentUser.push_opt_in && currentUser.fcm_token ? 'Real-time browser status alerts are active on this account.' : 'Web push alerts are disabled. ' }}
                                 <a v-if="!currentUser.push_opt_in || !currentUser.fcm_token" :href="`${baseUrl}profile`">Enable browser notifications in your profile</a>
                             </p>
@@ -449,6 +586,62 @@ onUnmounted(() => {
             <p v-else class="mb-0">Delivery proof is not available yet. Contact support if you need help.</p>
         </section>
 
+        <section v-if="role === 'customer' && order.status === 'delivered'" class="surface ds-panel p-3 p-md-4 mt-4" aria-labelledby="rating-heading">
+            <h2 class="h5" id="rating-heading">
+                <i class="bi bi-star me-2" aria-hidden="true"></i>Rate this delivery
+            </h2>
+            <template v-if="!showRatingForm">
+                <p class="mb-1 rating-display" :aria-label="`You rated this delivery ${order.rating_value} out of 5`">
+                    {{ starDisplay(order.rating_value) }}
+                </p>
+                <p v-if="order.rating_comment" class="mb-3 text-muted">“{{ order.rating_comment }}”</p>
+                <button
+                    type="button"
+                    class="btn btn-outline-secondary btn-sm"
+                    @click="selectedRating = Number(order.rating_value || 0); showRatingForm = true"
+                >
+                    Update rating
+                </button>
+            </template>
+            <form v-else method="post" :action="postForm('rating')" @submit="handleRatingSubmit">
+                <input type="hidden" name="csrf_token" :value="csrfToken">
+                <input type="hidden" name="rating" :value="selectedRating">
+                <div class="rating-picker d-flex gap-1 mb-2" role="radiogroup" aria-label="Rating from 1 to 5 stars">
+                    <button
+                        v-for="star in 5"
+                        :key="star"
+                        type="button"
+                        class="btn btn-link p-0 rating-star"
+                        :class="{ 'is-selected': star <= selectedRating }"
+                        role="radio"
+                        :aria-checked="star === selectedRating"
+                        :aria-label="`${star} star${star === 1 ? '' : 's'}`"
+                        @click="selectedRating = star"
+                    >
+                        <i class="bi" :class="star <= selectedRating ? 'bi-star-fill' : 'bi-star'" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div class="mb-3 shared-field-wrap">
+                    <label for="rating-comment" class="form-label shared-label">
+                        <span>Feedback <span class="text-muted fw-normal">(optional)</span></span>
+                    </label>
+                    <textarea
+                        id="rating-comment"
+                        name="comment"
+                        v-model="ratingComment"
+                        class="form-control shared-textarea"
+                        rows="2"
+                        maxlength="500"
+                        placeholder="How was the delivery experience?"
+                    ></textarea>
+                </div>
+                <button class="btn btn-primary" type="submit" :disabled="!selectedRating || isRatingSubmitting">
+                    <span v-if="isRatingSubmitting" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    {{ isRatingSubmitting ? 'Saving...' : (order.rating_value ? 'Update rating' : 'Submit rating') }}
+                </button>
+            </form>
+        </section>
+
         <section class="mt-4" aria-labelledby="history-heading">
             <h2 class="h5 mb-3" id="history-heading">Delivery history</h2>
             <ul class="list-group list-group-flush">
@@ -459,6 +652,42 @@ onUnmounted(() => {
                 <li v-if="!(order.timeline || []).length" class="list-group-item text-muted">No delivery history yet.</li>
             </ul>
         </section>
+
+        <!-- Save as Template Modal -->
+        <div v-if="role === 'customer'" class="modal fade" id="saveTemplateModal" tabindex="-1" aria-labelledby="saveTemplateModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <form method="post" :action="postForm('template')">
+                        <input type="hidden" name="csrf_token" :value="csrfToken">
+                        <div class="modal-header">
+                            <h2 class="modal-title h5" id="saveTemplateModalLabel">Save as template</h2>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="text-muted small mb-3">
+                                Save this order's route, contacts, and parcel details as a reusable template for future deliveries.
+                            </p>
+                            <div class="shared-field-wrap">
+                                <label for="template-name" class="form-label shared-label"><span>Template name</span></label>
+                                <input
+                                    id="template-name"
+                                    name="name"
+                                    type="text"
+                                    class="form-control shared-input"
+                                    maxlength="100"
+                                    :value="order.order_no"
+                                    required
+                                >
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save template</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
 
         <!-- Delete Draft Modal -->
         <div v-if="role === 'customer' && order.status === 'draft'" class="modal fade" id="deleteDraftModal" tabindex="-1" aria-labelledby="deleteDraftModalLabel" aria-hidden="true">
@@ -534,3 +763,36 @@ onUnmounted(() => {
         </template>
     </div>
 </template>
+
+<style scoped>
+.tracking-link-input {
+    flex: 1 1 260px;
+    min-width: 200px;
+    font-size: var(--font-size-14, 14px);
+}
+
+.rating-display {
+    font-size: 1.5rem;
+    letter-spacing: 2px;
+    color: #f0a500;
+}
+
+.rating-star {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    line-height: 1;
+    color: var(--ink-3, #617687);
+    text-decoration: none;
+}
+
+.rating-star:hover,
+.rating-star:focus,
+.rating-star.is-selected {
+    color: #f0a500;
+    text-decoration: none;
+}
+</style>
