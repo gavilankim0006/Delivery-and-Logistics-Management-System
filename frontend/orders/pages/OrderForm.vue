@@ -205,6 +205,7 @@ onMounted(() => {
     };
 
     initMap = function () {
+        if (window.deliveryMapManager) return;
         if (typeof window.DeliveryMapManager === 'function') {
             window.deliveryMapManager = new window.DeliveryMapManager({
                 mapElementId: 'delivery-map',
@@ -222,7 +223,7 @@ onMounted(() => {
     };
 
     window.initDeliveryMap = initMap;
-    if (window.google?.maps && typeof window.DeliveryMapManager === 'function') {
+    if (typeof window.DeliveryMapManager === 'function') {
         initMap();
     }
     weightInput?.addEventListener('input', updateEstimate);

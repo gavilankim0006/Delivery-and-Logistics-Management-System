@@ -30,6 +30,8 @@ Do not use live booking credentials for class/demo testing. The public v3 API do
 
 The Admin polygon-zone editor uses `GOOGLE_MAPS_MAPS_JS_API_KEY`, a browser key restricted by HTTP referrer and limited to the Maps JavaScript API. Keep it separate from the server-side `GOOGLE_MAPS_API_KEY`, which must not be exposed to browsers. Without the browser key, zone management remains visible but map drawing and saving are disabled.
 
+When Google Maps is unavailable or unbilled, server-side routing and address autocomplete automatically fall back to OpenRouteService. Set the free `ORS_API_KEY` (https://openrouteservice.org/, API host `api.heigit.org`) to enable real routes and Philippine address suggestions; without it the app uses the offline mock engine. The browser-side polygon editor still needs the Google Maps JavaScript key because OpenRouteService does not provide an interactive map widget.
+
 ## Role signature feature database upgrade
 
 The command simulator, public delivery-control passes, dispatcher request review, and booking idempotency guard require migration 004. Migrations remain disabled by default in `app/config/migration.php`. For a local development DB, explicitly run the app's migration command with migrations enabled temporarily, then disable them again; do not run the bootstrap schema against a database with data. The migration is `app/migrations/004_add_role_signature_features.php`.
@@ -47,6 +49,8 @@ SMS is disabled unless `SEMAPHORE_ENABLED=1`, a customer explicitly opts in on t
 ## Firebase Cloud Messaging (FCM) push notifications
 
 Push notifications are disabled unless `FIREBASE_PUSH_ENABLED=1`, a customer explicitly opts in on their profile (`push_opt_in=1`), and a device FCM token is registered via `POST /users/save_token`. 
+
+Browser Web Push additionally requires a matching VAPID key pair: `FIREBASE_VAPID_KEY` (public, also exposed to the browser profile page), `WEBPUSH_VAPID_PRIVATE_KEY`, and `WEBPUSH_VAPID_SUBJECT` (a `mailto:` or site URL). All three must be present on the server or `BrowserPushService` reports push as disabled and asks the user to re-subscribe. Changing the public key invalidates existing browser subscriptions, so users must click "Enable browser notifications" again.
 
 Configure credentials via either:
 1. `FIREBASE_CREDENTIALS_PATH` pointing to the service account JSON file, or

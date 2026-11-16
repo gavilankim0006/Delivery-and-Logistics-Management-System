@@ -10,6 +10,8 @@ require_once APP_DIR . 'libraries/ApiClient.php';
 class GoogleMapsService extends ApiClient
 {
     protected string $apiKey;
+    protected string $orsApiKey;
+    protected string $orsBaseUrl = 'https://api.heigit.org';
     protected bool $mockMode = false;
 
     // Known reference hubs for mock/offline geocoding
@@ -44,10 +46,11 @@ class GoogleMapsService extends ApiClient
         'mindoro'          => ['lat' => 13.3236, 'lng' => 121.3032, 'address' => 'Oriental Mindoro']
     ];
 
-    public function __construct(?string $apiKey = null)
+    public function __construct(?string $apiKey = null, ?string $orsApiKey = null)
     {
         parent::__construct('google_maps', 'https://maps.googleapis.com/maps/api');
         $this->apiKey = $apiKey ?? (function_exists('config_item') ? (config_item('google_maps_api_key') ?: (getenv('GOOGLE_MAPS_API_KEY') ?: '')) : (getenv('GOOGLE_MAPS_API_KEY') ?: ''));
+        $this->orsApiKey = $orsApiKey ?? (function_exists('config_item') ? (config_item('ors_api_key') ?: (getenv('ORS_API_KEY') ?: '')) : (getenv('ORS_API_KEY') ?: ''));
         $this->mockMode = empty($this->apiKey) || str_starts_with($this->apiKey, 'AIzaSyDemo');
     }
 
@@ -118,6 +121,18 @@ class GoogleMapsService extends ApiClient
             }
         }
 
+        // Free OpenRouteService fallback (no Google billing account required)
+        if ($this->orsApiKey !== '') {
+            try {
+                $route = $this->routeViaOrs($origin, $destination);
+                if ($route !== null) {
+                    return $route;
+                }
+            } catch (\Throwable $e) {
+                $this->fallbackLog("OpenRouteService directions request failed: " . $e->getMessage());
+            }
+        }
+
         // Mock / Offline computation
         return $this->computeMockRoute($origin, $destination);
     }
@@ -155,6 +170,18 @@ class GoogleMapsService extends ApiClient
                 }
             } catch (\Throwable $e) {
                 $this->fallbackLog("Places autocomplete failed: " . $e->getMessage());
+            }
+        }
+
+        // Free OpenRouteService fallback (no Google billing account required)
+        if ($this->orsApiKey !== '') {
+            try {
+                $predictions = $this->autocompleteViaOrs($query);
+                if (!empty($predictions)) {
+                    return $predictions;
+                }
+            } catch (\Throwable $e) {
+                $this->fallbackLog("OpenRouteService autocomplete failed: " . $e->getMessage());
             }
         }
 
@@ -247,6 +274,228 @@ class GoogleMapsService extends ApiClient
             throw new \InvalidArgumentException('Location cannot be blank.');
         }
         return $trimmed;
+    }
+
+    /**
+     * Compute a route using OpenRouteService (free tier).
+     *
+     * Returns null when ORS cannot produce a usable route so the caller can
+     * fall back to the offline mock engine.
+     */
+    protected function routeViaOrs($origin, $destination): ?array
+    {
+        $originGeo = $this->resolveOrsCoordinates($origin);
+        $destGeo = $this->resolveOrsCoordinates($destination);
+
+        if ($originGeo === null || $destGeo === null) {
+            return null;
+        }
+
+        $response = $this->post(
+            $this->orsBaseUrl . '/openrouteservice/v2/directions/driving-car',
+            [
+                'coordinates' => [
+                    [$originGeo['lng'], $originGeo['lat']],
+                    [$destGeo['lng'], $destGeo['lat']]
+                ],
+                'instructions' => false,
+                'language' => 'en'
+            ],
+            [
+                'Authorization' => $this->orsApiKey,
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json'
+            ]
+        );
+
+        if (($response['status'] ?? 0) !== 200 || !is_array($response['data'] ?? null)) {
+            $this->fallbackLog('OpenRouteService directions returned HTTP ' . ($response['status'] ?? 0));
+            return null;
+        }
+
+        $route = $response['data']['routes'][0] ?? null;
+        $summary = is_array($route) ? ($route['summary'] ?? null) : null;
+
+        if (!is_array($summary) || !isset($summary['distance'], $summary['duration'])) {
+            $this->fallbackLog('OpenRouteService directions returned no usable route.');
+            return null;
+        }
+
+        return [
+            'distance_km' => round(((float)$summary['distance']) / 1000, 2),
+            'duration_min' => (int) ceil(((float)$summary['duration']) / 60),
+            'overview_polyline' => is_string($route['geometry'] ?? null) ? $route['geometry'] : '',
+            'start_address' => $originGeo['address'],
+            'end_address' => $destGeo['address'],
+            'start_location' => [
+                'lat' => $originGeo['lat'],
+                'lng' => $originGeo['lng']
+            ],
+            'end_location' => [
+                'lat' => $destGeo['lat'],
+                'lng' => $destGeo['lng']
+            ],
+            'source' => 'openrouteservice'
+        ];
+    }
+
+    /**
+     * Resolve a location into ORS-compatible coordinates, geocoding addresses
+     * through the free OpenRouteService geocoder when needed.
+     */
+    protected function resolveOrsCoordinates($location): ?array
+    {
+        if (is_array($location) && isset($location['lat'], $location['lng'])) {
+            return [
+                'lat' => (float)$location['lat'],
+                'lng' => (float)$location['lng'],
+                'address' => trim((string)($location['address'] ?? "{$location['lat']}, {$location['lng']}"))
+            ];
+        }
+
+        $str = is_array($location) ? trim((string)($location['address'] ?? '')) : trim((string)$location);
+        if ($str === '') {
+            return null;
+        }
+
+        if (preg_match('/^([-+]?[0-9]*\.?[0-9]+)\s*,\s*([-+]?[0-9]*\.?[0-9]+)$/', $str, $matches)) {
+            return [
+                'lat' => (float)$matches[1],
+                'lng' => (float)$matches[2],
+                'address' => $str
+            ];
+        }
+
+        return $this->geocodeViaOrs($str);
+    }
+
+    /**
+     * Geocode a single address string via OpenRouteService, restricted to PH.
+     */
+    protected function geocodeViaOrs(string $query): ?array
+    {
+        $response = $this->get(
+            $this->orsBaseUrl . '/pelias/v1/search',
+            [
+                'text' => $query,
+                'boundary.country' => 'PH',
+                'size' => 1
+            ],
+            [
+                'Authorization' => $this->orsApiKey,
+                'Accept' => 'application/json'
+            ]
+        );
+
+        if (($response['status'] ?? 0) !== 200 || !is_array($response['data'] ?? null)) {
+            $this->fallbackLog('OpenRouteService geocode returned HTTP ' . ($response['status'] ?? 0));
+            return null;
+        }
+
+        $features = $response['data']['features'] ?? [];
+        if (!is_array($features) || empty($features[0]) || !is_array($features[0])) {
+            return null;
+        }
+
+        $feature = $this->extractOrsFeature($features[0], $query);
+        if ($feature === null) {
+            return null;
+        }
+
+        try {
+            $this->validateCoordinates($feature['lat'], $feature['lng'], 'Location');
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        return [
+            'lat' => $feature['lat'],
+            'lng' => $feature['lng'],
+            'address' => $feature['address']
+        ];
+    }
+
+    /**
+     * Autocomplete Philippine addresses via OpenRouteService geocoding.
+     */
+    protected function autocompleteViaOrs(string $query): array
+    {
+        $response = $this->get(
+            $this->orsBaseUrl . '/pelias/v1/autocomplete',
+            [
+                'text' => $query,
+                'boundary.country' => 'PH',
+                'size' => 5
+            ],
+            [
+                'Authorization' => $this->orsApiKey,
+                'Accept' => 'application/json'
+            ]
+        );
+
+        if (($response['status'] ?? 0) !== 200 || !is_array($response['data'] ?? null)) {
+            $this->fallbackLog('OpenRouteService autocomplete returned HTTP ' . ($response['status'] ?? 0));
+            return [];
+        }
+
+        $features = $response['data']['features'] ?? [];
+        if (!is_array($features)) {
+            return [];
+        }
+
+        $predictions = [];
+        foreach ($features as $feature) {
+            if (!is_array($feature)) {
+                continue;
+            }
+            $parsed = $this->extractOrsFeature($feature, $query);
+            if ($parsed === null) {
+                continue;
+            }
+            $predictions[] = [
+                'description' => $parsed['address'],
+                'place_id' => $parsed['place_id'],
+                'lat' => $parsed['lat'],
+                'lng' => $parsed['lng']
+            ];
+            if (count($predictions) >= 5) {
+                break;
+            }
+        }
+
+        return $predictions;
+    }
+
+    /**
+     * Normalize an ORS GeoJSON feature into address/coordinate fields.
+     */
+    protected function extractOrsFeature(array $feature, string $fallbackText): ?array
+    {
+        $coordinates = $feature['geometry']['coordinates'] ?? null;
+        if (!is_array($coordinates) || count($coordinates) < 2) {
+            return null;
+        }
+
+        $lng = (float)$coordinates[0];
+        $lat = (float)$coordinates[1];
+
+        $properties = is_array($feature['properties'] ?? null) ? $feature['properties'] : [];
+        $address = trim((string)($properties['label'] ?? $properties['name'] ?? $fallbackText));
+        if ($address === '') {
+            $address = $fallbackText;
+        }
+
+        $placeId = trim((string)($properties['gid'] ?? $properties['id'] ?? ''));
+        if ($placeId === '') {
+            $placeId = 'ors_' . substr(hash('sha256', $address . '|' . $lat . ',' . $lng), 0, 24);
+        }
+
+        return [
+            'lat' => $lat,
+            'lng' => $lng,
+            'address' => $address,
+            'place_id' => $placeId
+        ];
     }
 
     /**

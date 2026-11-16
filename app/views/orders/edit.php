@@ -23,11 +23,11 @@ $ordersJsVer = is_file($ordersJsPath) ? '?v=' . (string)filemtime($ordersJsPath)
 <script type="module" src="<?= e(base_url('build/orders.js' . $ordersJsVer)) ?>" nonce="<?= defined('CSP_NONCE') ? e(CSP_NONCE) : '' ?>"></script>
 <?php
 $extra_js = null;
+$mapsJsPath = dirname(__DIR__, 2) . '/../public/js/maps.js';
+$mapsJsVer = is_file($mapsJsPath) ? '?v=' . (string)filemtime($mapsJsPath) : '';
+$extra_js = '<script src="' . e(base_url('js/maps.js' . $mapsJsVer)) . '"></script>';
 if (!empty($maps_js_key)) {
     $mapsKey = rawurlencode($maps_js_key);
-    $mapsJsPath = dirname(__DIR__, 2) . '/../public/js/maps.js';
-    $mapsJsVer = is_file($mapsJsPath) ? '?v=' . (string)filemtime($mapsJsPath) : '';
-    $extra_js = '<script src="' . e(base_url('js/maps.js' . $mapsJsVer)) . '"></script>';
     $extra_js .= '<script async defer src="https://maps.googleapis.com/maps/api/js?key=' . $mapsKey . '&libraries=places,geometry&callback=initDeliveryMap"></script>';
 }
 $this->call->view('templates/footer', ['extra_js' => $extra_js]);

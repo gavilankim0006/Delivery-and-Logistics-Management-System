@@ -20,6 +20,8 @@ class DeliveryMapManager {
         this.errorContainerId = config.errorContainerId || 'route-error-alert';
         this.submitButtonId = config.submitButtonId || 'btn-confirm-order';
         this.calculateEndpoint = config.calculateEndpoint || '/SIAproject/api/route/calculate';
+        this.autocompleteEndpoint = config.autocompleteEndpoint
+            || this.calculateEndpoint.replace(/\/route\/calculate(\?.*)?$/, '/places/autocomplete');
         this.activeStop = 'pickup';
         this.requestId = 0;
         this.routeReady = false;
@@ -98,12 +100,14 @@ class DeliveryMapManager {
                 }
             });
 
-            this.initAutocomplete();
             this.initMapInteractions();
         } else {
             // Mock map rendering if Google Maps JS script not present
             this.renderMockMapPreview(defaultCenter);
         }
+
+        // Uses Google Places when available, otherwise the free server fallback.
+        this.initAutocomplete();
     }
 
     initMapInteractions() {
@@ -141,7 +145,10 @@ class DeliveryMapManager {
     }
 
     initAutocomplete() {
-        if (!window.google || !google.maps.places) return;
+        if (!window.google || !google.maps.places) {
+            this.initServerAutocomplete();
+            return;
+        }
 
         const options = {
             componentRestrictions: { country: 'ph' },
@@ -193,6 +200,62 @@ class DeliveryMapManager {
                 }
             });
         }
+    }
+
+    /**
+     * Free address suggestions from the server (OpenRouteService geocoding)
+     * when Google Places is unavailable. Uses a native datalist so keyboard
+     * and screen-reader behavior stays familiar.
+     */
+    initServerAutocomplete() {
+        const inputs = [this.pickupInput, this.dropoffInput];
+        inputs.forEach((input) => {
+            if (!input || input.type === 'hidden' || input.dataset.serverAutocompleteReady === '1') {
+                return;
+            }
+            const listId = `${input.id || input.name || 'address'}-server-suggestions`;
+            let list = document.getElementById(listId);
+            if (!list) {
+                list = document.createElement('datalist');
+                list.id = listId;
+                input.insertAdjacentElement('afterend', list);
+            }
+            input.setAttribute('list', listId);
+            input.dataset.serverAutocompleteReady = '1';
+
+            let timer = null;
+            let requestId = 0;
+            input.addEventListener('input', () => {
+                const query = input.value.trim();
+                if (query.length < 2) {
+                    clearTimeout(timer);
+                    list.innerHTML = '';
+                    return;
+                }
+                clearTimeout(timer);
+                timer = setTimeout(async () => {
+                    const currentRequest = ++requestId;
+                    try {
+                        const url = new URL(this.autocompleteEndpoint, window.location.origin);
+                        url.searchParams.set('q', query);
+                        const response = await fetch(url, { headers: { Accept: 'application/json' } });
+                        if (!response.ok) return;
+                        const payload = await response.json();
+                        if (currentRequest !== requestId) return;
+                        const suggestions = Array.isArray(payload.data) ? payload.data : [];
+                        list.innerHTML = '';
+                        suggestions.slice(0, 5).forEach((suggestion) => {
+                            if (!suggestion || !suggestion.description) return;
+                            const option = document.createElement('option');
+                            option.value = suggestion.description;
+                            list.appendChild(option);
+                        });
+                    } catch (error) {
+                        // Manual address entry and route calculation still work.
+                    }
+                }, 300);
+            });
+        });
     }
 
     renderMockMapPreview(center) {
@@ -390,9 +453,13 @@ class DeliveryMapManager {
             this.feeDisplay.textContent = `PHP ${parseFloat(data.fee).toFixed(2)}`;
         }
         if (this.sourceNote) {
-            this.sourceNote.textContent = data.source === 'google_api'
-                ? 'Route verified by Google Maps.'
-                : 'Route estimate is approximate (offline fallback); verify the road distance before saving.';
+            if (data.source === 'google_api') {
+                this.sourceNote.textContent = 'Route verified by Google Maps.';
+            } else if (data.source === 'openrouteservice') {
+                this.sourceNote.textContent = 'Route calculated with OpenRouteService (free map data).';
+            } else {
+                this.sourceNote.textContent = 'Route estimate is approximate (offline fallback); verify the road distance before saving.';
+            }
         }
 
         // Store form fields (both standard and hidden)

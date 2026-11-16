@@ -1220,7 +1220,16 @@ class Admin extends Controller
 
         $userId = (int)($_POST['user_id'] ?? 0);
         $user = $userId ? $this->User_model->find_by_id($userId) : null;
-        $token = trim($user['fcm_token'] ?? ($_POST['token'] ?? ''));
+
+        // find_by_id() intentionally omits fcm_token, so fetch it explicitly
+        // before falling back to a token supplied directly in the form.
+        $token = trim((string)($user['fcm_token'] ?? ''));
+        if ($token === '' && $userId) {
+            $token = trim((string)$this->User_model->get_fcm_token($userId));
+        }
+        if ($token === '') {
+            $token = trim((string)($_POST['token'] ?? ''));
+        }
 
         if (empty($token)) {
             flash('error', 'Target user has no registered FCM push token.');
