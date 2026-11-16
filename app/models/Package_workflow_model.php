@@ -25,7 +25,8 @@ class Package_workflow_model extends Model
     {
         $owned = $this->dbx()->raw("SELECT id FROM orders WHERE id=? AND customer_id=? AND deleted_at IS NULL AND status NOT IN ('draft','cancelled')", [$orderId,$customerId])->fetch(PDO::FETCH_ASSOC);
         if (!$owned) return false;
-        return (bool)$this->dbx()->raw("INSERT INTO missing_package_reports (order_id,customer_id,description) VALUES (?,?,?)", [$orderId,$customerId,$description]);
+        $stmt = $this->dbx()->raw("INSERT INTO missing_package_reports (order_id,customer_id,description) VALUES (?,?,?)", [$orderId,$customerId,$description]);
+        return $stmt !== false && $stmt->rowCount() === 1;
     }
 
     public function list_reports(): array
@@ -35,7 +36,10 @@ class Package_workflow_model extends Model
     }
 
     public function update_report(int $id,string $status,string $note,int $admin): bool
-    { return (bool)$this->dbx()->raw('UPDATE missing_package_reports SET status=?,admin_note=?,reviewed_by=?,reviewed_at=NOW() WHERE id=?',[$status,$note,$admin,$id]); }
+    {
+        $stmt = $this->dbx()->raw('UPDATE missing_package_reports SET status=?,admin_note=?,reviewed_by=?,reviewed_at=NOW() WHERE id=?',[$status,$note,$admin,$id]);
+        return $stmt !== false && $stmt->rowCount() === 1;
+    }
 
     public function create_handoff(int $orderId, int $sender, int $recipient): ?array
     {
@@ -142,7 +146,8 @@ class Package_workflow_model extends Model
         if (!$h) return false;
         $col = (int)$h['sender_customer_id'] === $customerId ? 'sender_read_message_id' : 'recipient_read_message_id';
         $latest = $this->dbx()->raw('SELECT COALESCE(MAX(id),0) AS id FROM package_handoff_messages WHERE handoff_id=?', [$handoffId])->fetch(PDO::FETCH_ASSOC);
-        return (bool)$this->dbx()->raw("UPDATE package_handoffs SET {$col}=? WHERE id=?", [(int)($latest['id'] ?? 0), $handoffId]);
+        $stmt = $this->dbx()->raw("UPDATE package_handoffs SET {$col}=? WHERE id=?", [(int)($latest['id'] ?? 0), $handoffId]);
+        return $stmt !== false && $stmt->rowCount() > 0;
     }
 
     public function send_message(int $handoffId, int $customerId, string $body): ?array
@@ -174,11 +179,13 @@ class Package_workflow_model extends Model
 
     public function confirm_handoff(int $handoffId, int $recipient): bool
     {
-        return (bool)$this->dbx()->raw("UPDATE package_handoffs SET status='confirmed', confirmed_at=NOW() WHERE id=? AND recipient_customer_id=? AND status='pending' AND expires_at>NOW()", [$handoffId, $recipient]);
+        $stmt = $this->dbx()->raw("UPDATE package_handoffs SET status='confirmed', confirmed_at=NOW() WHERE id=? AND recipient_customer_id=? AND status='pending' AND expires_at>NOW()", [$handoffId, $recipient]);
+        return $stmt !== false && $stmt->rowCount() === 1;
     }
 
     public function confirm(string $token, int $recipient): bool
     {
-        return (bool)$this->dbx()->raw("UPDATE package_handoffs SET status='confirmed', confirmed_at=NOW() WHERE token_hash=? AND recipient_customer_id=? AND status='pending' AND expires_at>NOW()", [hash('sha256', $token), $recipient]);
+        $stmt = $this->dbx()->raw("UPDATE package_handoffs SET status='confirmed', confirmed_at=NOW() WHERE token_hash=? AND recipient_customer_id=? AND status='pending' AND expires_at>NOW()", [hash('sha256', $token), $recipient]);
+        return $stmt !== false && $stmt->rowCount() === 1;
     }
 }

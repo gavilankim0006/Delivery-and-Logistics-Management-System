@@ -19,8 +19,12 @@ $props = [
     'csrfToken' => csrf_token(),
     'flashes' => $flashes,
 ];
+$extraCss = '';
+foreach (vite_entry_css('frontend/admin/main.js') as $adminCssFile) {
+    $extraCss .= '<link rel="stylesheet" href="' . e(base_url('build/' . ltrim($adminCssFile, '/'))) . '">';
+}
 ?>
-<?php $this->call->view('templates/header', ['page_title' => $page_title ?? 'Delivery service areas']); ?>
+<?php $this->call->view('templates/header', ['page_title' => $page_title ?? 'Delivery service areas', 'extra_css' => $extraCss]); ?>
 <div id="vue-admin-root"
     data-page="service-areas"
     data-props="<?= e(json_encode($props, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?: '{}') ?>">
@@ -32,6 +36,8 @@ $props = [
 <script nonce="<?= e($nonce) ?>">
 window.initServiceAreaMap = function () {
     if (window._serviceAreaEditorInstance) return;
+    var mapEl = document.getElementById('service-area-map');
+    if (!mapEl) return;
     if (window.ServiceAreaEditor && window.google && window.google.maps) {
         window._serviceAreaEditorInstance = new window.ServiceAreaEditor({ mapId: 'service-area-map' });
     } else {

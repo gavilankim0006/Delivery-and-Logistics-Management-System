@@ -195,10 +195,14 @@ class Ai extends Controller
             ]);
 
         } catch (\Throwable $e) {
-            http_response_code(500);
+            $unavailable = $e->getCode() === 503;
+            error_log('AI chat failed: ' . $e->getMessage());
+            http_response_code($unavailable ? 503 : 500);
             echo json_encode([
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $unavailable
+                    ? 'The AI assistant is temporarily unavailable. Please try again in a moment.'
+                    : $e->getMessage()
             ]);
         }
     }

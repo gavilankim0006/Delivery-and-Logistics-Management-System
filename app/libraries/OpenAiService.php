@@ -12,6 +12,7 @@ class OpenAiService
     protected string $model;
     protected string $baseUrl;
     protected int $timeout = 30;
+    protected int $retryTimeout = 15;
     protected $transport;
     protected int $keyOffset = 0;
 
@@ -122,16 +123,29 @@ class OpenAiService
         $attempted = [];
         $lastError = null;
         $keyCount = count($this->apiKeys);
-        for ($i = 0; $i < $keyCount; $i++) {
+        $transportFailures = 0;
+        // One extra pass lets a single configured key recover from a transient
+        // network failure without repeating healthy key-rotation attempts.
+        $maxAttempts = $keyCount + 1;
+        for ($i = 0; $i < $maxAttempts; $i++) {
+            if ($i >= $keyCount && $transportFailures === 0) break;
             $index = ($this->keyOffset + $i) % $keyCount;
             $key = $this->apiKeys[$index];
             $attempted[] = $index;
             $url = $this->baseUrl . '/models/' . rawurlencode($this->model) . ':generateContent?key=' . rawurlencode($key);
             $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             $headers = ['Content-Type: application/json', 'Accept: application/json'];
-            $response = $this->transport !== null
-                ? ($this->transport)('POST', $url, $headers, $body)
-                : $this->curlRequest('POST', $url, $headers, $body);
+            try {
+                $response = $this->transport !== null
+                    ? ($this->transport)('POST', $url, $headers, $body)
+                    : $this->curlRequest('POST', $url, $headers, $body, $transportFailures > 0 ? $this->retryTimeout : null);
+            } catch (Throwable $e) {
+                $lastError = new RuntimeException('Gemini request failed: ' . $e->getMessage(), 503, $e);
+                $transportFailures++;
+                if ($transportFailures >= 2) break;
+                usleep(250000);
+                continue;
+            }
             if (!is_array($response) || !isset($response['status'], $response['body'])) {
                 throw new RuntimeException('Gemini request returned an invalid transport response.');
             }
@@ -192,10 +206,11 @@ class OpenAiService
         return ['id' => $response['responseId'] ?? ('gemini-' . bin2hex(random_bytes(6))), 'object' => 'chat.completion', 'model' => $this->model, 'choices' => [['index' => 0, 'message' => $message, 'finish_reason' => $calls ? 'tool_calls' : 'stop']]];
     }
 
-    protected function curlRequest(string $method, string $url, array $headers, ?string $body): array
+    protected function curlRequest(string $method, string $url, array $headers, ?string $body, ?int $timeout = null): array
     {
+        $timeout = $timeout ?? $this->timeout;
         $curl = curl_init($url);
-        curl_setopt_array($curl, [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => $headers, CURLOPT_TIMEOUT => $this->timeout, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2, CURLOPT_FOLLOWLOCATION => false]);
+        curl_setopt_array($curl, [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => $headers, CURLOPT_TIMEOUT => $timeout, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2, CURLOPT_FOLLOWLOCATION => false]);
         if ($body !== null) curl_setopt($curl, CURLOPT_POSTFIELDS, $body);
         $responseBody = curl_exec($curl);
         $status = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);

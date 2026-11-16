@@ -1,16 +1,24 @@
-HTTP/1.1 200 OK
-Date: Mon, 09 Nov 2026 07:51:12 GMT
-Server: Apache/2.4.58 (Win64) OpenSSL/3.1.3 PHP/8.0.30
-X-Frame-Options: DENY
-X-Content-Type-Options: nosniff
-Referrer-Policy: strict-origin-when-cross-origin
-Permissions-Policy: geolocation=(self), microphone=(), camera=(), payment=(), usb=(), bluetooth=(), serial=(), accelerometer=(), gyroscope=(), magnetometer=()
-Cross-Origin-Opener-Policy: same-origin
-X-Permitted-Cross-Domain-Policies: none
-Set-Cookie: PHPSESSID=if8oc508a24if6vip4l11t8hpk; path=/; HttpOnly
-Expires: Thu, 19 Nov 1981 08:52:00 GMT
-Cache-Control: no-store, no-cache, must-revalidate
-Pragma: no-cache
-Transfer-Encoding: chunked
+HTTP/1.1 302 Found
+Date: Mon, 16 Nov 2026 03:00:38 GMT
 Content-Type: text/html; charset=UTF-8
+Transfer-Encoding: chunked
+Connection: keep-alive
+Cache-Control: no-store, no-cache, must-revalidate
+cf-cache-status: DYNAMIC
+cross-origin-opener-policy: same-origin
+expires: Thu, 19 Nov 1981 08:52:00 GMT
+location: https://delivery-and-logistics-management-system.onrender.com/admin
+permissions-policy: geolocation=(self), microphone=(), camera=(), payment=(), usb=(), bluetooth=(), serial=(), accelerometer=(), gyroscope=(), magnetometer=()
+pragma: no-cache
+referrer-policy: strict-origin-when-cross-origin
+rndr-id: c00a4f8f-2342-4118
+Server: cloudflare
+Set-Cookie: PHPSESSID=547ba76f9e200c119665e095f0e8287f; path=/; HttpOnly
+vary: Accept-Encoding
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-permitted-cross-domain-policies: none
+x-render-origin-server: Apache/2.4.69 (Debian)
+CF-RAY: a5b33f0dafe5ad4d-MNL
+alt-svc: h3=":443"; ma=86400
 

@@ -630,6 +630,10 @@ class Admin extends Controller
             $this->api->respond(['success' => false, 'error' => 'You cannot delete your own administrative account.'], 422);
             return;
         }
+        if (!$this->User_model->find_by_id($id)) {
+            $this->api->respond(['success' => false, 'error' => 'User not found.'], 404);
+            return;
+        }
         if ($this->User_model->soft_delete_user($id)) {
             $this->api->respond(['success' => true, 'message' => 'User account removed.']);
         } else {
