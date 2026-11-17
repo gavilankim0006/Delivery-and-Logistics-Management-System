@@ -26,6 +26,10 @@ class DeliveryMapManager {
         this.requestId = 0;
         this.routeReady = false;
         this.routeTimeoutMs = 20000;
+        // Last successful route payload, redrawn when the live map arrives late.
+        this.lastRouteData = null;
+        // Which autocomplete implementation is attached: 'google' or 'server'.
+        this.autocompleteMode = null;
 
         this.map = null;
         this.directionsRenderer = null;
@@ -145,7 +149,13 @@ class DeliveryMapManager {
     }
 
     initAutocomplete() {
-        if (!window.google || !google.maps.places) {
+        const googleReady = Boolean(window.google && google.maps.places);
+        // Avoid attaching the same strategy twice: the manager may be
+        // re-initialized when Google Maps finishes loading after mount.
+        if (this.autocompleteMode === (googleReady ? 'google' : 'server')) return;
+        this.autocompleteMode = googleReady ? 'google' : 'server';
+
+        if (!googleReady) {
             this.initServerAutocomplete();
             return;
         }
@@ -270,6 +280,64 @@ class DeliveryMapManager {
                 </div>
             </div>
         `;
+    }
+
+    /**
+     * The Maps JavaScript API is loaded with async/defer, so it can finish
+     * loading after this manager was constructed and only the placeholder
+     * preview is on screen. Called from the "initDeliveryMap" callback to
+     * swap in the live Google map and restore any pins or route in progress.
+     * @returns {boolean} true when the live Google map is active
+     */
+    upgradeToGoogleMaps() {
+        if (this.map) return true;
+        if (!this.mapEl || !window.google || !google.maps) return false;
+
+        // Drop the placeholder markup before the live map mounts.
+        this.mapEl.replaceChildren();
+        this.initGoogleMaps();
+        this.restoreRouteVisuals();
+        return Boolean(this.map);
+    }
+
+    /**
+     * Re-applies pins and the calculated route after the live map arrives.
+     * When a route is still pending it is left to finish; when none exists it
+     * is calculated now that the map can actually draw the result.
+     */
+    restoreRouteVisuals() {
+        if (!this.map || !window.google || !google.maps) return;
+
+        const pickupLoc = this.pickupPinCoords || this.pickupCoords;
+        const dropoffLoc = this.dropoffPinCoords || this.dropoffCoords;
+
+        if (this.lastRouteData) {
+            this.drawRouteOnMap(this.lastRouteData);
+            return;
+        }
+
+        if (pickupLoc) this.updateMarker('pickup', pickupLoc);
+        if (dropoffLoc) this.updateMarker('dropoff', dropoffLoc);
+
+        if (pickupLoc && dropoffLoc) {
+            const bounds = new google.maps.LatLngBounds();
+            bounds.extend(pickupLoc);
+            bounds.extend(dropoffLoc);
+            this.map.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
+        } else if (pickupLoc) {
+            this.map.setCenter(pickupLoc);
+            this.map.setZoom(15);
+        } else if (dropoffLoc) {
+            this.map.setCenter(dropoffLoc);
+            this.map.setZoom(15);
+        }
+
+        const pickupText = this.pickupInput ? this.pickupInput.value.trim() : '';
+        const dropoffText = this.dropoffInput ? this.dropoffInput.value.trim() : '';
+        const hasStops = Boolean((pickupLoc || pickupText) && (dropoffLoc || dropoffText));
+        if (hasStops && !this.routeAbortController) {
+            this.triggerRouteCalculation();
+        }
     }
 
     attachEventListeners() {
@@ -413,6 +481,7 @@ class DeliveryMapManager {
             if (requestId !== this.requestId) return;
             if (res.success && res.data) {
                 this.routeReady = true;
+                this.lastRouteData = res.data;
                 this.updateSummaryUI(res.data);
                 this.drawRouteOnMap(res.data);
                 this.routeReady = true;
@@ -768,10 +837,14 @@ class DeliveryMapManager {
 
         if (hasPickup || hasDropoff) {
             if (hasPickup && hasDropoff) {
-                const bounds = new google.maps.LatLngBounds();
-                if (this.pickupPinCoords) bounds.extend(this.pickupPinCoords);
-                if (this.dropoffPinCoords) bounds.extend(this.dropoffPinCoords);
-                this.map?.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
+                // Without a live map the saved pins are re-applied later by
+                // restoreRouteVisuals once Google Maps finishes loading.
+                if (this.map) {
+                    const bounds = new google.maps.LatLngBounds();
+                    if (this.pickupPinCoords) bounds.extend(this.pickupPinCoords);
+                    if (this.dropoffPinCoords) bounds.extend(this.dropoffPinCoords);
+                    this.map.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
+                }
                 this.triggerRouteCalculation();
             } else if (hasPickup && this.pickupPinCoords) {
                 this.map?.setCenter(this.pickupPinCoords);
@@ -802,6 +875,7 @@ class DeliveryMapManager {
         if (this.feeDisplay) this.feeDisplay.textContent = '—';
         if (this.sourceNote) this.sourceNote.textContent = '';
         this.routeReady = false;
+        this.lastRouteData = null;
         if (this.submitBtn) this.submitBtn.disabled = false;
         if (this.directionsRenderer) this.directionsRenderer.set('directions', null);
         if (this.polyline) {

@@ -205,7 +205,12 @@ onMounted(() => {
     };
 
     initMap = function () {
-        if (window.deliveryMapManager) return;
+        if (window.deliveryMapManager) {
+            // Google Maps loads asynchronously and may finish after this form
+            // mounts; upgrade the placeholder preview to the live map now.
+            window.deliveryMapManager.upgradeToGoogleMaps?.();
+            return;
+        }
         if (typeof window.DeliveryMapManager === 'function') {
             window.deliveryMapManager = new window.DeliveryMapManager({
                 mapElementId: 'delivery-map',
