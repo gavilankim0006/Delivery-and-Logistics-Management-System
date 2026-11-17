@@ -23,11 +23,15 @@ class Delivery_proofs extends Controller
             )->fetch(PDO::FETCH_ASSOC);
         } elseif ($role === 'rider') {
             $authorized = (bool)$db->raw(
-                'SELECT dp.id FROM delivery_proofs dp
-                 INNER JOIN orders o ON o.id = dp.order_id
-                 INNER JOIN riders r ON r.id = o.rider_id AND r.user_id = ?
-                 WHERE dp.order_id = ? AND dp.uploaded_by = ? LIMIT 1',
-                [(int)auth_id(), $orderId, (int)auth_id()]
+                "SELECT dp.id FROM delivery_proofs dp
+                 WHERE dp.order_id = ? AND dp.uploaded_by = ?
+                   AND EXISTS (
+                       SELECT 1 FROM deliveries d
+                       WHERE d.order_id = dp.order_id AND d.actor_type = 'rider'
+                         AND d.actor_id = dp.uploaded_by AND d.to_status IN ('picked_up', 'delivered')
+                   )
+                 LIMIT 1",
+                [$orderId, (int)auth_id()]
             )->fetch(PDO::FETCH_ASSOC);
         } else {
             $authorized = (bool)$db->raw(

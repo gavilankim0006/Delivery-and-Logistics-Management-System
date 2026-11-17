@@ -56,6 +56,32 @@ class Rider_model extends Model
         return $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
     }
 
+    /**
+     * Full rider roster with live workload and performance signals for dispatch.
+     */
+    public function get_roster(): array
+    {
+        $stmt = $this->getDb()->raw("SELECT r.id, r.user_id, r.name, r.phone, r.vehicle_type, r.plate_number, r.status,
+                    r.updated_at, u.email AS account_email, u.status AS account_status,
+                    (SELECT COUNT(*) FROM rider_assignments ra WHERE ra.rider_id = r.id AND ra.released_at IS NULL) AS active_count,
+                    (SELECT o.id FROM orders o INNER JOIN rider_assignments ra2 ON ra2.order_id = o.id AND ra2.released_at IS NULL
+                        WHERE ra2.rider_id = r.id AND o.deleted_at IS NULL LIMIT 1) AS active_order_id,
+                    (SELECT o.order_no FROM orders o INNER JOIN rider_assignments ra3 ON ra3.order_id = o.id AND ra3.released_at IS NULL
+                        WHERE ra3.rider_id = r.id AND o.deleted_at IS NULL LIMIT 1) AS active_order_no,
+                    (SELECT o.status FROM orders o INNER JOIN rider_assignments ra4 ON ra4.order_id = o.id AND ra4.released_at IS NULL
+                        WHERE ra4.rider_id = r.id AND o.deleted_at IS NULL LIMIT 1) AS active_order_status,
+                    (SELECT COUNT(*) FROM deliveries d WHERE d.actor_type = 'rider' AND d.actor_id = r.user_id
+                        AND d.to_status = 'delivered' AND DATE(d.created_at) = CURRENT_DATE()) AS delivered_today,
+                    (SELECT COUNT(*) FROM deliveries d WHERE d.actor_type = 'rider' AND d.actor_id = r.user_id
+                        AND d.to_status = 'delivered') AS delivered_total,
+                    (SELECT ROUND(AVG(dr.rating), 1) FROM delivery_ratings dr WHERE dr.rider_id = r.id) AS rating_average,
+                    (SELECT COUNT(*) FROM delivery_ratings dr WHERE dr.rider_id = r.id) AS rating_count
+            FROM riders r LEFT JOIN users u ON u.id = r.user_id
+            WHERE r.deleted_at IS NULL
+            ORDER BY FIELD(r.status, 'available', 'busy', 'offline'), r.name ASC");
+        return $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+    }
+
     public function get_unlinked_rider_users(): array
     {
         $stmt = $this->getDb()->raw("SELECT u.id, u.name, u.email
@@ -80,6 +106,7 @@ class Rider_model extends Model
     public function get_active_orders(int $userId): array
     {
         $stmt = $this->getDb()->raw("SELECT o.id AS order_id, o.order_no, o.status, ra.assigned_at,
+                    o.delivery_fee, o.distance_km, o.estimated_duration_min, o.created_at AS order_created_at,
                     pa.address_line AS pickup_address, pa.contact_name AS pickup_contact_name,
                     pa.contact_phone AS pickup_phone, pa.notes AS pickup_notes,
                     da.address_line AS dropoff_address, da.contact_name AS dropoff_contact_name,
@@ -99,9 +126,115 @@ class Rider_model extends Model
         return $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
     }
 
+    /**
+     * Completed internal deliveries attributed to the rider portal account.
+     * Completed orders release their rider_id, so history is attributed through
+     * the delivery state-transition log (actor_type = rider, actor_id = user id).
+     */
+    public function get_completed_orders(int $userId, int $limit = 50): array
+    {
+        $limit = max(1, min(100, $limit));
+        $stmt = $this->getDb()->raw("SELECT o.id AS order_id, o.order_no, o.status, o.delivery_fee,
+                    o.distance_km, o.estimated_duration_min, o.created_at AS order_created_at,
+                    d.created_at AS completed_at, d.notes AS completion_notes,
+                    pa.address_line AS pickup_address, pa.contact_name AS pickup_contact_name,
+                    pa.contact_phone AS pickup_phone, pa.notes AS pickup_notes,
+                    da.address_line AS dropoff_address, da.contact_name AS dropoff_contact_name,
+                    da.contact_phone AS dropoff_phone, da.notes AS dropoff_notes,
+                    p.description AS parcel_description, p.weight_kg, p.size AS parcel_size, p.is_fragile,
+                    dp.recipient_name AS proof_recipient, dp.captured_at AS proof_captured_at,
+                    dr.rating AS rating_value, dr.comment AS rating_comment, dr.created_at AS rating_at
+            FROM riders r
+            INNER JOIN users u ON u.id = r.user_id
+            INNER JOIN roles ro ON ro.id = u.role_id AND ro.name = 'rider'
+            INNER JOIN deliveries d ON d.actor_type = 'rider' AND d.actor_id = r.user_id AND d.to_status = 'delivered'
+            INNER JOIN orders o ON o.id = d.order_id AND o.deleted_at IS NULL
+            INNER JOIN addresses pa ON pa.id = o.pickup_address_id
+            INNER JOIN addresses da ON da.id = o.dropoff_address_id
+            LEFT JOIN parcels p ON p.order_id = o.id
+            LEFT JOIN delivery_proofs dp ON dp.order_id = o.id
+            LEFT JOIN delivery_ratings dr ON dr.order_id = o.id
+            WHERE r.user_id = ? AND r.deleted_at IS NULL AND u.status = 'active' AND u.deleted_at IS NULL
+            ORDER BY d.id DESC
+            LIMIT {$limit}", [$userId]);
+        return $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+    }
+
+    public function get_stats(int $userId): array
+    {
+        $defaults = [
+            'completed_total' => 0,
+            'completed_today' => 0,
+            'completed_week' => 0,
+            'completed_distance_km' => 0.0,
+            'active_total' => 0,
+            'rating_average' => null,
+            'rating_count' => 0,
+            'rating_five' => 0,
+        ];
+        $stmt = $this->getDb()->raw("SELECT
+                    (SELECT COUNT(*) FROM deliveries d WHERE d.actor_type = 'rider' AND d.actor_id = r.user_id AND d.to_status = 'delivered') AS completed_total,
+                    (SELECT COUNT(*) FROM deliveries d WHERE d.actor_type = 'rider' AND d.actor_id = r.user_id AND d.to_status = 'delivered' AND DATE(d.created_at) = CURRENT_DATE()) AS completed_today,
+                    (SELECT COUNT(*) FROM deliveries d WHERE d.actor_type = 'rider' AND d.actor_id = r.user_id AND d.to_status = 'delivered' AND d.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS completed_week,
+                    (SELECT COALESCE(SUM(o.distance_km), 0) FROM deliveries d INNER JOIN orders o ON o.id = d.order_id WHERE d.actor_type = 'rider' AND d.actor_id = r.user_id AND d.to_status = 'delivered') AS completed_distance_km,
+                    (SELECT COUNT(*) FROM rider_assignments ra WHERE ra.rider_id = r.id AND ra.released_at IS NULL) AS active_total,
+                    (SELECT ROUND(AVG(dr.rating), 1) FROM delivery_ratings dr WHERE dr.rider_id = r.id) AS rating_average,
+                    (SELECT COUNT(*) FROM delivery_ratings dr WHERE dr.rider_id = r.id) AS rating_count,
+                    (SELECT COUNT(*) FROM delivery_ratings dr WHERE dr.rider_id = r.id AND dr.rating = 5) AS rating_five
+            FROM riders r
+            INNER JOIN users u ON u.id = r.user_id
+            INNER JOIN roles ro ON ro.id = u.role_id AND ro.name = 'rider'
+            WHERE r.user_id = ? AND r.deleted_at IS NULL AND u.status = 'active' AND u.deleted_at IS NULL
+            LIMIT 1", [$userId]);
+        $row = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : false;
+        if (!$row) {
+            return $defaults;
+        }
+        return [
+            'completed_total' => (int)$row['completed_total'],
+            'completed_today' => (int)$row['completed_today'],
+            'completed_week' => (int)$row['completed_week'],
+            'completed_distance_km' => round((float)$row['completed_distance_km'], 1),
+            'active_total' => (int)$row['active_total'],
+            'rating_average' => $row['rating_average'] !== null ? (float)$row['rating_average'] : null,
+            'rating_count' => (int)$row['rating_count'],
+            'rating_five' => (int)$row['rating_five'],
+        ];
+    }
+
+    public function get_completed_delivery_for_user(int $orderId, int $userId): ?array
+    {
+        $stmt = $this->getDb()->raw("SELECT o.id AS order_id, o.order_no, o.status, o.delivery_fee,
+                    o.distance_km, o.estimated_duration_min, o.created_at AS order_created_at,
+                    d.created_at AS completed_at, d.notes AS completion_notes,
+                    pa.address_line AS pickup_address, pa.contact_name AS pickup_contact_name,
+                    pa.contact_phone AS pickup_phone, pa.notes AS pickup_notes,
+                    da.address_line AS dropoff_address, da.contact_name AS dropoff_contact_name,
+                    da.contact_phone AS dropoff_phone, da.notes AS dropoff_notes,
+                    p.description AS parcel_description, p.weight_kg, p.size AS parcel_size, p.is_fragile,
+                    dp.recipient_name AS proof_recipient, dp.note AS proof_note, dp.captured_at AS proof_captured_at,
+                    dr.rating AS rating_value, dr.comment AS rating_comment, dr.created_at AS rating_at
+            FROM riders r
+            INNER JOIN users u ON u.id = r.user_id
+            INNER JOIN roles ro ON ro.id = u.role_id AND ro.name = 'rider'
+            INNER JOIN deliveries d ON d.actor_type = 'rider' AND d.actor_id = r.user_id AND d.to_status = 'delivered'
+            INNER JOIN orders o ON o.id = d.order_id AND o.deleted_at IS NULL
+            INNER JOIN addresses pa ON pa.id = o.pickup_address_id
+            INNER JOIN addresses da ON da.id = o.dropoff_address_id
+            LEFT JOIN parcels p ON p.order_id = o.id
+            LEFT JOIN delivery_proofs dp ON dp.order_id = o.id
+            LEFT JOIN delivery_ratings dr ON dr.order_id = o.id
+            WHERE o.id = ? AND r.user_id = ? AND r.deleted_at IS NULL
+              AND u.status = 'active' AND u.deleted_at IS NULL
+            ORDER BY d.id DESC LIMIT 1", [$orderId, $userId]);
+        $row = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : false;
+        return $row ?: null;
+    }
+
     public function get_delivery_for_user(int $orderId, int $userId): ?array
     {
         $stmt = $this->getDb()->raw("SELECT o.id AS order_id, o.order_no, o.status, ra.assigned_at,
+                    o.delivery_fee, o.distance_km, o.estimated_duration_min, o.created_at AS order_created_at,
                     pa.address_line AS pickup_address, pa.contact_name AS pickup_contact_name,
                     pa.contact_phone AS pickup_phone, pa.notes AS pickup_notes,
                     da.address_line AS dropoff_address, da.contact_name AS dropoff_contact_name,

@@ -17,7 +17,14 @@ foreach (['success', 'error', 'warning', 'info'] as $flashType) {
 }
 $riderProps = [
     'orders' => $orders ?? [],
+    'history' => $history ?? [],
+    'stats' => $stats ?? [],
+    'rider' => $rider ?? null,
+    'account' => $account ?? ['name' => '', 'email' => '', 'phone' => ''],
     'portalLinked' => (bool)$portal_linked,
+    'dataUrl' => base_url('rider/data'),
+    'availabilityUrl' => base_url('rider/availability'),
+    'csrfToken' => csrf_token(),
     'baseUrl' => base_url(),
     'flashes' => $flashes,
 ];

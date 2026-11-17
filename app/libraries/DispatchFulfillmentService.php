@@ -147,6 +147,7 @@ class DispatchFulfillmentService
             if ($order['status'] === 'paid' || $order['status'] === 'failed' || $active) {
                 $this->dispatchStatusNotifications($orderId);
             }
+            $this->notifyRiderAssignment($riderId, $orderId, $active !== null);
             return ['order_id' => $orderId, 'rider_id' => $riderId, 'unchanged' => false];
         } catch (Throwable $e) {
             $db->roll_back();
@@ -161,6 +162,39 @@ class DispatchFulfillmentService
             (new DeliveryNotificationService($this->db))->dispatchPendingForOrder($orderId);
         } catch (Throwable $notificationError) {
             error_log('Delivery status notification failed for order ' . $orderId . ': ' . $notificationError->getMessage());
+        }
+    }
+
+    /**
+     * Drop an in-app notification into the assigned rider's bell.
+     * Failures never block an assignment that has already been committed.
+     */
+    private function notifyRiderAssignment(int $riderId, int $orderId, bool $reassigned): void
+    {
+        try {
+            $row = $this->db->raw(
+                'SELECT r.user_id, o.order_no, pa.address_line AS pickup_address, da.address_line AS dropoff_address
+                 FROM riders r
+                 INNER JOIN orders o ON o.id = ? AND o.deleted_at IS NULL
+                 INNER JOIN addresses pa ON pa.id = o.pickup_address_id
+                 INNER JOIN addresses da ON da.id = o.dropoff_address_id
+                 WHERE r.id = ? AND r.deleted_at IS NULL
+                 LIMIT 1',
+                [$orderId, $riderId]
+            )->fetch(PDO::FETCH_ASSOC);
+            if (!$row || empty($row['user_id'])) {
+                return;
+            }
+            $title = $reassigned ? 'Delivery reassigned to you' : 'New delivery assigned';
+            $body = ($reassigned ? 'Dispatch reassigned order ' : 'Dispatch assigned order ') . $row['order_no']
+                . ' to you. Pick up from ' . $row['pickup_address']
+                . ' and deliver to ' . $row['dropoff_address'] . '.';
+            $this->db->raw(
+                'INSERT INTO user_notifications (user_id, order_id, type, title, body, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+                [(int)$row['user_id'], $orderId, 'rider_assignment', $title, mb_substr($body, 0, 500), date('Y-m-d H:i:s')]
+            );
+        } catch (Throwable $notificationError) {
+            error_log('Rider assignment notification failed for order ' . $orderId . ': ' . $notificationError->getMessage());
         }
     }
 

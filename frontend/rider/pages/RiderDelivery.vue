@@ -5,6 +5,8 @@ import { TextInput, TextArea, FileUpload } from '../../shared/index.js';
 const props = defineProps({
     order: { type: Object, required: true },
     proofRecorded: { type: Boolean, default: false },
+    completed: { type: Boolean, default: false },
+    proof: { type: Object, default: null },
     baseUrl: { type: String, default: '/' },
     csrfField: { type: String, default: '' },
     csrfToken: { type: String, default: '' },
@@ -14,6 +16,7 @@ const props = defineProps({
 
 /* ── Constants ────────────────────────────────────────── */
 const order = props.order;
+const isCompleted = computed(() => props.completed || order.status === 'delivered');
 const statusLabel = computed(() => {
     switch (order.status) {
         case 'picked_up': return 'Picked up';
@@ -23,6 +26,48 @@ const statusLabel = computed(() => {
 });
 const statusChipClass = computed(() => {
     return `status-chip status-chip--${order.status}`;
+});
+
+/* ── Summary helpers ──────────────────────────────────── */
+function money(amount) {
+    return Number(amount || 0).toLocaleString('en-PH', {
+        minimumFractionDigits: 2, maximumFractionDigits: 2
+    });
+}
+function distanceKm() {
+    const value = Number(order.distance_km || 0);
+    return value > 0 ? `${value.toFixed(1)} km` : '';
+}
+function etaMin() {
+    const value = Number(order.estimated_duration_min || 0);
+    return value > 0 ? `~${value} min` : '';
+}
+function parcelMeta() {
+    const parts = [];
+    if (order.parcel_description) parts.push(order.parcel_description);
+    if (order.weight_kg) parts.push(`${Number(order.weight_kg).toFixed(1)} kg`);
+    if (order.parcel_size) parts.push(`Size ${order.parcel_size}`);
+    if (Number(order.is_fragile)) parts.push('Fragile');
+    return parts.join(' · ');
+}
+function formatDateTime(value) {
+    if (!value) return '';
+    const date = new Date(String(value).replace(' ', 'T'));
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString([], {
+        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+    });
+}
+const ratingValue = computed(() => Number(order.rating_value || 0));
+function starClass(index) {
+    return index <= Math.round(ratingValue.value) ? 'bi-star-fill' : 'bi-star';
+}
+const proofDetails = computed(() => {
+    const proof = props.proof || {};
+    const recipient = proof.recipient_name || order.proof_recipient || '';
+    const note = proof.note || order.proof_note || '';
+    const capturedAt = proof.captured_at || order.proof_captured_at || '';
+    return { recipient, note, capturedAt };
 });
 
 /* ── Stepper ──────────────────────────────────────────── */
@@ -235,8 +280,8 @@ onUnmounted(() => {
 
         <!-- ─── Breadcrumb ───────────────────────────────── -->
         <nav aria-label="Breadcrumb" class="rider-breadcrumb mb-3">
-            <a :href="`${baseUrl}rider`" class="rider-breadcrumb-link">
-                <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>My deliveries
+            <a :href="isCompleted ? `${baseUrl}rider?tab=history` : `${baseUrl}rider`" class="rider-breadcrumb-link">
+                <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>{{ isCompleted ? 'Delivery history' : 'My deliveries' }}
             </a>
             <span class="text-muted"> / {{ order.order_no }}</span>
         </nav>
@@ -246,10 +291,45 @@ onUnmounted(() => {
             <div>
                 <p class="ds-eyebrow">Delivery</p>
                 <h1 class="page-title mb-1">Delivery {{ order.order_no }}</h1>
-                <p class="page-description mb-0">Follow pickup and drop-off instructions.</p>
+                <p class="page-description mb-0">
+                    <template v-if="isCompleted">
+                        Completed{{ formatDateTime(order.completed_at) ? ` on ${formatDateTime(order.completed_at)}` : '' }} — proof of delivery is on record.
+                    </template>
+                    <template v-else>Follow pickup and drop-off instructions.</template>
+                </p>
             </div>
             <span :class="statusChipClass">{{ statusLabel }}</span>
         </header>
+
+        <!-- ─── Trip Summary ─────────────────────────────── -->
+        <section class="surface rider-section rider-trip-summary mb-3" aria-label="Delivery summary">
+            <div class="rider-trip-summary-item">
+                <span class="rider-trip-summary-label">Parcel</span>
+                <span class="rider-trip-summary-value">{{ parcelMeta() || 'Standard parcel' }}</span>
+            </div>
+            <div class="rider-trip-summary-item">
+                <span class="rider-trip-summary-label">Fee</span>
+                <span class="rider-trip-summary-value">₱{{ money(order.delivery_fee) }}</span>
+            </div>
+            <div class="rider-trip-summary-item">
+                <span class="rider-trip-summary-label">Distance</span>
+                <span class="rider-trip-summary-value">{{ distanceKm() || '—' }}</span>
+            </div>
+            <div class="rider-trip-summary-item">
+                <span class="rider-trip-summary-label">Estimated time</span>
+                <span class="rider-trip-summary-value">{{ etaMin() || '—' }}</span>
+            </div>
+            <div class="rider-trip-summary-item">
+                <span class="rider-trip-summary-label">Assigned</span>
+                <span class="rider-trip-summary-value">{{ formatDateTime(order.assigned_at) || '—' }}</span>
+            </div>
+            <div class="rider-trip-summary-item">
+                <span class="rider-trip-summary-label">{{ isCompleted ? 'Completed' : 'Order placed' }}</span>
+                <span class="rider-trip-summary-value">
+                    {{ isCompleted ? (formatDateTime(order.completed_at) || '—') : (formatDateTime(order.order_created_at) || '—') }}
+                </span>
+            </div>
+        </section>
 
         <!-- ─── Progress Stepper ─────────────────────────── -->
         <div class="rider-stepper mb-4" role="group" aria-label="Delivery progress">
@@ -468,17 +548,66 @@ onUnmounted(() => {
                     </template>
 
                     <!-- ── Delivery Complete ──────────────── -->
-                    <template v-else-if="order.status === 'delivered' && proofRecorded">
+                    <template v-else-if="isCompleted">
                         <div class="rider-action-card rider-action-card--success text-center py-4">
                             <div class="rider-complete-icon mb-3">
                                 <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
                             </div>
                             <h2 class="h5 mb-2">Delivery complete</h2>
-                            <p class="text-muted small mb-3">Proof has been submitted and this delivery is complete.</p>
-                            <a :href="`${baseUrl}rider`" class="btn btn-outline-primary rider-action-btn">
-                                <i class="bi bi-arrow-left me-2" aria-hidden="true"></i>
-                                Back to deliveries
-                            </a>
+                            <p class="text-muted small mb-3">
+                                {{ proofRecorded
+                                    ? 'Proof has been submitted and this delivery is complete.'
+                                    : 'This delivery is complete and no further action is needed.' }}
+                            </p>
+
+                            <!-- Proof of delivery details -->
+                            <div
+                                v-if="proofRecorded && (proofDetails.recipient || proofDetails.note || proofDetails.capturedAt)"
+                                class="rider-proof-card text-start mb-3"
+                            >
+                                <h3 class="rider-proof-title">
+                                    <i class="bi bi-patch-check me-1" aria-hidden="true"></i>Proof of delivery
+                                </h3>
+                                <dl class="rider-proof-list mb-0">
+                                    <div v-if="proofDetails.recipient" class="rider-proof-row">
+                                        <dt>Received by</dt>
+                                        <dd>{{ proofDetails.recipient }}</dd>
+                                    </div>
+                                    <div v-if="proofDetails.capturedAt" class="rider-proof-row">
+                                        <dt>Captured</dt>
+                                        <dd>{{ formatDateTime(proofDetails.capturedAt) }}</dd>
+                                    </div>
+                                    <div v-if="proofDetails.note" class="rider-proof-row">
+                                        <dt>Note</dt>
+                                        <dd>{{ proofDetails.note }}</dd>
+                                    </div>
+                                </dl>
+                            </div>
+
+                            <!-- Customer rating -->
+                            <div v-if="ratingValue" class="rider-rating-card mb-3" :aria-label="`Rated ${ratingValue} out of 5`">
+                                <span class="rider-rating-stars">
+                                    <i v-for="n in 5" :key="'rating-' + n" :class="['bi', starClass(n)]" aria-hidden="true"></i>
+                                </span>
+                                <span class="small text-muted">Customer rated this delivery {{ ratingValue }}/5</span>
+                            </div>
+
+                            <div class="d-grid gap-2">
+                                <a
+                                    v-if="proofRecorded"
+                                    :href="`${baseUrl}orders/${order.order_id}/proof`"
+                                    target="_blank"
+                                    rel="noopener"
+                                    class="btn btn-outline-primary rider-action-btn"
+                                >
+                                    <i class="bi bi-image me-2" aria-hidden="true"></i>
+                                    View proof photo
+                                </a>
+                                <a :href="`${baseUrl}rider?tab=history`" class="btn btn-outline-primary rider-action-btn">
+                                    <i class="bi bi-clock-history me-2" aria-hidden="true"></i>
+                                    Back to history
+                                </a>
+                            </div>
                         </div>
                     </template>
 
@@ -588,6 +717,92 @@ onUnmounted(() => {
     margin-bottom: 1.25rem;
     display: flex;
     align-items: center;
+}
+
+/* ── Trip Summary ─────────────────────────────────────── */
+.rider-trip-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .875rem 1.25rem;
+    padding: 1rem 1.25rem;
+}
+.rider-trip-summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    min-width: 0;
+}
+.rider-trip-summary-label {
+    font-size: .68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--ink-2);
+}
+.rider-trip-summary-value {
+    font-size: .9rem;
+    font-weight: 600;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+}
+
+/* ── Proof / rating cards on completed deliveries ─────── */
+.rider-proof-card {
+    border: 1px solid var(--line);
+    border-radius: .75rem;
+    background: var(--paper);
+    padding: .875rem 1rem;
+}
+.rider-proof-title {
+    font-size: .8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--ink-2);
+    margin-bottom: .625rem;
+}
+.rider-proof-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.rider-proof-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .4rem 0;
+    border-top: 1px solid var(--line);
+}
+.rider-proof-row:first-child { border-top: 0; padding-top: 0; }
+.rider-proof-row dt {
+    margin: 0;
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--ink-2);
+    flex-shrink: 0;
+}
+.rider-proof-row dd {
+    margin: 0;
+    font-size: .85rem;
+    font-weight: 600;
+    text-align: end;
+    overflow-wrap: anywhere;
+}
+.rider-rating-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .25rem;
+    padding: .75rem 1rem;
+    border: 1px solid color-mix(in srgb, var(--amber) 30%, var(--line));
+    border-radius: .75rem;
+    background: var(--status-pending-bg);
+}
+.rider-rating-stars {
+    color: var(--amber-ink);
+    font-size: 1rem;
+    letter-spacing: .1em;
 }
 
 /* ── Route Timeline ───────────────────────────────────── */
@@ -904,6 +1119,11 @@ onUnmounted(() => {
 @media (max-width: 575.98px) {
     .rider-detail-header .page-title { font-size: 1.5rem; }
     .rider-detail-header .status-chip { margin-top: .25rem; }
+    .rider-trip-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        padding: .875rem 1rem;
+        gap: .75rem 1rem;
+    }
     .rider-route-timeline { padding-left: 2.1rem; }
     .rider-contact-actions { gap: .375rem; }
     .rider-contact-btn { flex: 1 1 auto; justify-content: center; }

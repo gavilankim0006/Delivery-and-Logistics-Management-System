@@ -2,6 +2,9 @@
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 $dispatchCssPath = dirname(__DIR__, 3) . '/public/css/dispatch-portal.css';
 $extra_css = '<link href="' . base_url('css/dispatch-portal.css') . (is_file($dispatchCssPath) ? '?v=' . (string)filemtime($dispatchCssPath) : '') . '" rel="stylesheet">';
+foreach (vite_entry_css('frontend/dispatch/main.js') as $dispatchCssFile) {
+    $extra_css .= '<link href="' . e(base_url('build/' . ltrim($dispatchCssFile, '/'))) . '" rel="stylesheet">';
+}
 $this->call->view('templates/header', ['page_title' => $page_title ?? 'Live Dispatch Board', 'extra_css' => $extra_css]);
 
 $flashes = [];
@@ -11,18 +14,29 @@ foreach (['success', 'error', 'warning', 'info'] as $flashType) {
     }
 }
 
+$dispatchMetrics = $metrics ?? [
+    'delivered_today' => 0,
+    'delivered_week' => 0,
+    'active_riders' => 0,
+    'available_riders' => 0,
+    'busy_riders' => 0,
+    'awaiting_booking' => (int)($awaiting_booking ?? 0),
+    'failed_count' => (int)($failed_count ?? 0),
+];
 $dispatchPageProps = [
     'controls' => [
         'today' => date('Y-m-d'),
         'date' => $date_filter ?? '',
         'status' => $status_filter ?? '',
         'search' => $search ?? '',
+        'dispatcherName' => (string)($dispatcher_name ?? 'Dispatcher'),
         'summary' => [
             'today_total' => (int)($today_total ?? 0),
             'awaiting_booking' => (int)($awaiting_booking ?? 0),
             'in_transit' => (int)($in_transit ?? 0),
             'failed_count' => (int)($failed_count ?? 0),
         ],
+        'metrics' => array_map('intval', $dispatchMetrics),
         'pendingRequests' => array_map(static fn($request) => [
             'id' => (int)($request['id'] ?? 0),
             'order_id' => (int)($request['order_id'] ?? 0),
@@ -35,17 +49,26 @@ $dispatchPageProps = [
         'dataUrl' => $dispatch_data_url ?? base_url('dispatch/data'),
         'fulfillmentActions' => !empty($fulfillment_actions),
         'availableRiders' => $available_riders ?? [],
+        'riders' => $riders ?? [],
+        'activity' => $activity ?? [],
+        'metrics' => array_map('intval', $dispatchMetrics),
+        'dispatcherName' => (string)($dispatcher_name ?? 'Dispatcher'),
     ],
     'baseUrl' => base_url(),
     'csrfToken' => $csrf_token ?? csrf_token(),
     'flashes' => $flashes,
 ];
+$csrf_token = $csrf_token ?? csrf_token();
 ?>
 <div id="dispatch-page-vue-root"
     data-props="<?= e(json_encode($dispatchPageProps, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?: '{}') ?>"
     data-base-url="<?= e(base_url()) ?>"
-    data-csrf-token="<?= e($csrf_token ?? csrf_token()) ?>"
-    data-csrf-name="csrf_token">
+    data-csrf-token="<?= e($csrf_token) ?>"
+    data-csrf-name="csrf_token"
+    data-fulfillment-actions="<?= !empty($fulfillment_actions) ? 'true' : 'false' ?>"
+    data-available-riders="<?= e(json_encode($available_riders ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>">
+    <noscript><div class="container py-4"><div class="alert alert-warning">Enable JavaScript to view the dispatch board.</div></div></noscript>
+    <div id="dispatch-controls-vue-root" hidden aria-hidden="true"></div>
 </div>
 <?php
 $dispatchBundlePath = dirname(__DIR__, 3) . '/public/build/dispatch.js';

@@ -51,17 +51,45 @@
     gap: .75rem;
 }
 
-.dispatch-attention-list { margin-top: .75rem; }
+.dispatch-attention-list {
+    margin-top: .75rem;
+    /* Keep the board visible when many orders need attention; the list scrolls. */
+    max-height: 264px;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-width: thin;
+}
 
 .dispatch-attention-item {
     padding: .65rem 0;
     border-top: 1px solid var(--line);
 }
 
+.dispatch-attention-item:first-child { border-top: 0; padding-top: .25rem; }
+
+.dispatch-attention-message { margin-inline-start: var(--s-2); }
+
 @media (max-width: 575.98px) {
     .dispatch-attention-panel { padding: .875rem; }
-    .dispatch-attention-item { align-items: flex-start; }
-    .dispatch-attention-item > div { overflow-wrap: anywhere; }
+    .dispatch-attention-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--s-2);
+    }
+    .dispatch-attention-item > div {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        overflow-wrap: anywhere;
+    }
+    .dispatch-attention-message {
+        margin-inline-start: 0;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .dispatch-attention-item .btn { width: 100%; }
 }
 
 .dispatch-page-shell {
@@ -119,6 +147,32 @@
     color: var(--amber);
 }
 
+/* ---------- Shift Live Stats ---------- */
+.dispatch-shift-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-2);
+    margin-top: var(--s-2);
+}
+
+.dispatch-shift-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--r-pill);
+    background: rgba(255, 255, 255, .1);
+    color: rgba(255, 255, 255, .9);
+    font-size: var(--font-size-12);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.dispatch-shift-stat i {
+    color: var(--amber);
+    font-size: .85rem;
+}
+
 /* ---------- KPI Metric Cards ---------- */
 .dispatch-kpi-grid {
     display: grid;
@@ -156,6 +210,11 @@
 .dispatch-kpi-card.is-active {
     border-color: var(--route);
     background: var(--status-blue-bg);
+}
+
+.dispatch-kpi-card:focus-visible {
+    outline: 2px solid var(--route);
+    outline-offset: 2px;
 }
 
 .dispatch-kpi-icon {
@@ -218,6 +277,37 @@
 
 .dispatch-search-input-group .form-control {
     padding-left: 2.5rem;
+}
+
+.dispatch-search-clear {
+    width: 24px;
+    height: 24px;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-16);
+    transition: color var(--dispatch-transition);
+}
+
+.dispatch-search-clear:hover { color: var(--ink) !important; }
+
+.dispatch-search-clear:focus-visible {
+    outline: 2px solid var(--route);
+    outline-offset: 2px;
+}
+
+/* Keep the apply/clear actions aligned with the toolbar above them. */
+.dispatch-filter-controls { justify-content: space-between; }
+
+.dispatch-filter-actions {
+    margin-inline-start: auto;
+    align-items: end;
 }
 
 .dispatch-active-filters {
@@ -604,6 +694,25 @@
 
 .dispatch-live-dot--loading { background: var(--amber); }
 
+/* Steady heartbeat while the board is connected; the amber dot blinks while refreshing. */
+@keyframes dispatchLivePulse {
+    0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 40%, transparent); }
+    70%  { box-shadow: 0 0 0 6px color-mix(in srgb, var(--success) 0%, transparent); }
+    100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 0%, transparent); }
+}
+
+@keyframes dispatchLiveBlink {
+    50% { opacity: .3; }
+}
+
+.dispatch-live-dot:not(.dispatch-live-dot--error):not(.dispatch-live-dot--loading) {
+    animation: dispatchLivePulse 2.6s ease-out infinite;
+}
+
+.dispatch-live-dot--loading {
+    animation: dispatchLiveBlink 1s ease-in-out infinite;
+}
+
 /* ---------- Empty State ---------- */
 .dispatch-empty-state {
     display: flex;
@@ -697,7 +806,7 @@
     border-top: 1px solid var(--line);
     box-shadow: var(--dispatch-sticky-shadow);
     z-index: 1030;
-    padding: var(--s-2) var(--s-3);
+    padding: var(--s-2) var(--s-3) calc(var(--s-2) + env(safe-area-inset-bottom, 0px));
 }
 
 .dispatch-mobile-bottom-bar-inner {
@@ -728,6 +837,19 @@
 
 .dispatch-mobile-nav-item i { font-size: 1.2rem; }
 
+button.dispatch-mobile-nav-item {
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    cursor: pointer;
+    appearance: none;
+}
+
+button.dispatch-mobile-nav-item.is-active {
+    color: var(--route);
+    background: var(--status-blue-bg);
+}
+
 .dispatch-mobile-nav-item:hover,
 .dispatch-mobile-nav-item.is-active {
     color: var(--route);
@@ -751,6 +873,8 @@
     justify-content: center;
 }
 
+.dispatch-mobile-nav-badge--route { background: var(--route); }
+
 /* ---------- Responsive Breakpoints ---------- */
 
 /* ---- Tablet (768px–991px) ---- */
@@ -770,7 +894,8 @@
     .dispatch-page-shell {
         width: calc(100% - var(--s-3) * 2) !important;
         max-width: none !important;
-        padding-block-end: 72px; /* space for bottom bar */
+        /* Space for the fixed bottom bar, including the home-indicator inset. */
+        padding-block-end: calc(72px + env(safe-area-inset-bottom, 0px));
     }
 
     .dispatch-shift-banner {
@@ -867,6 +992,55 @@
     }
 }
 
+/* ---- Intermediate widths: keep the wide table usable with horizontal scroll ---- */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+    .dispatch-page-shell .dispatch-table-scroll {
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .dispatch-page-shell .dispatch-table-scroll .dispatch-orders-table {
+        min-width: 1120px;
+    }
+
+    /* Keep route addresses from collapsing into very tall columns. */
+    .dispatch-page-shell .dispatch-orders-table th:nth-child(3),
+    .dispatch-page-shell .dispatch-orders-table td:nth-child(3) {
+        min-width: 280px;
+    }
+}
+
+/* ---- Table action cell: stack fulfillment controls so labels never clip ---- */
+@media (min-width: 768px) {
+    .dispatch-page-shell .dispatch-orders-table .dispatch-fulfillment-actions .dispatch-fulfillment-form {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dispatch-page-shell .dispatch-orders-table .dispatch-fulfillment-actions .dispatch-fulfillment-form .btn,
+    .dispatch-page-shell .dispatch-orders-table .dispatch-fulfillment-actions .dispatch-lalamove-form,
+    .dispatch-page-shell .dispatch-orders-table .dispatch-fulfillment-actions .dispatch-lalamove-form .btn {
+        width: 100%;
+    }
+}
+
+/* ---- Wide desktop: deterministic column rhythm for the order table ---- */
+@media (min-width: 1280px) {
+    .dispatch-page-shell .dispatch-orders-table {
+        table-layout: fixed;
+    }
+
+    .dispatch-page-shell .dispatch-orders-table th:nth-child(1) { width: 175px; }
+    .dispatch-page-shell .dispatch-orders-table th:nth-child(2) { width: 110px; }
+    .dispatch-page-shell .dispatch-orders-table th:nth-child(4) { width: 160px; }
+    .dispatch-page-shell .dispatch-orders-table th:nth-child(5) { width: 130px; }
+    .dispatch-page-shell .dispatch-orders-table th:nth-child(6) { width: 95px; }
+    .dispatch-page-shell .dispatch-orders-table th:nth-child(7) { width: 220px; }
+
+    /* Route column keeps the remaining space and stays the widest column. */
+    .dispatch-page-shell .dispatch-orders-table th:nth-child(3) { width: auto; }
+}
+
 /* ---- Large Desktop (≥1200px) ---- */
 @media (min-width: 1200px) {
     .dispatch-kpi-grid {
@@ -932,6 +1106,38 @@
     }
 }
 
+
+/* ---------- Filter toolbar layout ----------
+   The summary metrics now live in the KPI grid, so the toolbar is a simple
+   search + date row. These overrides replace the legacy three-column rules. */
+@media (min-width: 768px) {
+    .dispatch-page-shell .dispatch-toolbar {
+        grid-template-columns: minmax(0, 1fr) minmax(190px, 240px);
+        align-items: end;
+    }
+
+    .dispatch-page-shell .dispatch-toolbar > .dispatch-search-group {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .dispatch-page-shell .dispatch-toolbar > .dispatch-date-filter {
+        grid-column: 2;
+        grid-row: 1;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .dispatch-page-shell .dispatch-toolbar {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dispatch-page-shell .dispatch-toolbar > .dispatch-search-group,
+    .dispatch-page-shell .dispatch-toolbar > .dispatch-date-filter {
+        grid-column: 1;
+        grid-row: auto;
+    }
+}
 
 /* ---------- Align navbar & footer widths with dispatch wide shell ---------- */
 body:has(.dispatch-page-shell) .navbar-custom .page-shell {

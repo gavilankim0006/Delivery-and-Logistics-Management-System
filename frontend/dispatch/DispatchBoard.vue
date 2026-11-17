@@ -9,6 +9,8 @@ const props = defineProps({
     availableRiders: { type: Array, default: () => [] }
 });
 
+const emit = defineEmits(['board-data']);
+
 const orders = ref([]);
 const availableRiders = ref(props.availableRiders);
 const loading = ref(true);
@@ -76,26 +78,34 @@ async function loadBoard(isManualRefresh = false) {
                 failed_count: Number(result.data.failed_count ?? 0)
             };
         }
-        const controlsRoot = document.getElementById('dispatch-controls-vue-root');
-        if (controlsRoot) {
-            controlsRoot.dispatchEvent(new CustomEvent('dispatch-summary', { detail: {
-                today_total: result.data.today_total,
-                awaiting_booking: result.data.awaiting_booking,
-                in_transit: result.data.in_transit,
-                failed_count: result.data.failed_count
-            } }));
-        }
+        const metrics = result.data.metrics && typeof result.data.metrics === 'object' ? result.data.metrics : null;
+        window.dispatchEvent(new CustomEvent('dispatch-summary', { detail: {
+            today_total: result.data.today_total,
+            awaiting_booking: result.data.awaiting_booking,
+            in_transit: result.data.in_transit,
+            failed_count: result.data.failed_count,
+            metrics
+        } }));
+        emit('board-data', {
+            orders: result.data.orders || [],
+            summary: {
+                today_total: Number(result.data.today_total ?? 0),
+                awaiting_booking: Number(result.data.awaiting_booking ?? 0),
+                in_transit: Number(result.data.in_transit ?? 0),
+                failed_count: Number(result.data.failed_count ?? 0)
+            },
+            riders: Array.isArray(result.data.riders) ? result.data.riders : [],
+            activity: Array.isArray(result.data.activity) ? result.data.activity : [],
+            metrics: metrics || {},
+            dispatcherName: result.data.dispatcher_name || ''
+        });
         error.value = '';
         lastUpdated.value = new Date().toLocaleTimeString([], {
             hour: 'numeric', minute: '2-digit', second: '2-digit'
         });
-        const liveStatus = document.getElementById('dispatch-live-status');
-        if (liveStatus) liveStatus.textContent = `Updated ${lastUpdated.value}`;
     } catch (requestError) {
         if (requestError.name !== 'AbortError') {
             error.value = requestError.message || 'Unable to refresh the dispatch board.';
-            const liveStatus = document.getElementById('dispatch-live-status');
-            if (liveStatus) liveStatus.textContent = 'Update failed';
         }
     } finally {
         if (!controller.signal.aborted) {
@@ -361,7 +371,7 @@ onUnmounted(() => {
             <li v-for="order in attentionOrders" :key="`attention-${order.id}`" class="dispatch-attention-item">
                 <div class="min-w-0">
                     <a class="fw-semibold" :href="`${baseUrl}orders/${order.id}`">{{ order.order_no }}</a>
-                    <span class="small text-muted ms-2">{{ order.recovery?.message || 'Order marked failed' }}</span>
+                    <span class="small text-muted dispatch-attention-message">{{ order.recovery?.message || 'Order marked failed' }}</span>
                 </div>
                 <a class="btn btn-sm btn-outline-primary flex-shrink-0" :href="orderUrl(order.id)">
                     {{ hasActions(order) ? 'Open actions' : 'Review order' }}
@@ -707,33 +717,6 @@ onUnmounted(() => {
             {{ orders.length }} order{{ orders.length !== 1 ? 's' : '' }} · {{ lastUpdated ? `Updated ${lastUpdated}` : 'Updating…' }}
         </div>
     </div>
-
-    <!-- Mobile Bottom Nav (shown via CSS) -->
-    <nav class="dispatch-mobile-bottom-bar" aria-label="Dispatch mobile navigation">
-        <div class="dispatch-mobile-bottom-bar-inner">
-            <a :href="`${props.baseUrl}dispatch`" class="dispatch-mobile-nav-item is-active">
-                <i class="bi bi-kanban" aria-hidden="true"></i>
-                <span>Board</span>
-            </a>
-            <a :href="`${props.baseUrl}dispatch?status=paid`" class="dispatch-mobile-nav-item">
-                <i class="bi bi-hourglass-split" aria-hidden="true"></i>
-                <span>Pending</span>
-            </a>
-            <a :href="`${props.baseUrl}dispatch?status=in_transit`" class="dispatch-mobile-nav-item">
-                <i class="bi bi-truck" aria-hidden="true"></i>
-                <span>Transit</span>
-            </a>
-            <a :href="`${props.baseUrl}dispatch?status=failed`" class="dispatch-mobile-nav-item">
-                <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
-                <span>Failed</span>
-                <span v-if="Number(summary.failed_count) > 0" class="dispatch-mobile-nav-badge">{{ summary.failed_count }}</span>
-            </a>
-            <a :href="`${props.baseUrl}orders`" class="dispatch-mobile-nav-item">
-                <i class="bi bi-box-seam" aria-hidden="true"></i>
-                <span>Orders</span>
-            </a>
-        </div>
-    </nav>
 </template>
 
 <style scoped>

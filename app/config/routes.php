@@ -161,6 +161,7 @@ $router->get('/spa', 'Spa::index');
 $router->get('/app', 'Vue_app::index');
 $router->get('/rider', 'Rider::index');
 $router->get('/rider/data', 'Rider::data');
+$router->post('/rider/availability', 'Rider::availability');
 $router->get('/rider/orders/{id}', 'Rider::show');
 $router->get('/rider/orders/{id}/data', 'Rider::show_data');
 $router->post('/rider/orders/{id}/pickup', 'Rider::pickup');

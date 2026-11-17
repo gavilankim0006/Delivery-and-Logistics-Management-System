@@ -59,6 +59,13 @@ class DeliveryNotificationService
             error_log('In-app notification failed for order ' . $orderId . ': ' . $e->getMessage());
         }
 
+        // Keep the dispatcher who assigned the rider informed of delivery progress.
+        try {
+            $this->recordDispatchInApp($orderId, $status);
+        } catch (Throwable $e) {
+            error_log('Dispatch in-app notification failed for order ' . $orderId . ': ' . $e->getMessage());
+        }
+
         // Enqueue SMS if opted in
         if ((int)($row['delivery_status_sms_opt_in'] ?? 0) === 1 && trim((string)($row['phone'] ?? '')) !== '') {
             $this->db->raw(
@@ -150,6 +157,52 @@ class DeliveryNotificationService
                 (int)$row['user_id'],
                 $orderId,
                 'order_' . $status,
+                $titles[$status],
+                sprintf($messages[$status], (string)$row['order_no']),
+                date('Y-m-d H:i:s')
+            ]
+        );
+        return true;
+    }
+
+    /**
+     * Insert an in-app notification for the dispatcher who assigned the rider
+     * when a delivery progresses or needs attention.
+     */
+    public function recordDispatchInApp(int $orderId, string $status): bool
+    {
+        $titles = [
+            'picked_up' => 'Rider picked up an order',
+            'delivered' => 'Delivery completed',
+            'failed' => 'Delivery needs dispatch attention',
+        ];
+        $messages = [
+            'picked_up' => 'Rider picked up order %s.',
+            'delivered' => 'Order %s was delivered successfully.',
+            'failed' => 'Order %s failed and needs review.',
+        ];
+        if (!isset($titles[$status], $messages[$status])) {
+            return false;
+        }
+
+        $row = $this->db->raw(
+            'SELECT ra.assigned_by, o.order_no
+             FROM rider_assignments ra
+             INNER JOIN orders o ON o.id = ra.order_id
+             WHERE ra.order_id = ? AND ra.assigned_by > 0
+             ORDER BY ra.id DESC LIMIT 1',
+            [$orderId]
+        )->fetch(PDO::FETCH_ASSOC);
+        if (!$row || empty($row['assigned_by'])) {
+            return false;
+        }
+
+        $this->db->raw(
+            'INSERT INTO user_notifications (user_id, order_id, type, title, body, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+            [
+                (int)$row['assigned_by'],
+                $orderId,
+                'dispatch_' . $status,
                 $titles[$status],
                 sprintf($messages[$status], (string)$row['order_no']),
                 date('Y-m-d H:i:s')

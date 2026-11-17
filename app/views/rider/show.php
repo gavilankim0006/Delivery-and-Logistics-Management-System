@@ -19,6 +19,8 @@ foreach (['success', 'error', 'warning', 'info'] as $flashType) {
 $riderProps = [
     'order' => $order,
     'proofRecorded' => !empty($proof_recorded),
+    'completed' => !empty($completed),
+    'proof' => $proof ?? null,
     'baseUrl' => base_url(),
     'csrfField' => csrf_field(),
     'csrfToken' => csrf_token(),

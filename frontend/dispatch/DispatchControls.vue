@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 const props = defineProps({
     initial: { type: Object, required: true },
@@ -15,11 +15,16 @@ const filters = ref({
 });
 
 const summary = ref(props.initial.summary || {});
+const metrics = ref(props.initial.metrics || {});
+const dispatcherName = computed(() => {
+    const name = String(props.initial.dispatcherName || '').trim();
+    if (!name) return 'Dispatcher';
+    return name.split(/\s+/)[0];
+});
 const pendingRequests = ref(props.initial.pendingRequests || []);
 const statusOpen = ref(false);
 const holdExpanded = ref(true);
 const clearUrl = computed(() => `${props.baseUrl}dispatch`);
-const controlsRoot = document.getElementById('dispatch-controls-vue-root');
 const clock = ref('');
 let clockTimer;
 
@@ -45,8 +50,38 @@ const today = computed(() => {
 });
 
 const updateSummary = (event) => {
-    summary.value = { ...summary.value, ...event.detail };
+    const detail = event.detail || {};
+    summary.value = { ...summary.value, ...detail };
+    if (detail.metrics && typeof detail.metrics === 'object') {
+        metrics.value = { ...metrics.value, ...detail.metrics };
+    }
 };
+
+// Briefly pop a KPI value when the live board reports a fresh count.
+const pulses = ref({ today: false, awaiting: false, transit: false, failed: false });
+let pulseTimer;
+function flashPulse(key) {
+    pulses.value = { ...pulses.value, [key]: true };
+    clearTimeout(pulseTimer);
+    pulseTimer = setTimeout(() => {
+        pulses.value = { today: false, awaiting: false, transit: false, failed: false };
+    }, 450);
+}
+
+watch(
+    () => ({
+        today: Number(summary.value.today_total ?? 0),
+        awaiting: Number(summary.value.awaiting_booking ?? 0),
+        transit: Number(summary.value.in_transit ?? 0),
+        failed: Number(summary.value.failed_count ?? 0)
+    }),
+    (next, previous) => {
+        if (!previous) return;
+        for (const key of Object.keys(next)) {
+            if (next[key] !== previous[key]) flashPulse(key);
+        }
+    }
+);
 
 // Active filter tags
 const activeFilterTags = computed(() => {
@@ -90,14 +125,15 @@ function statusDisplay(value) {
 }
 
 onMounted(() => {
-    controlsRoot?.addEventListener('dispatch-summary', updateSummary);
+    window.addEventListener('dispatch-summary', updateSummary);
     updateClock();
     clockTimer = setInterval(updateClock, 1000);
 });
 
 onUnmounted(() => {
-    controlsRoot?.removeEventListener('dispatch-summary', updateSummary);
+    window.removeEventListener('dispatch-summary', updateSummary);
     clearInterval(clockTimer);
+    clearTimeout(pulseTimer);
 });
 
 function number(value) {
@@ -135,8 +171,22 @@ function kpiActive(key) {
         <!-- Shift Banner -->
         <div class="dispatch-shift-banner dispatch-fade-in">
             <div class="dispatch-shift-greeting">
-                <h2>{{ greeting }}, Dispatcher</h2>
-                <p>{{ today }}</p>
+                <h2>{{ greeting }}, {{ dispatcherName }}</h2>
+                <p>{{ today }} · Shift overview</p>
+                <div class="dispatch-shift-stats" aria-label="Live shift metrics">
+                    <span class="dispatch-shift-stat">
+                        <i class="bi bi-bicycle" aria-hidden="true"></i>
+                        {{ number(metrics.available_riders) }} available rider{{ Number(metrics.available_riders) === 1 ? '' : 's' }}
+                    </span>
+                    <span class="dispatch-shift-stat">
+                        <i class="bi bi-truck" aria-hidden="true"></i>
+                        {{ number(summary.in_transit) }} in transit
+                    </span>
+                    <span class="dispatch-shift-stat">
+                        <i class="bi bi-check2-circle" aria-hidden="true"></i>
+                        {{ number(metrics.delivered_today) }} delivered today
+                    </span>
+                </div>
             </div>
             <div class="dispatch-shift-clock">
                 <i class="bi bi-clock" aria-hidden="true"></i>
@@ -156,7 +206,7 @@ function kpiActive(key) {
                     <i class="bi bi-calendar-check" aria-hidden="true"></i>
                 </div>
                 <span class="dispatch-kpi-label">Today's Orders</span>
-                <span class="dispatch-kpi-value">{{ number(summary.today_total) }}</span>
+                <span class="dispatch-kpi-value" :class="{ 'is-updating': pulses.today }">{{ number(summary.today_total) }}</span>
                 <span class="dispatch-kpi-hint">Orders placed today</span>
             </a>
             <a
@@ -169,7 +219,7 @@ function kpiActive(key) {
                     <i class="bi bi-hourglass-split" aria-hidden="true"></i>
                 </div>
                 <span class="dispatch-kpi-label">Awaiting Booking</span>
-                <span class="dispatch-kpi-value">{{ number(summary.awaiting_booking) }}</span>
+                <span class="dispatch-kpi-value" :class="{ 'is-updating': pulses.awaiting }">{{ number(summary.awaiting_booking) }}</span>
                 <span class="dispatch-kpi-hint">Paid, needs assignment</span>
             </a>
             <a
@@ -182,7 +232,7 @@ function kpiActive(key) {
                     <i class="bi bi-truck" aria-hidden="true"></i>
                 </div>
                 <span class="dispatch-kpi-label">In Transit</span>
-                <span class="dispatch-kpi-value">{{ number(summary.in_transit) }}</span>
+                <span class="dispatch-kpi-value" :class="{ 'is-updating': pulses.transit }">{{ number(summary.in_transit) }}</span>
                 <span class="dispatch-kpi-hint">Active deliveries</span>
             </a>
             <a
@@ -195,7 +245,7 @@ function kpiActive(key) {
                     <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
                 </div>
                 <span class="dispatch-kpi-label">Failed / Exceptions</span>
-                <span class="dispatch-kpi-value">{{ number(summary.failed_count) }}</span>
+                <span class="dispatch-kpi-value" :class="{ 'is-updating': pulses.failed }">{{ number(summary.failed_count) }}</span>
                 <span class="dispatch-kpi-hint">Needs attention</span>
             </a>
         </div>
@@ -221,8 +271,7 @@ function kpiActive(key) {
                             <button
                                 v-if="filters.search"
                                 type="button"
-                                class="dispatch-search-clear position-absolute end-0 top-50 translate-middle-y me-2 border-0 bg-transparent text-muted p-0 d-flex align-items-center justify-content-center"
-                                style="width: 24px; height: 24px; cursor: pointer; z-index: 4;"
+                                class="dispatch-search-clear position-absolute end-0 top-50 translate-middle-y me-2 text-muted"
                                 aria-label="Clear search"
                                 @click="clearSearch"
                             >

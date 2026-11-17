@@ -118,9 +118,38 @@ class Dispatch extends Controller
         }
         unset($order);
 
+        $deliveredToday = (int)$db->raw("SELECT COUNT(*) AS c FROM deliveries WHERE to_status = 'delivered' AND DATE(created_at) = CURRENT_DATE()")->fetch()['c'];
+        $deliveredWeek = (int)$db->raw("SELECT COUNT(*) AS c FROM deliveries WHERE to_status = 'delivered' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)")->fetch()['c'];
+        $activeRiders = (int)$db->raw('SELECT COUNT(*) AS c FROM rider_assignments WHERE released_at IS NULL')->fetch()['c'];
+        $availableRiders = (int)$db->table('riders')->where('status', 'available')->where_null('deleted_at')->select_count('*', 'c')->get()['c'];
+        $busyRiders = (int)$db->table('riders')->where('status', 'busy')->where_null('deleted_at')->select_count('*', 'c')->get()['c'];
+
+        $activity = $db->raw("SELECT d.id, d.order_id, d.from_status, d.to_status, d.actor_type, d.notes, d.created_at,
+                o.order_no, u.name AS actor_name, cu.name AS customer_name
+            FROM deliveries d
+            INNER JOIN orders o ON o.id = d.order_id AND o.deleted_at IS NULL
+            INNER JOIN customers c ON c.id = o.customer_id
+            INNER JOIN users cu ON cu.id = c.user_id
+            LEFT JOIN users u ON u.id = d.actor_id
+            ORDER BY d.id DESC LIMIT 40")->fetchAll(PDO::FETCH_ASSOC);
+
+        $dispatcher = auth_user() ?: [];
+
         return [
             'orders' => $orders,
             'available_riders' => $this->Rider_model->get_available_internal(),
+            'riders' => $this->Rider_model->get_roster(),
+            'activity' => $activity,
+            'metrics' => [
+                'delivered_today' => $deliveredToday,
+                'delivered_week' => $deliveredWeek,
+                'active_riders' => $activeRiders,
+                'available_riders' => $availableRiders,
+                'busy_riders' => $busyRiders,
+                'awaiting_booking' => $awaitingBooking,
+                'failed_count' => $failedCount,
+            ],
+            'dispatcher_name' => (string)($dispatcher['name'] ?? 'Dispatcher'),
             'today_total' => $todayTotal,
             'awaiting_booking' => $awaitingBooking,
             'in_transit' => $inTransit,

@@ -20,7 +20,7 @@ const isNotificationsOpen = ref(false);
 let notificationTimer = null;
 
 async function loadNotifications() {
-    if (props.role !== 'customer') return;
+    if (!props.role || props.role === 'guest') return;
     try {
         const response = await fetch(url('notifications/data'), {
             credentials: 'same-origin',
@@ -39,7 +39,7 @@ async function loadNotifications() {
 }
 
 function scheduleNotificationPoll() {
-    if (typeof window === 'undefined' || props.role !== 'customer') return;
+    if (typeof window === 'undefined' || !props.role || props.role === 'guest') return;
     window.clearTimeout(notificationTimer);
     notificationTimer = window.setTimeout(async () => {
         if (!document.hidden) {
@@ -57,7 +57,10 @@ function toggleNotifications() {
 }
 
 function notificationTarget(notification) {
-    return notification.order_id ? `${cleanBaseUrl.value}orders/${Number(notification.order_id)}` : cleanBaseUrl.value;
+    if (!notification.order_id) return cleanBaseUrl.value;
+    const orderId = Number(notification.order_id);
+    if (props.role === 'rider') return `${cleanBaseUrl.value}rider/orders/${orderId}`;
+    return `${cleanBaseUrl.value}orders/${orderId}`;
 }
 
 async function markNotificationRead(notification) {
@@ -191,7 +194,7 @@ onMounted(() => {
     if (typeof window !== 'undefined') {
         window.addEventListener('click', handleClickOutside);
     }
-    if (props.role === 'customer') {
+    if (props.role && props.role !== 'guest') {
         loadNotifications();
         scheduleNotificationPoll();
     }
@@ -396,7 +399,7 @@ onBeforeUnmount(() => {
                 <!-- Right Nav Items / Account Menu -->
                 <ul class="navbar-nav ms-auto align-items-lg-center">
                     <template v-if="role && role !== 'guest'">
-                        <li v-if="role === 'customer'" class="nav-item dropdown dropdown-notifications">
+                        <li v-if="role && role !== 'guest'" class="nav-item dropdown dropdown-notifications">
                             <button
                                 class="nav-link dropdown-toggle btn btn-link text-decoration-none border-0 position-relative"
                                 type="button"

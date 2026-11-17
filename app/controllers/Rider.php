@@ -16,18 +16,36 @@ class Rider extends Controller
 
     public function index(): void
     {
-        $rider = $this->Rider_model->find_for_user((int)auth_id());
-        $orders = $rider ? $this->Rider_model->get_active_orders((int)auth_id()) : [];
+        $userId = (int)auth_id();
+        $rider = $this->Rider_model->find_for_user($userId);
+        $orders = $rider ? $this->Rider_model->get_active_orders($userId) : [];
+        $history = $rider ? $this->Rider_model->get_completed_orders($userId) : [];
+        $stats = $rider ? $this->Rider_model->get_stats($userId) : [];
+        $user = auth_user() ?: [];
         $this->call->view('rider/index', [
             'page_title' => 'My deliveries',
             'orders' => $orders,
+            'history' => $history,
+            'stats' => $stats,
+            'rider' => $rider,
+            'account' => [
+                'name' => (string)($user['name'] ?? ''),
+                'email' => (string)($user['email'] ?? ''),
+                'phone' => (string)($user['phone'] ?? ''),
+            ],
             'portal_linked' => $rider !== null,
         ]);
     }
 
     public function show(int $id): void
     {
-        $order = $this->Rider_model->get_delivery_for_user($id, (int)auth_id());
+        $userId = (int)auth_id();
+        $order = $this->Rider_model->get_delivery_for_user($id, $userId);
+        $completed = false;
+        if (!$order) {
+            $order = $this->Rider_model->get_completed_delivery_for_user($id, $userId);
+            $completed = $order !== null;
+        }
         if (!$order) {
             http_response_code(404);
             $this->call->view('rider/not_found', ['page_title' => 'Delivery unavailable']);
@@ -39,6 +57,12 @@ class Rider extends Controller
             'page_title' => 'Delivery ' . $order['order_no'],
             'order' => $order,
             'proof_recorded' => $proof !== null,
+            'completed' => $completed,
+            'proof' => $proof ? [
+                'recipient_name' => (string)($proof['recipient_name'] ?? ''),
+                'note' => (string)($proof['note'] ?? ''),
+                'captured_at' => (string)($proof['captured_at'] ?? ''),
+            ] : null,
         ]);
     }
 
@@ -194,15 +218,84 @@ class Rider extends Controller
             $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
             return;
         }
-        $rider = $this->Rider_model->find_for_user((int)auth_id());
-        $orders = $rider ? $this->Rider_model->get_active_orders((int)auth_id()) : [];
+        $userId = (int)auth_id();
+        $rider = $this->Rider_model->find_for_user($userId);
+        $orders = $rider ? $this->Rider_model->get_active_orders($userId) : [];
+        $history = $rider ? $this->Rider_model->get_completed_orders($userId) : [];
+        $stats = $rider ? $this->Rider_model->get_stats($userId) : [];
+        $user = auth_user() ?: [];
         $this->api->respond([
             'success' => true,
             'data' => [
                 'portal_linked' => $rider !== null,
                 'rider' => $rider,
-                'orders' => $orders
+                'orders' => $orders,
+                'history' => $history,
+                'stats' => $stats,
+                'account' => [
+                    'name' => (string)($user['name'] ?? ''),
+                    'email' => (string)($user['email'] ?? ''),
+                    'phone' => (string)($user['phone'] ?? ''),
+                ],
             ]
+        ]);
+    }
+
+    public function availability(): void
+    {
+        $this->call->library('api');
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->api->respond(['success' => false, 'error' => 'Method not allowed.'], 405);
+            return;
+        }
+        if (!verify_csrf()) {
+            $this->api->respond(['success' => false, 'error' => 'Invalid security token.'], 400);
+            return;
+        }
+
+        $payload = json_decode((string)file_get_contents('php://input'), true);
+        if (!is_array($payload)) {
+            $payload = $_POST;
+        }
+        $status = strtolower(trim((string)($payload['status'] ?? '')));
+        if (!in_array($status, ['available', 'offline'], true)) {
+            $this->api->respond(['success' => false, 'error' => 'Choose a valid availability status.'], 422);
+            return;
+        }
+
+        $userId = (int)auth_id();
+        $rider = $this->Rider_model->find_for_user($userId);
+        if (!$rider) {
+            $this->api->respond(['success' => false, 'error' => 'Rider profile is not linked to your account.'], 404);
+            return;
+        }
+        if ($rider['status'] === $status) {
+            $this->api->respond(['success' => true, 'data' => ['status' => $status]]);
+            return;
+        }
+
+        $active = $this->db->raw(
+            'SELECT id FROM rider_assignments WHERE rider_id = ? AND released_at IS NULL LIMIT 1',
+            [(int)$rider['id']]
+        )->fetch(PDO::FETCH_ASSOC);
+        if ($active) {
+            $this->api->respond([
+                'success' => false,
+                'error' => 'You have an active delivery. Complete it before changing your availability.'
+            ], 409);
+            return;
+        }
+
+        if (!$this->Rider_model->update_rider((int)$rider['id'], ['status' => $status])) {
+            $this->api->respond(['success' => false, 'error' => 'Availability could not be updated. Try again.'], 422);
+            return;
+        }
+
+        $updated = $this->Rider_model->find_for_user($userId);
+        $this->api->respond([
+            'success' => true,
+            'message' => $status === 'available' ? 'You are now available for new deliveries.' : 'You are now offline.',
+            'data' => ['status' => $updated['status'] ?? $status]
         ]);
     }
 
